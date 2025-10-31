@@ -2,7 +2,7 @@
 
 A lightweight client-side Task Tracker for creating, assigning and tracking tasks for clients. This project is primarily written in JavaScript with small portions of HTML, TypeScript and CSS.
 
-Language composition (from repository metadata)
+Language composition 
 - JavaScript: 90.5%
 - HTML: 3.9%
 - TypeScript: 3.4%

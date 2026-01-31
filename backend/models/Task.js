@@ -23,20 +23,26 @@ class Task {
       dateCommissioned,
       dateDelivered,
       expectedAmount,
-      isPaid
+      isPaid,
+      priority = 'medium',
+      status = 'not_started',
+      notes = null
     } = taskData;
 
     const [result] = await pool.execute(
       `INSERT INTO tasks 
-       (client_name, task_description, date_commissioned, date_delivered, expected_amount, is_paid) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
+       (client_name, task_description, date_commissioned, date_delivered, expected_amount, is_paid, priority, status, notes) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         clientName,
         taskDescription,
         dateCommissioned || null,
         dateDelivered || null,
         expectedAmount,
-        isPaid
+        isPaid,
+        priority,
+        status,
+        notes
       ]
     );
 
@@ -50,13 +56,17 @@ class Task {
       dateCommissioned,
       dateDelivered,
       expectedAmount,
-      isPaid
+      isPaid,
+      priority,
+      status,
+      notes
     } = taskData;
 
     await pool.execute(
       `UPDATE tasks 
        SET client_name = ?, task_description = ?, date_commissioned = ?, 
-           date_delivered = ?, expected_amount = ?, is_paid = ?, updated_at = CURRENT_TIMESTAMP
+           date_delivered = ?, expected_amount = ?, is_paid = ?, 
+           priority = ?, status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [
         clientName,
@@ -65,6 +75,9 @@ class Task {
         dateDelivered || null,
         expectedAmount,
         isPaid,
+        priority,
+        status,
+        notes,
         id
       ]
     );

@@ -1,0 +1,312 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { apiService } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { useTasks } from '../hooks/useTasks';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import ErrorMessage from '../components/common/ErrorMessage';
+import Header from '../components/layout/Header';
+
+import AdminDashboard from './AdminDashboard';
+import ClientDashboard from './ClientDashboard';
+
+const Dashboard = () => {
+    const { user, logout } = useAuth();
+
+    // Custom hooks
+    const { tasks, loading, error, setError, loadTasks, createTask, updateTask, deleteTask, togglePayment } = useTasks();
+    const isOnline = useOnlineStatus();
+
+    // UI state
+    const [showForm, setShowForm] = useState(false);
+    const [editingTask, setEditingTask] = useState(null);
+    const [hideAmounts, setHideAmounts] = useState(false);
+    const fileInputRef = React.useRef(null);
+
+    // Form state
+    const [formData, setFormData] = useState({
+        clientName: '',
+        taskDescription: '',
+        dateCommissioned: '',
+        dateDelivered: '',
+        expectedAmount: '',
+        isPaid: false,
+        priority: 'medium',
+        status: 'not_started',
+        notes: '',
+        quantity: 1,
+        file: null
+    });
+
+    // Load tasks on mount
+    useEffect(() => {
+        loadTasks();
+    }, [loadTasks]);
+
+    const resetForm = () => {
+        setFormData({
+            clientName: user?.role === 'client' ? (user.fullName || user.full_name) : '', // Handle both cases just to be safe
+            taskDescription: '',
+            taskDescription: '',
+            dateCommissioned: '',
+            dateDelivered: '',
+            expectedAmount: '',
+            isPaid: false,
+            priority: 'medium',
+            status: 'not_started',
+            notes: '',
+            quantity: 1,
+            file: null
+        });
+        setEditingTask(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    // Handle add task (Create Task wrapping)
+    const handleAddTask = async (e) => {
+        if (e) e.preventDefault(); // Handle both button click calling reset and form submit
+        // Logic split: if e is event, it's submit? No, handleSubmit is valid submit handler.
+        // handleAddTask usually opens form.
+        // Let's rely on child components calling handleSubmit passed as prop?
+        // Or keep handleSubmit here.
+        resetForm();
+        setShowForm(true);
+        // scrollToForm logic can be inside child or effect
+    };
+
+    // Handle form submission
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+
+        // Auto-fill clientName for clients if missing (redundant safety)
+        const effectiveClientName = formData.clientName || (user?.role === 'client' ? (user.fullName || user.full_name) : '');
+
+        const submissionData = { ...formData, clientName: effectiveClientName };
+        // Remove file from submission data as it's handled separately
+        delete submissionData.file;
+
+        if (!effectiveClientName || !formData.taskDescription) {
+            alert('Please fill in required fields');
+            return;
+        }
+
+        try {
+            let taskResult;
+            if (editingTask) {
+                taskResult = await updateTask(editingTask, submissionData);
+            } else {
+                taskResult = await createTask(submissionData);
+            }
+
+            // Upload file if present
+            if (formData.file && taskResult) {
+                const taskId = editingTask || taskResult.id;
+                const uploadData = new FormData();
+                uploadData.append('file', formData.file);
+
+                try {
+                    await apiService.uploadFile(taskId, uploadData);
+                    await loadTasks();
+                } catch (uploadErr) {
+                    console.error('File upload failed:', uploadErr);
+                    alert('Task created but file upload failed: ' + (uploadErr.response?.data?.error || uploadErr.message));
+                }
+            }
+
+            setShowForm(false);
+            resetForm();
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    // Handle edit
+    const handleEdit = (task) => {
+        setFormData({
+            clientName: task.client_name,
+            taskDescription: task.task_description,
+            dateCommissioned: task.date_commissioned || '',
+            dateDelivered: task.date_delivered || '',
+            expectedAmount: task.expected_amount.toString(),
+            isPaid: task.is_paid,
+            priority: task.priority || 'medium',
+            status: task.status || 'not_started',
+            notes: task.notes || '',
+            quantity: task.quantity || 1,
+            file: null
+        });
+        setEditingTask(task.id);
+        setShowForm(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Handle delete
+    const handleDelete = async (id) => {
+        if (window.confirm('Are you sure you want to delete this task?')) {
+            await deleteTask(id);
+        }
+    };
+
+    // Handle input change
+    const handleInputChange = (e) => {
+        const { name, value, type, checked, files } = e.target;
+        if (type === 'file') {
+            setFormData(prev => ({ ...prev, [name]: files[0] }));
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                [name]: type === 'checkbox' ? checked : value
+            }));
+        }
+    };
+
+    // Handle toggle payment
+    const handleTogglePayment = async (taskId) => {
+        try {
+            await togglePayment(taskId);
+        } catch (err) {
+            console.error('Toggle payment error:', err);
+            alert('Failed to update payment status');
+        }
+    };
+
+    // Handle file download
+    const handleDownloadFile = async (taskId) => {
+        try {
+            const files = await apiService.getTaskFiles(taskId);
+            if (files.length > 0) {
+                const latestFile = files[0];
+                const { url } = await apiService.getDownloadUrl(latestFile.id);
+                window.open(url, '_blank');
+            } else {
+                alert('No file found for this task.');
+            }
+        } catch (err) {
+            console.error('Download error:', err);
+            alert('Failed to download file: ' + err.message);
+        }
+    }
+
+    // Handle quote response
+    const handleQuoteResponse = async (taskId, action) => {
+        if (!window.confirm(`Are you sure you want to ${action} this quote?`)) return;
+        try {
+            await apiService.respondToQuote(taskId, action);
+            await loadTasks();
+        } catch (err) {
+            console.error('Quote response error:', err);
+            alert('Failed to update quote: ' + err.message);
+        }
+    };
+
+    // Handle send quote
+    const handleSendQuote = async (taskId) => {
+        const amount = prompt('Enter quote amount:');
+        if (!amount || isNaN(amount)) return;
+        try {
+            await apiService.sendQuote(taskId, parseFloat(amount));
+            await loadTasks();
+        } catch (err) {
+            console.error('Send quote error:', err);
+            alert('Failed to send quote: ' + err.message);
+        }
+    };
+
+    // Handle duplicate task
+    const handleDuplicate = (task) => {
+        setFormData({
+            clientName: task.client_name,
+            taskDescription: task.task_description,
+            dateCommissioned: '',
+            dateDelivered: '',
+            expectedAmount: task.expected_amount,
+            isPaid: false,
+            priority: task.priority || 'medium',
+            status: 'not_started',
+            notes: task.notes || '',
+            quantity: task.quantity || 1,
+            file: null
+        });
+        setEditingTask(null);
+        setShowForm(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+
+    if (loading) return <LoadingSpinner message="Loading..." />;
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
+            <div className="max-w-7xl mx-auto space-y-6">
+                <Header
+                    isOnline={isOnline}
+                    hideAmounts={hideAmounts}
+                    onToggleAmounts={() => setHideAmounts(!hideAmounts)} // Only meaningful for admin?
+                    onAddTask={() => {
+                        resetForm();
+                        setShowForm(true);
+                    }}
+                    user={user}
+                    onLogout={logout}
+                />
+
+                <ErrorMessage error={error} />
+
+                {user?.role === 'admin' ? (
+                    <AdminDashboard
+                        user={user}
+                        tasks={tasks}
+                        loadTasks={loadTasks}
+                        onLogout={logout}
+                        // Handlers
+                        isOnline={isOnline}
+                        hideAmounts={hideAmounts}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                        onTogglePayment={handleTogglePayment}
+                        onAddTask={handleAddTask}
+                        onDownloadFile={handleDownloadFile}
+                        onQuoteResponse={handleQuoteResponse}
+                        onSendQuote={handleSendQuote}
+                        onDuplicate={handleDuplicate}
+                        // Form
+                        showForm={showForm}
+                        setShowForm={setShowForm}
+                        formData={formData}
+                        setFormData={setFormData}
+                        editingTask={editingTask}
+                        handleFormSubmit={handleSubmit}
+                        handleInputChange={handleInputChange}
+                        resetForm={resetForm}
+                    />
+                ) : (
+                    <ClientDashboard
+                        user={user}
+                        tasks={tasks} // Hooks likely already filter this via backend, IF backend is updated. 
+                        // If not, we should filter here:
+                        // tasks.filter(t => t.client_id === user.id) -- Assuming backend sends all.
+                        // Actually better to rely on backend security.
+                        loading={loading}
+                        handleAddTask={handleSubmit} // Form submit handler
+                        handleEdit={handleEdit}
+                        handleDelete={handleDelete}
+                        handleSendQuote={null}
+                        handleQuoteResponse={handleQuoteResponse}
+                        handleDuplicate={handleDuplicate}
+                        onDownloadFile={handleDownloadFile}
+                        showForm={showForm}
+                        setShowForm={setShowForm}
+                        formData={formData}
+                        setFormData={setFormData}
+                        editingTask={editingTask}
+                        resetForm={resetForm}
+                        handleInputChange={handleInputChange}
+                        fileInputRef={fileInputRef}
+                    />
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default Dashboard;

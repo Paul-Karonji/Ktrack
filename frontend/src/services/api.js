@@ -1,46 +1,95 @@
-// API service for task operations
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://client-task-tracker.onrender.com/api';
+import axios from 'axios';
 
-export const apiService = {
-    getTasks: async () => {
-        const response = await fetch(`${API_BASE_URL}/tasks`);
-        if (!response.ok) throw new Error('Failed to fetch tasks');
-        return response.json();
-    },
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
-    createTask: async (task) => {
-        const response = await fetch(`${API_BASE_URL}/tasks`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(task),
-        });
-        if (!response.ok) throw new Error('Failed to create task');
-        return response.json();
-    },
-
-    updateTask: async (id, task) => {
-        const response = await fetch(`${API_BASE_URL}/tasks/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(task),
-        });
-        if (!response.ok) throw new Error('Failed to update task');
-        return response.json();
-    },
-
-    deleteTask: async (id) => {
-        const response = await fetch(`${API_BASE_URL}/tasks/${id}`, {
-            method: 'DELETE',
-        });
-        if (!response.ok) throw new Error('Failed to delete task');
-        return response.json();
-    },
-
-    togglePayment: async (id) => {
-        const response = await fetch(`${API_BASE_URL}/tasks/${id}/toggle-payment`, {
-            method: 'PATCH',
-        });
-        if (!response.ok) throw new Error('Failed to toggle payment status');
-        return response.json();
+const api = axios.create({
+    baseURL: API_BASE_URL,
+    withCredentials: true, // Important for cookies
+    headers: {
+        'Content-Type': 'application/json'
     }
+});
+
+// Request interceptor to add access token
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('accessToken');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
+// Response interceptor to handle token refresh
+api.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const originalRequest = error.config;
+
+        // If error is 401 (Unauthorized) and not already retrying
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            originalRequest._retry = true;
+
+            try {
+                // Try to refresh token
+                const response = await api.post('/auth/refresh');
+                const { accessToken } = response.data;
+
+                // Save new token
+                localStorage.setItem('accessToken', accessToken);
+
+                // Retry original request
+                originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+                return api(originalRequest);
+            } catch (refreshError) {
+                // Refresh failed (token expired or invalid)
+                localStorage.removeItem('accessToken');
+                window.location.href = '/login';
+                return Promise.reject(refreshError);
+            }
+        }
+
+        return Promise.reject(error);
+    }
+);
+
+// API Service object
+export const apiService = {
+    // Auth
+    login: (credentials) => api.post('/auth/login', credentials),
+    register: (userData) => api.post('/auth/register', userData),
+    logout: () => api.post('/auth/logout'),
+    getCurrentUser: () => api.get('/auth/me'),
+
+    // Tasks
+    getTasks: () => api.get('/tasks').then(res => res.data),
+    createTask: (task) => api.post('/tasks', task).then(res => res.data),
+    updateTask: (id, task) => api.put(`/tasks/${id}`, task).then(res => res.data),
+    deleteTask: (id) => api.delete(`/tasks/${id}`).then(res => res.data),
+    togglePayment: (id) => api.patch(`/tasks/${id}/toggle-payment`).then(res => res.data),
+    uploadFile: (taskId, formData) => api.post(`/tasks/${taskId}/files`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    }).then(res => res.data),
+    getTaskFiles: (taskId) => api.get(`/tasks/${taskId}/files`).then(res => res.data),
+    getDownloadUrl: (fileId) => api.get(`/files/${fileId}/download`).then(res => res.data),
+
+    // Quotes
+    sendQuote: (taskId, amount) => api.post(`/tasks/${taskId}/quote`, { amount }).then(res => res.data),
+    respondToQuote: (taskId, action) => api.post(`/tasks/${taskId}/quote/respond`, { action }).then(res => res.data),
+
+    // Chat
+    getMessages: (taskId) => api.get(`/messages/tasks/${taskId}`).then(res => res.data),
+    sendMessage: (taskId, message) => api.post(`/messages/tasks/${taskId}`, { message }).then(res => res.data),
+    markMessagesRead: (taskId) => api.put(`/messages/tasks/${taskId}/read`).then(res => res.data),
+
+    // Users (Admin)
+    getUsers: (filters) => api.get('/users', { params: filters }).then(res => res.data),
+    approveUser: (id) => api.put(`/users/${id}/approve`).then(res => res.data),
+    rejectUser: (id) => api.put(`/users/${id}/reject`).then(res => res.data),
+    suspendUser: (id) => api.put(`/users/${id}/suspend`).then(res => res.data),
+    getUserStats: () => api.get('/users/stats').then(res => res.data),
 };
+
+export default api;

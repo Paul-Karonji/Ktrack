@@ -3,12 +3,17 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
 const { testConnection } = require('./config/database');
 const taskRoutes = require('./routes/tasks');
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
+const filesRoutes = require('./routes/files');
+const messageRoutes = require('./routes/messages');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 
 const app = express();
@@ -16,6 +21,12 @@ const PORT = process.env.PORT || 3001;
 
 // Test database connection on startup
 testConnection();
+
+// Request Logging Middleware (Added for Debugging)
+app.use((req, res, next) => {
+  console.log(`[REQUEST] ${req.method} ${req.url}`);
+  next();
+});
 
 // Security middleware
 app.use(
@@ -35,7 +46,7 @@ app.use(
 // Rate limiting (applies to API routes)
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
+  max: parseInt(process.env.RATE_LIMIT_MAX) || 1000, // Increased to 1000 to handle chat polling
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.',
@@ -46,6 +57,7 @@ app.use('/api', limiter);
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cookieParser());
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -58,7 +70,13 @@ app.get('/health', (_req, res) => {
 });
 
 // API routes
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api', filesRoutes);
+// Serve local uploads
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- Serve frontend build ONLY IF it exists (backend-only friendly) ---
 const buildDir = path.join(__dirname, '../frontend/build');

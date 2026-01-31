@@ -1,7 +1,8 @@
 import React from 'react';
 import { Plus, Edit2, DollarSign } from 'lucide-react';
 
-const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChange }) => {
+const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChange, user }) => {
+    console.log('TaskForm Render:', { onChangeFn: !!onChange, formData });
     return (
         <div id="task-form" className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 border border-gray-100">
             <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
@@ -19,27 +20,43 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
                             name="clientName"
                             value={formData.clientName}
                             onChange={onChange}
-                            className="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                            disabled={user?.role === 'client'}
+                            className={`w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all ${user?.role === 'client' ? 'bg-gray-100 cursor-not-allowed text-gray-500' : ''}`}
                             required
                             placeholder="Enter client name"
                         />
                     </div>
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Expected Amount <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                            <DollarSign className="absolute left-3 top-3.5 text-gray-400" size={18} />
+                    {/* Amount & Quantity - Two Columns */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Quantity
+                            </label>
                             <input
                                 type="number"
-                                name="expectedAmount"
-                                step="0.01"
-                                value={formData.expectedAmount}
+                                name="quantity"
+                                min="1"
+                                value={formData.quantity || 1}
                                 onChange={onChange}
-                                className="w-full pl-10 p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
-                                required
-                                placeholder="0.00"
+                                className="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-mono"
                             />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Expected Price (Total)
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-3 text-gray-400">$</span>
+                                <input
+                                    type="number"
+                                    name="expectedAmount"
+                                    value={formData.expectedAmount}
+                                    onChange={onChange}
+                                    className="w-full pl-8 p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-mono"
+                                    placeholder="0.00"
+                                    placeholder="0.00"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -129,6 +146,21 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
                         rows={2}
                         placeholder="Add any additional notes or comments..."
                     />
+                </div>
+                <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Attachment (Max 10MB)
+                    </label>
+                    <input
+                        type="file"
+                        name="file"
+                        onChange={onChange}
+                        className="w-full p-2 border-2 border-dashed border-gray-300 rounded-xl hover:border-indigo-500 focus:outline-none transition-all"
+                        accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                        Supported: Images, PDF, Word, Excel, CSV
+                    </p>
                 </div>
                 <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
                     <input

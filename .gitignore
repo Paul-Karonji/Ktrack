@@ -1,0 +1,111 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Environment variables (CRITICAL - contains passwords, API keys, secrets)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+frontend/.env
+
+# Production builds
+/frontend/build
+/frontend/dist
+/backend/dist
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Database files (if using local SQLite for testing)
+*.sqlite
+*.sqlite3
+*.db
+
+# Uploaded files (if storing locally - will use Cloudflare R2 instead)
+/backend/uploads/
+/backend/files/
+/frontend/public/uploads/
+
+# JWT secret keys (if stored in files)
+*.pem
+*.key
+private-key.txt
+public-key.txt
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# Compiled files
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Miscellaneous
+.eslintcache
+.npm
+.yarn-integrity
+
+# MacOS
+.AppleDouble
+.LSOverride
+
+# Windows
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# Cloudflare R2 credentials (if accidentally saved locally)
+r2-credentials.json
+cloudflare-credentials.json
+
+# Session files
+sessions/
+
+# Certificate files
+*.crt
+*.cer
+*.der
+
+# Migration backups
+/backend/migrations/*.backup.sql

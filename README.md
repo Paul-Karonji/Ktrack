@@ -1,89 +1,77 @@
-# Client Task Tracker
+# K-Track | Commission & Task Management
 
-A lightweight client-side Task Tracker for creating, assigning and tracking tasks for clients. This project is primarily written in JavaScript with small portions of HTML, TypeScript and CSS.
+**K-Track** is a specialized task management platform designed to bridge the gap between professionals and their clients. It features real-time task tracking, secure file sharing (Cloudflare R2), instant chat, and commission status management.
 
-Language composition 
-- JavaScript: 90.5%
-- HTML: 3.9%
-- TypeScript: 3.4%
-- CSS: 2.2%
+## ✨ Features
 
-## Table of contents
-- [About](#about)
-- [Features](#features)
-- [Tech stack](#tech-stack)
-- [Getting started](#getting-started)
-- [Screenshots](#screenshots)
-- [Demo](#demo)
-- [Contributing](#contributing)
-- [License](#license)
+*   **Role-Based Dashboards**: tailored views for **Clients** (request & track) and **Admins** (manage & fulfill).
+*   **Real-Time Status**: Live updates on task progress (Pending -> In Progress -> Completed).
+*   **File Management**: Secure file uploads using **Cloudflare R2** with automatic local fallback.
+*   **Integrated Chat**: Per-task messaging with read receipts and unread badges.
+*   **Commission Tracking**: Track expected amounts, send quotes, and record payment status (Manual confirmation).
+*   **Responsive Design**: Modern, mobile-friendly UI.
 
-## About
-Client Task Tracker is a front-end application to help manage client tasks: create tasks, assign them to clients or team members, set statuses, and maintain simple progress tracking. It is intended to be simple to run locally for demos, local development, or to pair with a backend API.
+## 🚀 Getting Started
 
-## Screenshots
-Below are placeholder screenshots showing the app UI. These are simple SVG placeholders to be replaced with real screenshots later.
+### Prerequisites
+*   Node.js (v14 or higher)
+*   MySQL Database
 
-- assets/screenshots/screenshot-1.svg  
-  Alt: "Task list view — placeholder"
-- assets/screenshots/screenshot-2.svg  
-  Alt: "Task detail view — placeholder"
+### 1. Backend Setup
+Navigate to the `backend` folder and install dependencies:
+```bash
+cd backend
+npm install
+```
 
+Create a `.env` file in the `backend` directory:
+```env
+PORT=3001
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=your_password
+DB_NAME=task_tracker
+JWT_SECRET=your_jwt_secret
 
-## Getting started
-# Getting Started with Create React App
+# Cloudflare R2 Configuration
+R2_ACCOUNT_ID=your_r2_account_id
+R2_ACCESS_KEY_ID=your_access_key
+R2_SECRET_ACCESS_KEY=your_secret_key
+R2_BUCKET_NAME=your_bucket_name
+```
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Start the backend server:
+```bash
+npm start
+# OR for development with auto-restart:
+npm run dev
+```
 
-## Available Scripts
+### 2. Frontend Setup
+Navigate to the `frontend` folder and install dependencies:
+```bash
+cd frontend
+npm install
+```
 
-In the project directory, you can run:
+Start the React development server:
+```bash
+npm start
+```
+The app will open at `http://localhost:3000`.
 
-### `npm start`
+## 📂 Project Structure
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+*   **`backend/`**: Express.js API, Database handling, and R2 File services.
+*   **`frontend/`**: React application (UI).
+    *   `src/pages/`: Main views (Dashboard, Login, Landing Page).
+    *   `src/components/`: Reusable UI components.
+    *   `public/branding/`: Place your custom Logo and Favicon here.
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## 🛠️ Admin Utilities
+The `backend/scripts/` folder contains helpful tools for server management:
+*   `node scripts/list_all_users.js`: View all registered users.
+*   `node scripts/reset_admin_password.js`: Emergency password reset.
 
-### `npm test`
-
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
-
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-
-## Contributing
-Contributions are welcome. Suggested process:
-1. Fork the repo
-2. Create a feature branch
-3. Open a pull request against main
-
-## License
-Add or update a LICENSE file as needed (MIT recommended if you want a permissive license).
+## 📄 License
+Private Property of K-Track Systems. All Rights Reserved.

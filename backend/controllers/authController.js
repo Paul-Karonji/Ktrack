@@ -52,14 +52,21 @@ const login = async (req, res) => {
             return res.status(400).json({ error: 'Email and password are required' });
         }
 
-        // Find user
+        // Check if user exists
         const user = await User.findByEmail(email);
+        console.log(`[Auth] Login attempt for: ${email}`);
+
         if (!user) {
+            console.log('[Auth] User not found');
             return res.status(401).json({ error: 'Invalid email or password' });
         }
 
-        // Verify password
+        console.log(`[Auth] User found: ${user.id} (${user.role})`);
+
+        // Verify password - Use password_hash column
         const isValidPassword = await User.verifyPassword(password, user.password_hash);
+        console.log(`[Auth] Password match: ${isValidPassword}`);
+
         if (!isValidPassword) {
             return res.status(401).json({ error: 'Invalid email or password' });
         }

@@ -1,11 +1,21 @@
 import React, { useState } from 'react';
-import { Edit2, Trash2, Calendar, CheckCircle, User, Clock, FileText, Copy, MessageSquare } from 'lucide-react';
+import { Edit2, Trash2, Calendar, CheckCircle, User, Clock, FileText, Copy, MessageSquare, Upload } from 'lucide-react';
 import { formatDate, formatCurrency } from '../../utils/formatters';
 import { PriorityBadge, StatusBadge } from '../common/Badges';
 import ChatComponent from '../chat/ChatComponent';
 
-const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onDownloadFile, onQuoteResponse, onSendQuote, onDuplicate, user }) => {
+const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onDownloadFile, onUploadFile, onQuoteResponse, onSendQuote, onDuplicate, user }) => {
     const [showChat, setShowChat] = useState(false);
+    const fileRef = React.useRef(null);
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            onUploadFile(task.id, file);
+        }
+        // Reset input
+        e.target.value = '';
+    };
 
     return (
         <>
@@ -16,6 +26,12 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
                         {task.quantity > 1 && (
                             <span className="text-xs text-indigo-600 font-medium">Qty: {task.quantity}</span>
                         )}
+                        <input
+                            type="file"
+                            ref={fileRef}
+                            style={{ display: 'none' }}
+                            onChange={handleFileChange}
+                        />
                         {task.has_file && (
                             <button
                                 onClick={() => onDownloadFile(task.id)}
@@ -24,6 +40,19 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
                                 <FileText size={12} /> View File
                             </button>
                         )}
+
+                        {(user.role === 'admin' || !task.has_file) && (
+                            <button
+                                onClick={() => fileRef.current.click()}
+                                disabled={!isOnline}
+                                className={`flex items-center gap-1 text-xs mt-1 ${task.has_file ? 'text-gray-400 hover:text-indigo-600' : 'text-gray-400 hover:text-indigo-600'}`}
+                                title={task.has_file ? "Upload New File" : "Upload File"}
+                            >
+                                <Upload size={12} /> {task.has_file ? 'New' : 'Upload'}
+                            </button>
+                        )}
+                        {/* Allow re-upload/overwrite for admin even if file exists? Maybe too complex for now. */}
+
                         {user.role === 'admin' && (
                             <span className="text-xs text-gray-500 mt-1">{task.client_name}</span>
                         )}

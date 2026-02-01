@@ -232,6 +232,25 @@ const Dashboard = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
+    // Handle direct file upload (e.g., from Admin TaskRow)
+    const handleUploadFile = async (taskId, file) => {
+        if (!file) return;
+
+        // Confirm override if needed? Or just upload.
+        // Assuming backend handles replace or we just overwrite.
+
+        const uploadData = new FormData();
+        uploadData.append('file', file);
+
+        try {
+            await apiService.uploadFile(taskId, uploadData);
+            await loadTasks();
+        } catch (err) {
+            console.error('Direct upload failed:', err);
+            alert('File upload failed: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
 
     if (loading) return <LoadingSpinner message="Loading..." />;
 
@@ -269,6 +288,7 @@ const Dashboard = () => {
                         onQuoteResponse={handleQuoteResponse}
                         onSendQuote={handleSendQuote}
                         onDuplicate={handleDuplicate}
+                        onUploadFile={handleUploadFile}
                         // Form
                         showForm={showForm}
                         setShowForm={setShowForm}

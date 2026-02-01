@@ -2,7 +2,7 @@ import React from 'react';
 import { User, Plus } from 'lucide-react';
 import TaskRow from './TaskRow';
 
-const TaskTable = ({ tasks, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onAddTask, onDownloadFile, onQuoteResponse, onSendQuote, onDuplicate, user }) => {
+const TaskTable = ({ tasks, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onAddTask, onDownloadFile, onUploadFile, onQuoteResponse, onSendQuote, onDuplicate, user }) => {
     if (tasks.length === 0) {
         return (
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
@@ -62,7 +62,7 @@ const TaskTable = ({ tasks, isOnline, hideAmounts, onEdit, onDelete, onTogglePay
                                 onTogglePayment={onTogglePayment}
                                 onTogglePayment={onTogglePayment}
                                 onDownloadFile={onDownloadFile}
-                                onDownloadFile={onDownloadFile}
+                                onUploadFile={onUploadFile}
                                 onQuoteResponse={onQuoteResponse}
                                 onQuoteResponse={onQuoteResponse}
                                 onSendQuote={onSendQuote}

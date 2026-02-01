@@ -19,6 +19,7 @@ const AdminDashboard = ({
     onTogglePayment,
     onAddTask,
     onDownloadFile,
+    onUploadFile,
     onQuoteResponse,
     onSendQuote,
     onDuplicate,
@@ -158,6 +159,7 @@ const AdminDashboard = ({
                             onTogglePayment={onTogglePayment}
                             onAddTask={onAddTask}
                             onDownloadFile={onDownloadFile}
+                            onUploadFile={onUploadFile}
                             onQuoteResponse={onQuoteResponse}
                             onSendQuote={onSendQuote}
                             onDuplicate={onDuplicate}

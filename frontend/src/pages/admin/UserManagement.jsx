@@ -12,7 +12,7 @@ const UserManagement = () => {
     const [filter, setFilter] = useState('all'); // all, pending, approved
     const isOnline = useOnlineStatus();
 
-    const fetchUsers = async () => {
+    const fetchUsers = React.useCallback(async () => {
         try {
             setLoading(true);
             // If filter is 'pending', use getPendingUsers, else getAllUsers filtering locally or via params
@@ -25,7 +25,7 @@ const UserManagement = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [filter]);
 
     useEffect(() => {
         fetchUsers();

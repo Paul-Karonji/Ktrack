@@ -18,7 +18,7 @@ const s3Client = new S3Client({
 
 const R2Service = {
     // Upload file to R2 (with Local Fallback)
-    async uploadFile(file, taskId) {
+    async uploadFile(file, taskId, userId) {
         const fileExtension = file.originalname.split('.').pop();
         const storedFilename = `${taskId}-${Date.now()}.${fileExtension}`;
         const fileContent = file.buffer;
@@ -66,8 +66,8 @@ const R2Service = {
             // Save metadata to database
             const [result] = await pool.execute(
                 `INSERT INTO task_files 
-         (task_id, original_filename, stored_filename, file_path, file_type, file_size) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
+         (task_id, original_filename, stored_filename, file_path, file_type, file_size, uploaded_by) 
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
                 [
                     taskId,
                     file.originalname,
@@ -75,7 +75,8 @@ const R2Service = {
                     // Store prefix to distinguish storage type, or just filename if we check both
                     storageType === 'local' ? `local:${storedFilename}` : storedFilename,
                     file.mimetype,
-                    file.size
+                    file.size,
+                    userId
                 ]
             );
 

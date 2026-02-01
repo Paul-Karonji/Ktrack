@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
-import { UserPlus, User, Mail, Lock, Phone, BookOpen, AlertCircle } from 'lucide-react';
+import { UserPlus, User, Mail, Lock, Phone, BookOpen, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 import ktrackLogo from '../../assets/images/ktrack_logo.png';
@@ -17,6 +17,8 @@ const Register = () => {
     });
     const [localError, setLocalError] = useState('');
     const [success, setSuccess] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const { register, loading, error } = useAuth();
     const navigate = useNavigate();
 
@@ -183,7 +185,7 @@ const Register = () => {
                                     <Lock className="h-5 w-5 text-gray-400" />
                                 </div>
                                 <input
-                                    type="password"
+                                    type={showPassword ? 'text' : 'password'}
                                     name="password"
                                     value={formData.password}
                                     onChange={handleChange}
@@ -191,6 +193,13 @@ const Register = () => {
                                     placeholder="••••••••"
                                     required
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-indigo-600 focus:outline-none"
+                                >
+                                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                </button>
                             </div>
                         </div>
 
@@ -201,7 +210,7 @@ const Register = () => {
                                     <Lock className="h-5 w-5 text-gray-400" />
                                 </div>
                                 <input
-                                    type="password"
+                                    type={showConfirmPassword ? 'text' : 'password'}
                                     name="confirmPassword"
                                     value={formData.confirmPassword}
                                     onChange={handleChange}
@@ -209,6 +218,13 @@ const Register = () => {
                                     placeholder="••••••••"
                                     required
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-indigo-600 focus:outline-none"
+                                >
+                                    {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                </button>
                             </div>
                         </div>
 

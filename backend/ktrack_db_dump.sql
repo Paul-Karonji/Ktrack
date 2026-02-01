@@ -75,10 +75,13 @@ CREATE TABLE `task_files` (
   `file_path` varchar(500) NOT NULL,
   `file_type` varchar(255) DEFAULT NULL,
   `file_size` int DEFAULT NULL,
+  `uploaded_by` int DEFAULT NULL,
   `uploaded_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `task_id` (`task_id`),
-  CONSTRAINT `task_files_ibfk_1` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE
+  KEY `uploaded_by` (`uploaded_by`),
+  CONSTRAINT `task_files_ibfk_1` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `task_files_ibfk_2` FOREIGN KEY (`uploaded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 INSERT INTO users (full_name, email, password_hash, role, status, created_at, updated_at) VALUES ('System Admin', 'paultutorw@gmail.com', '$2b$10$W5LeASIl8/EBMB4SQvEAzewiQT1w1Q30kzrPTb0tg5J6g4SN3c0w.', 'admin', 'approved', NOW(), NOW());

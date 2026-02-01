@@ -35,7 +35,9 @@ const FileController = {
             }
 
             console.log('[FileController] Starting R2 Upload...');
-            const result = await R2Service.uploadFile(file, taskId);
+            console.log('[FileController] Starting R2 Upload...');
+            const result = await R2Service.uploadFile(file, taskId, req.user.id);
+            console.log('[FileController] Upload success:', result);
             console.log('[FileController] Upload success:', result);
 
             res.status(201).json({

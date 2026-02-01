@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, Eye, EyeOff, Wifi, WifiOff, LogOut, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 import ktrackIcon from '../../assets/images/ktrack_icon.png';
 
@@ -38,8 +39,8 @@ const Header = ({ isOnline, hideAmounts, onToggleAmounts, onAddTask, user, onLog
                         onClick={onAddTask}
                         disabled={!isOnline}
                         className={`px - 6 py - 2.5 rounded - full font - medium flex items - center gap - 2 transition - all transform hover: scale - 105 ${isOnline
-                                ? 'bg-white text-indigo-600 hover:shadow-lg'
-                                : 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                            ? 'bg-white text-indigo-600 hover:shadow-lg'
+                            : 'bg-gray-400 text-gray-600 cursor-not-allowed'
                             } `}
                     >
                         <Plus size={20} />

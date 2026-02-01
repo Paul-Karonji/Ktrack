@@ -12,6 +12,7 @@ const Login = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [localError, setLocalError] = useState('');
     const { login, loading, error } = useAuth();
+    const navigate = useNavigate();
     const location = useLocation();
 
     const handleSubmit = async (e) => {

@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { FileText, Plus, MessageSquare, Clock, CheckCircle } from 'lucide-react';
+```javascript
+import React from 'react';
+import { FileText, Plus, Clock, CheckCircle } from 'lucide-react';
 import StatCard from '../components/dashboard/StatCard';
 import TaskTable from '../components/tasks/TaskTable';
 import TaskForm from '../components/tasks/TaskForm';
-import AnalyticsCharts from '../components/charts/AnalyticsCharts';
 
 const ClientDashboard = ({
     user,

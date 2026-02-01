@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useTasks } from '../hooks/useTasks';
@@ -14,7 +14,7 @@ const Dashboard = () => {
     const { user, logout } = useAuth();
 
     // Custom hooks
-    const { tasks, loading, error, setError, loadTasks, createTask, updateTask, deleteTask, togglePayment } = useTasks();
+    const { tasks, loading, error, loadTasks, createTask, updateTask, deleteTask, togglePayment } = useTasks();
     const isOnline = useOnlineStatus();
 
     // UI state
@@ -46,7 +46,6 @@ const Dashboard = () => {
     const resetForm = () => {
         setFormData({
             clientName: user?.role === 'client' ? (user.fullName || user.full_name) : '', // Handle both cases just to be safe
-            taskDescription: '',
             taskDescription: '',
             dateCommissioned: '',
             dateDelivered: '',

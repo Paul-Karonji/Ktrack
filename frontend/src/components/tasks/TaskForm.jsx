@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Edit2, DollarSign } from 'lucide-react';
+import { Plus, Edit2 } from 'lucide-react';
 
 const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChange, user }) => {
     console.log('TaskForm Render:', { onChangeFn: !!onChange, formData });
@@ -53,7 +53,6 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
                                     value={formData.expectedAmount}
                                     onChange={onChange}
                                     className="w-full pl-8 p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-mono"
-                                    placeholder="0.00"
                                     placeholder="0.00"
                                 />
                             </div>

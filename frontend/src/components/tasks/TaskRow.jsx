@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Edit2, Trash2, Calendar, CheckCircle, User, Clock, FileText, Copy, MessageSquare, Upload } from 'lucide-react';
+import { Edit2, Trash2, Calendar, CheckCircle, Clock, FileText, Copy, MessageSquare, Upload } from 'lucide-react';
 import { formatDate, formatCurrency } from '../../utils/formatters';
 import { PriorityBadge, StatusBadge } from '../common/Badges';
 import ChatComponent from '../chat/ChatComponent';

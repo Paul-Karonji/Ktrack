@@ -1,12 +1,11 @@
+```
 import React, { useState } from 'react';
-import { Plus, Eye, EyeOff, Wifi, WifiOff, User, LogOut, Settings, Users } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Plus, Eye, EyeOff, Wifi, WifiOff, LogOut, Users } from 'lucide-react';
 
 import ktrackIcon from '../../assets/images/ktrack_icon.png';
 
 const Header = ({ isOnline, hideAmounts, onToggleAmounts, onAddTask, user, onLogout }) => {
     const [showMenu, setShowMenu] = useState(false);
-    const navigate = useNavigate();
 
     return (
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-xl p-6 md:p-8 text-white relative">
@@ -21,7 +20,7 @@ const Header = ({ isOnline, hideAmounts, onToggleAmounts, onAddTask, user, onLog
 
                 <div className="flex flex-wrap items-center gap-3">
                     {/* Online Status */}
-                    <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${isOnline ? 'bg-green-500/20 text-green-100' : 'bg-red-500/20 text-red-100'}`}>
+                    <div className={`flex items - center gap - 2 px - 4 py - 2 rounded - full ${ isOnline ? 'bg-green-500/20 text-green-100' : 'bg-red-500/20 text-red-100' } `}>
                         {isOnline ? <Wifi size={18} /> : <WifiOff size={18} />}
                         <span className="font-medium hidden sm:inline">{isOnline ? 'Online' : 'Offline'}</span>
                     </div>
@@ -39,10 +38,11 @@ const Header = ({ isOnline, hideAmounts, onToggleAmounts, onAddTask, user, onLog
                     <button
                         onClick={onAddTask}
                         disabled={!isOnline}
-                        className={`px-6 py-2.5 rounded-full font-medium flex items-center gap-2 transition-all transform hover:scale-105 ${isOnline
-                            ? 'bg-white text-indigo-600 hover:shadow-lg'
-                            : 'bg-gray-400 text-gray-600 cursor-not-allowed'
-                            }`}
+                        className={`px - 6 py - 2.5 rounded - full font - medium flex items - center gap - 2 transition - all transform hover: scale - 105 ${
+    isOnline
+        ? 'bg-white text-indigo-600 hover:shadow-lg'
+        : 'bg-gray-400 text-gray-600 cursor-not-allowed'
+} `}
                     >
                         <Plus size={20} />
                         <span className="hidden sm:inline">Add Task</span>

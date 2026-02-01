@@ -1,5 +1,6 @@
+```javascript
 import React, { useState, useEffect } from 'react';
-import { Users, FileText, CheckCircle, Clock, AlertCircle, Plus } from 'lucide-react';
+import { Users, FileText, CheckCircle, Clock, Plus } from 'lucide-react';
 import { apiService } from '../services/api';
 import StatCard from '../components/dashboard/StatCard';
 import TaskTable from '../components/tasks/TaskTable';
@@ -100,19 +101,19 @@ const AdminDashboard = ({
             {/* Navigation Tabs */}
             <div className="flex space-x-4 border-b">
                 <button
-                    className={`pb-2 px-4 ${activeTab === 'tasks' ? 'border-b-2 border-indigo-600 font-bold' : ''}`}
+                    className={`pb - 2 px - 4 ${ activeTab === 'tasks' ? 'border-b-2 border-indigo-600 font-bold' : '' } `}
                     onClick={() => setActiveTab('tasks')}
                 >
                     Tasks Management
                 </button>
                 <button
-                    className={`pb-2 px-4 ${activeTab === 'users' ? 'border-b-2 border-indigo-600 font-bold' : ''}`}
+                    className={`pb - 2 px - 4 ${ activeTab === 'users' ? 'border-b-2 border-indigo-600 font-bold' : '' } `}
                     onClick={() => setActiveTab('users')}
                 >
                     User Approvals {pendingUsers.length > 0 && <span className="bg-red-500 text-white text-xs rounded-full px-2">{pendingUsers.length}</span>}
                 </button>
                 <button
-                    className={`pb-2 px-4 ${activeTab === 'analytics' ? 'border-b-2 border-indigo-600 font-bold' : ''}`}
+                    className={`pb - 2 px - 4 ${ activeTab === 'analytics' ? 'border-b-2 border-indigo-600 font-bold' : '' } `}
                     onClick={() => setActiveTab('analytics')}
                 >
                     Analytics

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/api';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import { Check, X, Shield, Clock, Search, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Check, X, Shield, Clock, AlertCircle, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const UserManagement = () => {
@@ -29,7 +29,7 @@ const UserManagement = () => {
 
     useEffect(() => {
         fetchUsers();
-    }, [filter]);
+    }, [filter, fetchUsers]);
 
     const handleApprove = async (userId) => {
         try {

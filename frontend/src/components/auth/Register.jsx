@@ -20,7 +20,6 @@ const Register = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const { register, loading, error } = useAuth();
-    const navigate = useNavigate();
 
     const handleChange = (e) => {
         setFormData({

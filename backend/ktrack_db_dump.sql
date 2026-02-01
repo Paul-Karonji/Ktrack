@@ -1,5 +1,8 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
+CREATE DATABASE IF NOT EXISTS ktrack;
+USE ktrack;
+
 -- K-Track Database Dump
 -- Generated for TiDB Import
 

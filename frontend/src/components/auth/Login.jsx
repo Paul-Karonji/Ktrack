@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogIn, Lock, Mail, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 import ktrackLogo from '../../assets/images/ktrack_logo.png';
@@ -12,10 +12,7 @@ const Login = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [localError, setLocalError] = useState('');
     const { login, loading, error } = useAuth();
-    const navigate = useNavigate();
     const location = useLocation();
-
-    const from = location.state?.from?.pathname || '/';
 
     const handleSubmit = async (e) => {
         e.preventDefault();

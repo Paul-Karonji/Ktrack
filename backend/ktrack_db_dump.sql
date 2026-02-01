@@ -1,3 +1,5 @@
+SET FOREIGN_KEY_CHECKS = 0;
+
 -- K-Track Database Dump
 -- Generated for TiDB Import
 
@@ -85,3 +87,5 @@ CREATE TABLE `task_files` (
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 INSERT INTO users (full_name, email, password_hash, role, status, created_at, updated_at) VALUES ('System Admin', 'paultutorw@gmail.com', '$2b$10$W5LeASIl8/EBMB4SQvEAzewiQT1w1Q30kzrPTb0tg5J6g4SN3c0w.', 'admin', 'approved', NOW(), NOW());
+
+SET FOREIGN_KEY_CHECKS = 1;

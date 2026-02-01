@@ -1,4 +1,3 @@
-```javascript
 import React from 'react';
 import { FileText, Plus, Clock, CheckCircle } from 'lucide-react';
 import StatCard from '../components/dashboard/StatCard';

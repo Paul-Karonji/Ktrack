@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Mail, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import LoadingSpinner from '../common/LoadingSpinner';
 
@@ -13,7 +13,7 @@ const Login = () => {
     const [localError, setLocalError] = useState('');
     const { login, loading, error } = useAuth();
     const navigate = useNavigate();
-    const location = useLocation();
+    // const location = useLocation();
 
     const handleSubmit = async (e) => {
         e.preventDefault();

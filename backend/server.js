@@ -74,6 +74,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/public', require('./routes/public')); // New public route
 app.use('/api', filesRoutes);
 // Serve local uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

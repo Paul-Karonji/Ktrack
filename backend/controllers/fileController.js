@@ -2,17 +2,17 @@ const R2Service = require('../services/r2Service');
 const Task = require('../models/Task');
 
 const FileController = {
-    // Upload file
+    // Upload file(s) - supports both single and multiple files
     async uploadFile(req, res) {
         try {
             const { taskId } = req.params;
-            const file = req.file;
+            const files = req.files || (req.file ? [req.file] : []);
 
-            console.log(`[FileController] Uploading file for Task ${taskId}`, file ? file.originalname : 'No File');
+            console.log(`[FileController] Uploading ${files.length} file(s) for Task ${taskId}`);
 
-            if (!file) {
-                console.log('[FileController] No file provided');
-                return res.status(400).json({ error: 'No file uploaded' });
+            if (files.length === 0) {
+                console.log('[FileController] No files provided');
+                return res.status(400).json({ error: 'No files uploaded' });
             }
 
             // Check if task exists
@@ -26,7 +26,6 @@ const FileController = {
             console.log('[FileController] User:', { id: req.user.id, role: req.user.role, name: req.user.full_name });
 
             // Check ownership (admins can upload to any, clients only to theirs)
-            // Fix: Check client_id OR client_name match
             const isOwner = task.client_id === req.user.id || task.client_name === req.user.full_name;
 
             if (req.user.role !== 'admin' && !isOwner) {
@@ -34,19 +33,21 @@ const FileController = {
                 return res.status(403).json({ error: 'Not authorized to upload files for this task' });
             }
 
-            console.log('[FileController] Starting R2 Upload...');
-            console.log('[FileController] Starting R2 Upload...');
-            const result = await R2Service.uploadFile(file, taskId, req.user.id);
-            console.log('[FileController] Upload success:', result);
-            console.log('[FileController] Upload success:', result);
+            console.log('[FileController] Starting R2 Upload for', files.length, 'file(s)...');
+
+            // Upload all files
+            const uploadPromises = files.map(file => R2Service.uploadFile(file, taskId, req.user.id));
+            const results = await Promise.all(uploadPromises);
+
+            console.log('[FileController] Upload success:', results.length, 'file(s) uploaded');
 
             res.status(201).json({
-                message: 'File uploaded successfully',
-                file: result
+                message: `${results.length} file(s) uploaded successfully`,
+                files: results
             });
         } catch (error) {
             console.error('Upload Controller Error:', error);
-            res.status(500).json({ error: 'Failed to upload file', details: error.message });
+            res.status(500).json({ error: 'Failed to upload file(s)', details: error.message });
         }
     },
 

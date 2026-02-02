@@ -1,9 +1,25 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircle, Shield, Clock, ArrowRight, Star } from 'lucide-react';
+import { apiService } from '../services/api';
 import ktrackLogo from '../assets/images/ktrack_logo.png';
 
 const LandingPage = () => {
+    const [stats, setStats] = useState({ clients: 0, jobsDone: 0 });
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const data = await apiService.getPublicStats();
+                if (data.success) {
+                    setStats(data.stats);
+                }
+            } catch (err) {
+                console.error('Failed to load public stats', err);
+            }
+        };
+        fetchStats();
+    }, []);
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
             {/* Navigation */}
@@ -54,6 +70,17 @@ const LandingPage = () => {
                         <Link to="/login" className="inline-flex items-center justify-center px-8 py-4 border-2 border-gray-200 text-lg font-bold rounded-full text-gray-700 bg-white hover:bg-gray-50 md:py-4 md:text-lg md:px-10 transition-all hover:border-gray-300">
                             Client Login
                         </Link>
+                    </div>
+                    <div className="mt-12 pt-8 border-t border-indigo-100/50 flex flex-row justify-center gap-16 animate-fade-in-up delay-200">
+                        <div className="text-center">
+                            <p className="text-4xl font-extrabold text-indigo-600 mb-1">{stats.clients > 0 ? stats.clients : '150'}+</p>
+                            <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Active Clients</p>
+                        </div>
+                        <div className="w-px h-16 bg-gradient-to-b from-transparent via-indigo-200 to-transparent"></div>
+                        <div className="text-center">
+                            <p className="text-4xl font-extrabold text-purple-600 mb-1">{stats.jobsDone > 0 ? stats.jobsDone : '500'}+</p>
+                            <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Projects Done</p>
+                        </div>
                     </div>
                 </div>
             </header>

@@ -94,6 +94,9 @@ export const apiService = {
     rejectUser: (id) => api.put(`/users/${id}/reject`).then(res => res.data),
     suspendUser: (id) => api.put(`/users/${id}/suspend`).then(res => res.data),
     getUserStats: () => api.get('/users/stats').then(res => res.data),
+
+    // Public
+    getPublicStats: () => api.get('/public/stats').then(res => res.data),
 };
 
 export default api;

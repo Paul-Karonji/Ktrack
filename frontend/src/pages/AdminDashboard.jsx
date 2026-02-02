@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, FileText, CheckCircle, Clock, Plus } from 'lucide-react';
+import { formatCurrency } from '../utils/formatters';
 import { apiService } from '../services/api';
 import StatCard from '../components/dashboard/StatCard';
 import TaskTable from '../components/tasks/TaskTable';
@@ -91,7 +92,7 @@ const AdminDashboard = ({
                 />
                 <StatCard
                     title="Revenue"
-                    value="$12,500" // Placeholder or calc
+                    value={formatCurrency(tasks.reduce((sum, task) => sum + (task.is_paid ? Number(task.expected_amount || 0) : 0), 0))}
                     icon={Clock}
                     color="bg-purple-500"
                 />

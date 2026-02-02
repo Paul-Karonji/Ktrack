@@ -11,10 +11,10 @@ const useTLS = String(process.env.DB_SSL || '').toLowerCase() === 'true';
 const ssl =
   useTLS
     ? (process.env.DB_CA_CERT
-        // If you add the PEM contents of the CA cert to DB_CA_CERT, we'll use it.
-        ? { minVersion: 'TLSv1.2', rejectUnauthorized: true, ca: process.env.DB_CA_CERT }
-        // Otherwise rely on system CAs (often fine on Render).
-        : { minVersion: 'TLSv1.2', rejectUnauthorized: true })
+      // If you add the PEM contents of the CA cert to DB_CA_CERT, we'll use it.
+      ? { minVersion: 'TLSv1.2', rejectUnauthorized: true, ca: process.env.DB_CA_CERT }
+      // Otherwise rely on system CAs (often fine on Render).
+      : { minVersion: 'TLSv1.2', rejectUnauthorized: true })
     : undefined;
 
 const pool = mysql.createPool({
@@ -25,11 +25,17 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME,
 
   waitForConnections: true,
-  connectionLimit: Number(process.env.DB_POOL_SIZE || 10),
+  connectionLimit: Number(process.env.DB_POOL_SIZE || 20), // Increased from 10 to 20
   queueLimit: 0,
 
   // mysql2 valid timeout option (avoid warnings about acquireTimeout/timeout)
-  connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 60000),
+  connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000), // Reduced from 60s to 10s
+
+  // Enable multiple statements for better performance
+  multipleStatements: false, // Keep false for security
+
+  // Timezone configuration
+  timezone: '+00:00',
 
   ssl,
 });

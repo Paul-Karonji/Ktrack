@@ -8,6 +8,10 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
+// Validate environment variables before starting
+const { validateEnvironment } = require('./config/validateEnv');
+validateEnvironment();
+
 const { testConnection } = require('./config/database');
 const taskRoutes = require('./routes/tasks');
 const authRoutes = require('./routes/auth');
@@ -15,6 +19,7 @@ const userRoutes = require('./routes/users');
 const filesRoutes = require('./routes/files');
 const messageRoutes = require('./routes/messages');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
+const requestIdMiddleware = require('./middleware/requestId');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -22,11 +27,8 @@ const PORT = process.env.PORT || 3001;
 // Test database connection on startup
 testConnection();
 
-// Request Logging Middleware (Added for Debugging)
-app.use((req, res, next) => {
-  console.log(`[REQUEST] ${req.method} ${req.url}`);
-  next();
-});
+// Request ID Middleware (for tracking and debugging)
+app.use(requestIdMiddleware);
 
 // Security middleware
 app.use(
@@ -43,16 +45,31 @@ app.use(
   })
 );
 
-// Rate limiting (applies to API routes)
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 1000, // Increased to 1000 to handle chat polling
+// Rate limiting - Separate limiters for auth vs general API
+// Auth limiter: Strict to prevent brute force attacks
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 attempts per 15 minutes
+  skipSuccessfulRequests: true, // Don't count successful logins
   message: {
     success: false,
-    message: 'Too many requests from this IP, please try again later.',
+    error: 'Too many login attempts. Please try again in 15 minutes.',
   },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
-app.use('/api', limiter);
+
+// General API limiter: More lenient for normal usage
+const apiLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX) || 2000, // Increased from 1000 to 2000
+  message: {
+    success: false,
+    error: 'Too many requests from this IP, please try again later.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -69,13 +86,16 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/tasks', taskRoutes);
-app.use('/api/messages', messageRoutes);
-app.use('/api/public', require('./routes/public')); // New public route
-app.use('/api', filesRoutes);
+// API routes with rate limiting
+// Auth routes get strict rate limiting
+app.use('/api/auth', authLimiter, authRoutes);
+
+// Other API routes get general rate limiting
+app.use('/api/users', apiLimiter, userRoutes);
+app.use('/api/tasks', apiLimiter, taskRoutes);
+app.use('/api/messages', apiLimiter, messageRoutes);
+app.use('/api/public', require('./routes/public')); // No rate limit for public stats
+app.use('/api', apiLimiter, filesRoutes);
 // Serve local uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 

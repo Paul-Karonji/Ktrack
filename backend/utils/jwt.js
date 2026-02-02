@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 
 // JWT configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
-const JWT_EXPIRES_IN = '15m'; // Access token expires in 15 minutes
+const JWT_EXPIRES_IN = '1h'; // Access token expires in 1 hour (was 15m)
 const REFRESH_TOKEN_EXPIRES_IN = '7d'; // Refresh token expires in 7 days
 
 // Generate access token

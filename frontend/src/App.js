@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import UserManagement from './pages/admin/UserManagement';
 import PrivateRoute from './components/auth/PrivateRoute';
 import LandingPage from './pages/LandingPage';
+import WhatsAppButton from './components/common/WhatsAppButton';
 
 const App = () => {
   return (
@@ -62,6 +63,9 @@ const App = () => {
           {/* Catch all - Redirect to Home if not found, or keep to dashboard? Let's redirect to / for now as it's the entry point */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+
+        {/* Global WhatsApp Contact Button */}
+        <WhatsAppButton />
       </AuthProvider>
     </Router>
   );

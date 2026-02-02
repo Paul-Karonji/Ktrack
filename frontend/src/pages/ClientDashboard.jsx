@@ -1,8 +1,9 @@
-import React from 'react';
-import { FileText, Plus, Clock, CheckCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { FileText, Plus, Clock, CheckCircle, HelpCircle } from 'lucide-react';
 import StatCard from '../components/dashboard/StatCard';
 import TaskTable from '../components/tasks/TaskTable';
 import TaskForm from '../components/tasks/TaskForm';
+import HelpModal from '../components/common/HelpModal';
 
 const ClientDashboard = ({
     user,
@@ -24,6 +25,9 @@ const ClientDashboard = ({
     handleInputChange,
     fileInputRef
 }) => {
+    // Help Modal State
+    const [showHelp, setShowHelp] = useState(false);
+
     // Client specific logic
     console.log('ClientDashboard Render:', { handleInputChangeFn: !!handleInputChange });
     // Filter tasks? Already filtered by backend usually? Or filter here?
@@ -61,16 +65,26 @@ const ClientDashboard = ({
             {/* Main Content */}
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-800">My Projects</h2>
-                <button
-                    onClick={() => {
-                        resetForm();
-                        setShowForm(true);
-                    }}
-                    className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
-                >
-                    <Plus size={20} />
-                    New Project
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => setShowHelp(true)}
+                        className="flex items-center gap-2 bg-white border-2 border-indigo-600 text-indigo-600 px-4 py-2 rounded-lg hover:bg-indigo-50 transition-colors shadow-sm"
+                        title="View User Guide"
+                    >
+                        <HelpCircle size={20} />
+                        Help
+                    </button>
+                    <button
+                        onClick={() => {
+                            resetForm();
+                            setShowForm(true);
+                        }}
+                        className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
+                    >
+                        <Plus size={20} />
+                        New Project
+                    </button>
+                </div>
             </div>
 
             {/* Task Form (Modal or Inline) */}
@@ -106,6 +120,9 @@ const ClientDashboard = ({
                 onDuplicate={handleDuplicate}
                 user={user}
             />
+
+            {/* Help Modal */}
+            <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
         </div>
     );
 };

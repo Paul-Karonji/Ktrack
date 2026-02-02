@@ -19,7 +19,7 @@ router.post('/:id/quote', authorize(['admin']), validateId, TaskController.sendQ
 router.post('/:id/quote/respond', validateId, TaskController.respondToQuote);
 
 // File routes mounted under /api/tasks
-router.post('/:taskId/files', validateId, upload.single('file'), FileController.uploadFile);
+router.post('/:taskId/files', validateId, upload.array('files', 10), FileController.uploadFile);
 router.get('/:taskId/files', validateId, FileController.getTaskFiles);
 
 module.exports = router;

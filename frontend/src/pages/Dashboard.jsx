@@ -6,6 +6,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import ErrorMessage from '../components/common/ErrorMessage';
 import Header from '../components/layout/Header';
+import FileManager from '../components/files/FileManager';
 
 import AdminDashboard from './AdminDashboard';
 import ClientDashboard from './ClientDashboard';
@@ -21,6 +22,8 @@ const Dashboard = () => {
     const [showForm, setShowForm] = useState(false);
     const [editingTask, setEditingTask] = useState(null);
     const [hideAmounts, setHideAmounts] = useState(false);
+    const [showFileManager, setShowFileManager] = useState(false);
+    const [selectedTaskId, setSelectedTaskId] = useState(null);
     const fileInputRef = React.useRef(null);
 
     // Form state
@@ -35,7 +38,7 @@ const Dashboard = () => {
         status: 'not_started',
         notes: '',
         quantity: 1,
-        file: null
+        files: null
     });
 
     // Load tasks on mount
@@ -45,7 +48,7 @@ const Dashboard = () => {
 
     const resetForm = () => {
         setFormData({
-            clientName: user?.role === 'client' ? (user.fullName || user.full_name) : '', // Handle both cases just to be safe
+            clientName: user?.role === 'client' ? (user.fullName || user.full_name) : '',
             taskDescription: '',
             dateCommissioned: '',
             dateDelivered: '',
@@ -55,7 +58,7 @@ const Dashboard = () => {
             status: 'not_started',
             notes: '',
             quantity: 1,
-            file: null
+            files: null
         });
         setEditingTask(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -97,11 +100,15 @@ const Dashboard = () => {
                 taskResult = await createTask(submissionData);
             }
 
-            // Upload file if present
-            if (formData.file && taskResult) {
+            // Upload files if present
+            if (formData.files && formData.files.length > 0 && taskResult) {
                 const taskId = editingTask || taskResult.id;
                 const uploadData = new FormData();
-                uploadData.append('file', formData.file);
+
+                // Append all files
+                for (let i = 0; i < formData.files.length; i++) {
+                    uploadData.append('files', formData.files[i]);
+                }
 
                 try {
                     await apiService.uploadFile(taskId, uploadData);
@@ -132,7 +139,7 @@ const Dashboard = () => {
             status: task.status || 'not_started',
             notes: task.notes || '',
             quantity: task.quantity || 1,
-            file: null
+            files: null
         });
         setEditingTask(task.id);
         setShowForm(true);
@@ -150,7 +157,8 @@ const Dashboard = () => {
     const handleInputChange = (e) => {
         const { name, value, type, checked, files } = e.target;
         if (type === 'file') {
-            setFormData(prev => ({ ...prev, [name]: files[0] }));
+            // Store FileList for multiple files or single file
+            setFormData(prev => ({ ...prev, [name]: files }));
         } else {
             setFormData(prev => ({
                 ...prev,
@@ -169,22 +177,11 @@ const Dashboard = () => {
         }
     };
 
-    // Handle file download
+    // Handle file management
     const handleDownloadFile = async (taskId) => {
-        try {
-            const files = await apiService.getTaskFiles(taskId);
-            if (files.length > 0) {
-                const latestFile = files[0];
-                const { url } = await apiService.getDownloadUrl(latestFile.id);
-                window.open(url, '_blank');
-            } else {
-                alert('No file found for this task.');
-            }
-        } catch (err) {
-            console.error('Download error:', err);
-            alert('Failed to download file: ' + err.message);
-        }
-    }
+        setSelectedTaskId(taskId);
+        setShowFileManager(true);
+    };
 
     // Handle quote response
     const handleQuoteResponse = async (taskId, action) => {
@@ -224,7 +221,7 @@ const Dashboard = () => {
             status: 'not_started',
             notes: task.notes || '',
             quantity: task.quantity || 1,
-            file: null
+            files: null
         });
         setEditingTask(null);
         setShowForm(true);
@@ -324,6 +321,19 @@ const Dashboard = () => {
                     />
                 )}
             </div>
+
+            {/* File Manager Modal */}
+            {showFileManager && selectedTaskId && (
+                <FileManager
+                    taskId={selectedTaskId}
+                    userRole={user?.role}
+                    onClose={() => {
+                        setShowFileManager(false);
+                        setSelectedTaskId(null);
+                        loadTasks(); // Refresh tasks to update file counts
+                    }}
+                />
+            )}
         </div>
     );
 };

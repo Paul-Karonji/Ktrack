@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Edit2 } from 'lucide-react';
+import { Plus, Edit2, Upload } from 'lucide-react';
 
 const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChange, user }) => {
     console.log('TaskForm Render:', { onChangeFn: !!onChange, formData });
@@ -148,18 +148,29 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
                 </div>
                 <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Attachment (Max 10MB)
+                        Attachments (Max 10MB per file, up to 10 files)
                     </label>
-                    <input
-                        type="file"
-                        name="file"
-                        onChange={onChange}
-                        className="w-full p-2 border-2 border-dashed border-gray-300 rounded-xl hover:border-indigo-500 focus:outline-none transition-all"
-                        accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                        Supported: Images, PDF, Word, Excel, CSV
+                    <div className="relative">
+                        <input
+                            type="file"
+                            name="files"
+                            onChange={onChange}
+                            multiple
+                            className="w-full p-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-indigo-500 focus:outline-none transition-all file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
+                            accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip"
+                        />
+                        <div className="absolute right-3 top-3 pointer-events-none">
+                            <Upload className="text-gray-400" size={20} />
+                        </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        <span>📎</span> Supported: Images, PDF, Word, Excel, CSV, ZIP • Select multiple files
                     </p>
+                    {formData.files && formData.files.length > 0 && (
+                        <p className="text-xs text-green-600 mt-1">
+                            ✓ {formData.files.length} file(s) selected
+                        </p>
+                    )}
                 </div>
                 <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
                     <input

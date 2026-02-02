@@ -130,9 +130,19 @@ const R2Service = {
         return { url, filename: file.original_filename };
     },
 
-    // Get files for a task
+    // Get files for a task with uploader info
     async getTaskFiles(taskId) {
-        const [rows] = await pool.execute('SELECT * FROM task_files WHERE task_id = ? ORDER BY uploaded_at DESC', [taskId]);
+        const [rows] = await pool.execute(
+            `SELECT 
+                tf.*,
+                u.full_name as uploader_name,
+                u.role as uploader_role
+            FROM task_files tf
+            LEFT JOIN users u ON tf.uploaded_by = u.id
+            WHERE tf.task_id = ? 
+            ORDER BY tf.uploaded_at DESC`,
+            [taskId]
+        );
         return rows;
     },
 

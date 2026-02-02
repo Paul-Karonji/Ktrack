@@ -79,11 +79,13 @@ export const apiService = {
     updateTask: (id, task) => api.put(`/tasks/${id}`, task).then(res => res.data),
     deleteTask: (id) => api.delete(`/tasks/${id}`).then(res => res.data),
     togglePayment: (id) => api.patch(`/tasks/${id}/toggle-payment`).then(res => res.data),
+    // Files
     uploadFile: (taskId, formData) => api.post(`/tasks/${taskId}/files`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     }).then(res => res.data),
     getTaskFiles: (taskId) => api.get(`/tasks/${taskId}/files`).then(res => res.data),
     getDownloadUrl: (fileId) => api.get(`/files/${fileId}/download`).then(res => res.data),
+    deleteFile: (fileId) => api.delete(`/files/${fileId}`).then(res => res.data),
 
     // Quotes
     sendQuote: (taskId, amount) => api.post(`/tasks/${taskId}/quote`, { amount }).then(res => res.data),

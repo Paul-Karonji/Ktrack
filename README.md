@@ -68,6 +68,15 @@ The app will open at `http://localhost:3000`.
     *   `src/components/`: Reusable UI components.
     *   `public/branding/`: Place your custom Logo and Favicon here.
 
+## 📖 User Guide
+For new clients, check out the comprehensive [User Guide](USER_GUIDE.md) which includes:
+*   Step-by-step registration and approval process
+*   How to create and manage tasks
+*   Understanding the quote approval workflow
+*   Using the chat feature
+*   File upload and download instructions
+*   Frequently Asked Questions
+
 ## 🛠️ Admin Utilities
 The `backend/scripts/` folder contains helpful tools for server management:
 *   `node scripts/list_all_users.js`: View all registered users.

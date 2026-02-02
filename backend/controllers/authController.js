@@ -3,17 +3,20 @@ const { generateTokens } = require('../utils/jwt');
 
 // Register new user (client)
 const register = async (req, res) => {
+    const requestId = req.requestId || 'unknown';
     try {
         const { email, password, fullName, phoneNumber, course } = req.body;
 
         // Validation
         if (!email || !password || !fullName) {
+            console.log(`[${requestId}] [Auth] Registration failed: Missing required fields`);
             return res.status(400).json({ error: 'Email, password, and full name are required' });
         }
 
         // Check if user already exists
         const existingUser = await User.findByEmail(email);
         if (existingUser) {
+            console.log(`[${requestId}] [Auth] Registration failed: Email already exists: ${email}`);
             return res.status(400).json({ error: 'Email already registered' });
         }
 
@@ -27,6 +30,8 @@ const register = async (req, res) => {
             role: 'client'
         });
 
+        console.log(`[${requestId}] [Auth] ✅ User registered successfully: ${user.id} (${email})`);
+
         res.status(201).json({
             message: 'Registration successful! Your account is pending admin approval.',
             user: {
@@ -37,55 +42,71 @@ const register = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Registration error:', error);
-        res.status(500).json({ error: 'Registration failed' });
+        console.error(`[${requestId}] [Auth] Registration error:`, error);
+        res.status(500).json({ error: 'Registration failed. Please try again later.' });
     }
 };
 
 // Login
 const login = async (req, res) => {
+    const requestId = req.requestId || 'unknown';
     try {
         const { email, password } = req.body;
 
         // Validation
         if (!email || !password) {
+            console.log(`[${requestId}] [Auth] Login failed: Missing credentials`);
             return res.status(400).json({ error: 'Email and password are required' });
         }
 
         // Check if user exists
         const user = await User.findByEmail(email);
-        console.log(`[Auth] Login attempt for: ${email}`);
+        console.log(`[${requestId}] [Auth] Login attempt for: ${email}`);
 
         if (!user) {
-            console.log('[Auth] User not found');
+            console.log(`[${requestId}] [Auth] User not found`);
             return res.status(401).json({ error: 'Invalid email or password' });
         }
 
-        console.log(`[Auth] User found: ${user.id} (${user.role})`);
+        console.log(`[${requestId}] [Auth] User found: ${user.id} (${user.role}, status: ${user.status})`);
 
         // Verify password - Use password_hash column
         const isValidPassword = await User.verifyPassword(password, user.password_hash);
-        console.log(`[Auth] Password match: ${isValidPassword}`);
+        console.log(`[${requestId}] [Auth] Password match: ${isValidPassword}`);
 
         if (!isValidPassword) {
+            console.log(`[${requestId}] [Auth] Invalid password for user: ${email}`);
             return res.status(401).json({ error: 'Invalid email or password' });
         }
 
         // Check user status
         if (user.status === 'pending') {
-            return res.status(403).json({ error: 'Your account is pending admin approval' });
+            console.log(`[${requestId}] [Auth] Login blocked: Account pending approval`);
+            return res.status(403).json({
+                error: 'Your account is pending admin approval',
+                status: 'pending'
+            });
         }
 
         if (user.status === 'rejected') {
-            return res.status(403).json({ error: 'Your account has been rejected' });
+            console.log(`[${requestId}] [Auth] Login blocked: Account rejected`);
+            return res.status(403).json({
+                error: 'Your account has been rejected. Please contact support.',
+                status: 'rejected'
+            });
         }
 
         if (user.status === 'suspended') {
-            return res.status(403).json({ error: 'Your account has been suspended' });
+            console.log(`[${requestId}] [Auth] Login blocked: Account suspended`);
+            return res.status(403).json({
+                error: 'Your account has been suspended. Please contact support.',
+                status: 'suspended'
+            });
         }
 
         // Generate tokens
         const { accessToken, refreshToken } = generateTokens(user);
+        console.log(`[${requestId}] [Auth] ✅ Login successful for user: ${user.id}`);
 
         // Set refresh token in HTTP-only cookie
         res.cookie('refreshToken', refreshToken, {
@@ -108,8 +129,11 @@ const login = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ error: 'Login failed' });
+        console.error(`[${requestId}] [Auth] Login error:`, error);
+        res.status(500).json({
+            error: 'Login failed. Please try again later.',
+            requestId: requestId  // Include for support debugging
+        });
     }
 };
 

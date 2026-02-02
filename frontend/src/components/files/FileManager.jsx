@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Download, File, Image, FileText, Trash2, X, Upload as UploadIcon } from 'lucide-react';
 import { apiService } from '../../services/api';
 
@@ -7,11 +7,7 @@ const FileManager = ({ taskId, userRole, onClose }) => {
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
 
-    useEffect(() => {
-        loadFiles();
-    }, [taskId]);
-
-    const loadFiles = async () => {
+    const loadFiles = useCallback(async () => {
         try {
             setLoading(true);
             const taskFiles = await apiService.getTaskFiles(taskId);
@@ -21,7 +17,11 @@ const FileManager = ({ taskId, userRole, onClose }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [taskId]);
+
+    useEffect(() => {
+        loadFiles();
+    }, [loadFiles]);
 
     const handleDownload = async (fileId, filename) => {
         try {
@@ -171,8 +171,8 @@ const FileManager = ({ taskId, userRole, onClose }) => {
                                             </p>
                                             {file.uploader_name && (
                                                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${file.uploader_role === 'admin'
-                                                        ? 'bg-purple-100 text-purple-700'
-                                                        : 'bg-blue-100 text-blue-700'
+                                                    ? 'bg-purple-100 text-purple-700'
+                                                    : 'bg-blue-100 text-blue-700'
                                                     }`}>
                                                     {file.uploader_role === 'admin' ? '👨‍💼' : '👤'} {file.uploader_name}
                                                 </span>

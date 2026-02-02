@@ -2,7 +2,9 @@ import axios from 'axios';
 
 const apiFunc = (url) => {
     if (!url) return 'http://localhost:3001/api';
-    return url.endsWith('/api') ? url : `${url}/api`;
+    // Remove trailing slash if present
+    const cleanUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+    return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
 }
 const API_BASE_URL = apiFunc(process.env.REACT_APP_API_URL);
 

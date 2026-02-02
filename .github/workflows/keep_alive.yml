@@ -1,0 +1,13 @@
+name: Keep Backend Alive
+
+on:
+  schedule:
+    - cron: '*/14 * * * *' # Run every 14 minutes to beat the 15-min sleep timer
+  workflow_dispatch: # Allow manual run from GitHub interface
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Backend Health Check
+        run: curl -I https://ktrack-ie2a.onrender.com/health

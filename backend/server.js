@@ -49,7 +49,7 @@ app.use(
 // Auth limiter: Strict to prevent brute force attacks
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 attempts per 15 minutes
+  max: 20, // 20 attempts per 15 minutes (increased for better UX)
   skipSuccessfulRequests: true, // Don't count successful logins
   message: {
     success: false,

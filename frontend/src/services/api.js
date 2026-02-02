@@ -34,8 +34,12 @@ api.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
 
+        // Don't try to refresh token for public endpoints or if user isn't logged in
+        const isPublicEndpoint = originalRequest.url?.includes('/public/');
+        const hasToken = localStorage.getItem('accessToken');
+
         // If error is 401 (Unauthorized) and not already retrying
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        if (error.response?.status === 401 && !originalRequest._retry && hasToken && !isPublicEndpoint) {
             originalRequest._retry = true;
 
             try {

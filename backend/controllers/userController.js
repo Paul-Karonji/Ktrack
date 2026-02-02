@@ -23,11 +23,22 @@ const getPendingUsers = async (req, res) => {
     }
 };
 
+const { sendApprovalEmail } = require('../services/emailService');
+
 // Approve user (admin only)
 const approveUser = async (req, res) => {
     try {
         const { id } = req.params;
         const user = await User.approve(id, req.user.id);
+
+        // Send email notification
+        if (user.email) {
+            // Run asynchronously, don't block response
+            sendApprovalEmail(user.email, user.full_name || 'Client').catch(err =>
+                console.error('Failed to send approval email:', err)
+            );
+        }
+
         res.json({
             message: 'User approved successfully',
             user

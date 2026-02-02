@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, HelpCircle, BookOpen, MessageCircle, FileText, CheckCircle, Download, Upload } from 'lucide-react';
+import { X, HelpCircle, BookOpen, MessageCircle, FileText, CheckCircle, Upload } from 'lucide-react';
 
 const HelpModal = ({ isOpen, onClose }) => {
     const [activeTab, setActiveTab] = useState('quickstart');
@@ -45,8 +45,8 @@ const HelpModal = ({ isOpen, onClose }) => {
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id
-                                        ? 'border-indigo-600 text-indigo-600 bg-white'
-                                        : 'border-transparent text-gray-600 hover:text-indigo-600 hover:bg-gray-100'
+                                    ? 'border-indigo-600 text-indigo-600 bg-white'
+                                    : 'border-transparent text-gray-600 hover:text-indigo-600 hover:bg-gray-100'
                                     }`}
                             >
                                 <Icon className="w-4 h-4" />

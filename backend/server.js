@@ -50,24 +50,10 @@ app.use(
 // Fixes: ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
 app.set('trust proxy', 1);
 
-// Rate limiting - Separate limiters for auth vs general API
-// Auth limiter: Strict to prevent brute force attacks
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Relaxed to 100 to prevent lockout during testing
-  skipSuccessfulRequests: true, // Don't count successful logins
-  message: {
-    success: false,
-    error: 'Too many login attempts. Please try again in 15 minutes.',
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// General API limiter: More lenient for normal usage
+// Rate limiting - General API limiter for most endpoints
 const apiLimiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 2000, // Increased from 1000 to 2000
+  max: parseInt(process.env.RATE_LIMIT_MAX) || 2000,
   message: {
     success: false,
     error: 'Too many requests from this IP, please try again later.',
@@ -92,8 +78,8 @@ app.get('/health', (_req, res) => {
 });
 
 // API routes with rate limiting
-// Auth routes get strict rate limiting
-app.use('/api/auth', authLimiter, authRoutes);
+// Auth routes get general rate limiting (login/register have their own strict limiter)
+app.use('/api/auth', apiLimiter, authRoutes);
 
 // Other API routes get general rate limiting
 app.use('/api/users', apiLimiter, userRoutes);

@@ -10,21 +10,27 @@ const EMAIL_ENABLED = process.env.EMAIL_ENABLED !== 'false'; // Default enabled
 // Create transporter
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465, // Using 465 (SSL) for better cloud compatibility
-    secure: true, // true for 465
+    port: 587, // Using 587 (STARTTLS) - better compatibility with cloud platforms like Render
+    secure: false, // false for 587, use STARTTLS
     auth: {
         user: EMAIL_USER,
         pass: EMAIL_PASS
     },
+    // Require TLS
+    requireTLS: true,
     // Force IPv4 to avoid Render IPv6 routing issues
     family: 4,
     // Debug settings
     logger: true,
     debug: true,
-    // Timeouts
-    connectionTimeout: 30000,
-    greetingTimeout: 30000,
-    socketTimeout: 30000
+    // Increased timeouts for cloud environments
+    connectionTimeout: 60000, // 60 seconds
+    greetingTimeout: 60000,
+    socketTimeout: 60000,
+    // Additional options for cloud platforms
+    pool: false, // Disable connection pooling for serverless/cloud
+    maxConnections: 1,
+    maxMessages: 1
 });
 
 // Verify connection on startup
@@ -32,8 +38,12 @@ if (EMAIL_ENABLED && EMAIL_USER && EMAIL_PASS) {
     transporter.verify((error, success) => {
         if (error) {
             console.error('❌ Email service configuration error:', error.message);
+            console.error('Error code:', error.code);
+            console.error('Error command:', error.command);
+            console.error('Hint: If using Render/cloud platform, ensure outbound SMTP (port 587) is allowed');
         } else {
             console.log('✅ Email service ready');
+            console.log('📧 SMTP Config: smtp.gmail.com:587 (STARTTLS)');
         }
     });
 } else {

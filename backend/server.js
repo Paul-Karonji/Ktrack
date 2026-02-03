@@ -46,6 +46,10 @@ app.use(
   })
 );
 
+// Trust proxy (Required for rate limiting behind proxies like Vercel/Render/Ngrok)
+// Fixes: ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+app.set('trust proxy', 1);
+
 // Rate limiting - Separate limiters for auth vs general API
 // Auth limiter: Strict to prevent brute force attacks
 const authLimiter = rateLimit({

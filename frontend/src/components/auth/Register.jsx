@@ -246,13 +246,18 @@ const Register = () => {
                         </button>
                     </form>
 
-                    <div className="mt-8 text-center">
+                    <div className="mt-8 text-center space-y-4">
                         <p className="text-sm text-gray-600">
                             Already have an account?{' '}
                             <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
                                 Sign in
                             </Link>
                         </p>
+                        <div className="border-t pt-4">
+                            <Link to="/" className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
+                                ← Back to Homepage
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </div>

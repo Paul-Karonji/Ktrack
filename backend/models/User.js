@@ -80,6 +80,15 @@ class User {
     return rows;
   }
 
+  // Find all admins
+  static async findAdmins() {
+    const [rows] = await pool.execute(
+      'SELECT id, email, full_name FROM users WHERE role = ?',
+      ['admin']
+    );
+    return rows;
+  }
+
   // Approve user
   static async approve(userId, approvedBy) {
     await pool.execute(

@@ -17,6 +17,7 @@ const taskRoutes = require('./routes/tasks');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const filesRoutes = require('./routes/files');
+const notificationRoutes = require('./routes/notifications');
 const messageRoutes = require('./routes/messages');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const requestIdMiddleware = require('./middleware/requestId');
@@ -95,7 +96,8 @@ app.use('/api/users', apiLimiter, userRoutes);
 app.use('/api/tasks', apiLimiter, taskRoutes);
 app.use('/api/messages', apiLimiter, messageRoutes);
 app.use('/api/public', require('./routes/public')); // No rate limit for public stats
-app.use('/api', apiLimiter, filesRoutes);
+app.use('/api/files', apiLimiter, filesRoutes);
+app.use('/api/notifications', apiLimiter, notificationRoutes);
 // Serve local uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 

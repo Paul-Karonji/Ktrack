@@ -1,4 +1,8 @@
 const Task = require('../models/Task');
+const User = require('../models/User');
+const EmailService = require('../services/emailService');
+const templates = require('../templates/emailTemplates');
+const Notification = require('../models/Notification');
 
 class TaskController {
   static async getAllTasks(req, res) {
@@ -37,6 +41,39 @@ class TaskController {
       }
 
       const task = await Task.create(taskData);
+
+      // Email Notifications
+      try {
+        // 1. Notify Admin (New Task)
+        const { subject: adminSubject, html: adminHtml } = templates.newTask(task, taskData.clientName);
+        EmailService.notifyAdmin({ subject: adminSubject, html: adminHtml }).catch(e => console.error('Failed to notify admin:', e));
+
+        // 2. Notify Client (Task Received) - only if we have client email
+        if (req.user && req.user.role === 'client') {
+          const { subject: clientSubject, html: clientHtml } = templates.taskReceived(req.user.full_name, task);
+          EmailService.sendEmail({ to: req.user.email, subject: clientSubject, html: clientHtml }).catch(e => console.error('Failed to notify client:', e));
+
+          // In-App for client
+          Notification.create({
+            userId: req.user.id,
+            type: 'task_received',
+            message: `We received your task: ${taskData.taskDescription.substring(0, 50)}...`
+          }).catch(e => console.error('Failed to create client notification:', e));
+        }
+
+        // In-App for Admins (New Task)
+        const admins = await User.findAdmins();
+        for (const admin of admins) {
+          Notification.create({
+            userId: admin.id,
+            type: 'new_task',
+            message: `New task from ${taskData.clientName}: ${taskData.taskDescription.substring(0, 50)}...`
+          }).catch(e => console.error('Failed to create admin notification:', e));
+        }
+      } catch (emailError) {
+        console.error('Email notification error:', emailError);
+      }
+
       res.status(201).json(task);
     } catch (error) {
       console.error('Error creating task:', error);
@@ -59,6 +96,29 @@ class TaskController {
       }
 
       const updatedTask = await Task.update(req.params.id, req.body);
+
+      // Check if status changed and notify client
+      if (req.body.status && req.body.status !== existingTask.status) {
+        try {
+          if (existingTask.client_id) {
+            const client = await User.findById(existingTask.client_id);
+            if (client && client.email) {
+              const { subject, html } = templates.taskStatusUpdate(client.full_name, updatedTask, req.body.status);
+              EmailService.sendEmail({ to: client.email, subject, html }).catch(e => console.error('Failed to notify client of status update:', e));
+
+              // In-App
+              Notification.create({
+                userId: client.id,
+                type: 'status_update',
+                message: `Task #${updatedTask.id} status updated to: ${req.body.status}`
+              }).catch(e => console.error('Failed to create notification:', e));
+            }
+          }
+        } catch (emailError) {
+          console.error('Status update email error:', emailError);
+        }
+      }
+
       res.json(updatedTask);
     } catch (error) {
       console.error('Error updating task:', error);
@@ -130,6 +190,26 @@ class TaskController {
         quoteStatus: 'quote_sent',
         status: 'review' // Move to review status
       });
+
+      // Notify Client of Quote
+      try {
+        if (existingTask.client_id) {
+          const client = await User.findById(existingTask.client_id);
+          if (client && client.email) {
+            const { subject, html } = templates.quoteSent(client.full_name, updatedTask, amount);
+            EmailService.sendEmail({ to: client.email, subject, html }).catch(e => console.error('Failed to notify client of quote:', e));
+
+            // In-App
+            Notification.create({
+              userId: client.id,
+              type: 'quote_sent',
+              message: `New quote received for Task #${updatedTask.id}: $${amount}`
+            }).catch(e => console.error('Failed to create notification:', e));
+          }
+        }
+      } catch (emailError) {
+        console.error('Quote email error:', emailError);
+      }
 
       res.json(updatedTask);
     } catch (error) {

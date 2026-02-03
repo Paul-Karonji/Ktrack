@@ -129,6 +129,11 @@ const Login = () => {
                                 Register here
                             </Link>
                         </p>
+                        <div className="mt-4 pt-4 border-t border-gray-100">
+                            <Link to="/" className="text-sm font-medium text-gray-500 hover:text-gray-900 flex items-center justify-center gap-2 transition-colors">
+                                ← Back to Home
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </div>

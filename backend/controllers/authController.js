@@ -32,6 +32,19 @@ const register = async (req, res) => {
 
         console.log(`[${requestId}] [Auth] ✅ User registered successfully: ${user.id} (${email})`);
 
+        // Notify Admin
+        const EmailService = require('../services/emailService');
+        const templates = require('../templates/emailTemplates');
+
+        try {
+            const { subject, html } = templates.newRegistration(user);
+            EmailService.notifyAdmin({ subject, html }).catch(err =>
+                console.error(`[${requestId}] [Auth] Failed to send admin notification:`, err)
+            );
+        } catch (emailError) {
+            console.error(`[${requestId}] [Auth] Failed to prepare admin notification:`, emailError);
+        }
+
         res.status(201).json({
             message: 'Registration successful! Your account is pending admin approval.',
             user: {

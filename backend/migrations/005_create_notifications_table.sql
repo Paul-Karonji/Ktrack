@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    message TEXT NOT NULL,
+    read_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

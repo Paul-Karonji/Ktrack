@@ -62,6 +62,20 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
                 </div>
                 <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Task Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                        type="text"
+                        name="taskName"
+                        value={formData.taskName}
+                        onChange={onChange}
+                        className="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-bold text-lg"
+                        required
+                        placeholder="e.g. Website Redesign"
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
                         Task Description <span className="text-red-500">*</span>
                     </label>
                     <textarea

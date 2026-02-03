@@ -10,16 +10,18 @@ const EMAIL_ENABLED = process.env.EMAIL_ENABLED !== 'false'; // Default enabled
 // Create transporter
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // true for 465, false for other ports
+    port: 465, // Using 465 (SSL) for better cloud compatibility
+    secure: true, // true for 465
     auth: {
         user: EMAIL_USER,
         pass: EMAIL_PASS
     },
+    // Force IPv4 to avoid Render IPv6 routing issues
+    family: 4,
     // Debug settings
     logger: true,
     debug: true,
-    // Timeouts - Increased to 30s to prevent premature timeouts on slow connections
+    // Timeouts
     connectionTimeout: 30000,
     greetingTimeout: 30000,
     socketTimeout: 30000

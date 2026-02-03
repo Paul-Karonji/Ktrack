@@ -206,10 +206,35 @@ const refreshToken = async (req, res) => {
     }
 };
 
+// Reject/Delete User
+const rejectUser = async (req, res) => {
+    const requestId = req.requestId || 'unknown';
+    try {
+        const { id } = req.params;
+        console.log(`[${requestId}] [Auth] Rejecting (Deleting) user ID: ${id}`);
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Delete the user
+        await User.delete(id);
+        console.log(`[${requestId}] [Auth] User deleted successfully: ${id}`);
+
+        res.json({ message: 'User rejected and deleted successfully' });
+
+    } catch (error) {
+        console.error(`[${requestId}] [Auth] Reject user error:`, error);
+        res.status(500).json({ error: 'Failed to reject user' });
+    }
+};
+
 module.exports = {
     register,
     login,
     logout,
     getCurrentUser,
-    refreshToken
+    refreshToken,
+    rejectUser
 };

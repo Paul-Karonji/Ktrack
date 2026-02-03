@@ -188,12 +188,29 @@ const AdminDashboard = ({
                                     <td className="px-6 py-4">{u.email}</td>
                                     <td className="px-6 py-4">{u.course}</td>
                                     <td className="px-6 py-4">
-                                        <button
-                                            onClick={() => handleApproveUser(u.id)}
-                                            className="text-green-600 hover:text-green-900 font-bold bg-green-50 px-3 py-1 rounded border border-green-200"
-                                        >
-                                            Approve
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => handleApproveUser(u.id)}
+                                                className="text-green-600 hover:text-green-900 font-bold bg-green-50 px-3 py-1 rounded border border-green-200"
+                                            >
+                                                Approve
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    if (!window.confirm('Are you sure you want to REJECT and DELETE this user? This action cannot be undone.')) return;
+                                                    try {
+                                                        await apiService.rejectUser(u.id);
+                                                        loadAdminData();
+                                                    } catch (err) {
+                                                        console.error(err);
+                                                        alert('Failed to reject user');
+                                                    }
+                                                }}
+                                                className="text-red-600 hover:text-red-900 font-bold bg-red-50 px-3 py-1 rounded border border-red-200"
+                                            >
+                                                Reject
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

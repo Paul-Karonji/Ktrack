@@ -99,7 +99,7 @@ export const apiService = {
     // Users (Admin)
     getUsers: (filters) => api.get('/users', { params: filters }).then(res => res.data),
     approveUser: (id) => api.put(`/users/${id}/approve`).then(res => res.data),
-    rejectUser: (id) => api.put(`/users/${id}/reject`).then(res => res.data),
+    rejectUser: (id) => api.delete(`/auth/users/${id}`).then(res => res.data),
     suspendUser: (id) => api.put(`/users/${id}/suspend`).then(res => res.data),
     getUserStats: () => api.get('/users/stats').then(res => res.data),
 

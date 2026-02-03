@@ -31,6 +31,7 @@ class Task {
   static async create(taskData) {
     const {
       clientName,
+      taskName, // Added
       taskDescription,
       dateCommissioned,
       dateDelivered,
@@ -47,10 +48,11 @@ class Task {
 
     const [result] = await pool.execute(
       `INSERT INTO tasks 
-       (client_name, task_description, date_commissioned, date_delivered, expected_amount, is_paid, priority, status, notes, quote_status, quoted_amount, quantity, client_id) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (client_name, task_name, task_description, date_commissioned, date_delivered, expected_amount, is_paid, priority, status, notes, quote_status, quoted_amount, quantity, client_id) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         clientName,
+        taskName || 'Untitled Task', // Default if missing
         taskDescription,
         dateCommissioned || null,
         dateDelivered || null,
@@ -75,6 +77,7 @@ class Task {
 
     const {
       clientName = existingTask.client_name,
+      taskName = existingTask.task_name, // Added
       taskDescription = existingTask.task_description,
       dateCommissioned = existingTask.date_commissioned,
       dateDelivered = existingTask.date_delivered,
@@ -90,7 +93,7 @@ class Task {
 
     await pool.execute(
       `UPDATE tasks 
-       SET client_name = ?, task_description = ?, date_commissioned = ?, 
+       SET client_name = ?, task_name = ?, task_description = ?, date_commissioned = ?, 
            date_delivered = ?, expected_amount = ?, is_paid = ?, 
            priority = ?, status = ?, notes = ?, 
            quote_status = ?,
@@ -100,6 +103,7 @@ class Task {
        WHERE id = ?`,
       [
         clientName,
+        taskName,
         taskDescription,
         dateCommissioned,
         dateDelivered,

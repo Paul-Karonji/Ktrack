@@ -22,7 +22,8 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
             <tr className="hover:bg-indigo-50/50 transition-colors">
                 <td className="px-6 py-4">
                     <div className="flex flex-col">
-                        <span className="font-bold text-gray-800">{task.task_description}</span>
+                        <span className="font-bold text-gray-900 text-lg">{task.task_name || 'Untitled Task'}</span>
+                        <span className="text-sm text-gray-500 line-clamp-2">{task.task_description}</span>
                         {task.quantity > 1 && (
                             <span className="text-xs text-indigo-600 font-medium">Qty: {task.quantity}</span>
                         )}

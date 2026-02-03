@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const NotificationController = require('../controllers/notificationController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticate } = require('../middleware/auth');
 
-router.use(authenticateToken); // Protect all routes
+router.use(authenticate); // Protect all routes
 
 router.get('/', NotificationController.getNotifications);
 router.get('/unread-count', NotificationController.getUnreadCount);

@@ -9,16 +9,18 @@ const EMAIL_ENABLED = process.env.EMAIL_ENABLED !== 'false'; // Default enabled
 
 // Create transporter
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false, // true for 465, false for other ports
     auth: {
         user: EMAIL_USER,
         pass: EMAIL_PASS
     },
-    // Debug settings to diagnose "hanging"
+    // Debug settings
     logger: true,
     debug: true,
-    // Timeouts to force error if connection hangs
-    connectionTimeout: 10000, // 10 seconds
+    // Timeouts
+    connectionTimeout: 10000,
     greetingTimeout: 10000,
     socketTimeout: 10000
 });

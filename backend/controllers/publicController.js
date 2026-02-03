@@ -1,4 +1,4 @@
-const pool = require('../config/database');
+const { pool } = require('../config/database');
 
 exports.getPublicStats = async (req, res) => {
     try {

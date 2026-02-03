@@ -13,7 +13,14 @@ const transporter = nodemailer.createTransport({
     auth: {
         user: EMAIL_USER,
         pass: EMAIL_PASS
-    }
+    },
+    // Debug settings to diagnose "hanging"
+    logger: true,
+    debug: true,
+    // Timeouts to force error if connection hangs
+    connectionTimeout: 10000, // 10 seconds
+    greetingTimeout: 10000,
+    socketTimeout: 10000
 });
 
 // Verify connection on startup

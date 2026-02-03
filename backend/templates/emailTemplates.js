@@ -79,21 +79,24 @@ const templates = {
         const content = `
             <p style="color: #374151; font-size: 16px; margin-bottom: 24px;"><strong>${clientName}</strong> has submitted a new task.</p>
             <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
-                <h3 style="margin: 0 0 10px 0; color: #111827;">${task.client_name || clientName}'s Request</h3>
-                <p style="margin: 0 0 10px 0; color: #4b5563;">${task.task_description}</p>
-                <p style="margin: 0; color: #6b7280; font-size: 14px;">Quantity: ${task.quantity || 1} • Expected: $${task.expected_amount}</p>
+                <h3 style="margin: 0 0 5px 0; color: #111827;">${task.task_name || 'Untitled Task'}</h3>
+                <p style="margin: 0 0 10px 0; color: #4b5563; font-style: italic;">${task.client_name || clientName}</p>
+                <div style="border-top: 1px solid #e5e7eb; padding-top: 10px; margin-top: 10px;">
+                    <p style="margin: 0 0 10px 0; color: #374151;">${task.task_description}</p>
+                    <p style="margin: 0; color: #6b7280; font-size: 14px;">Quantity: ${task.quantity || 1} • Expected: $${task.expected_amount}</p>
+                </div>
             </div>
             <div style="text-align: center;">
                 <a href="${CLIENT_URL}/dashboard" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600;">View Task</a>
             </div>
         `;
-        return { subject: `📋 New Task from ${clientName}`, html: baseTemplate(content, title) };
+        return { subject: `📋 New Task: ${task.task_name || 'Untitled'} (${clientName})`, html: baseTemplate(content, title) };
     },
 
-    newMessage: (senderName, messageText, taskId) => {
+    newMessage: (senderName, messageText, taskId, taskName) => {
         const title = 'New Message';
         const content = `
-            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">You have a new message from <strong>${senderName}</strong> regarding Task #${taskId}.</p>
+            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">You have a new message from <strong>${senderName}</strong> regarding <strong>${taskName || 'Task #' + taskId}</strong>.</p>
             <div style="background-color: #f0fdf4; border-radius: 8px; padding: 20px; margin-bottom: 24px; border-left: 4px solid #22c55e;">
                 <p style="margin: 0; color: #1f2937; font-style: italic;">"${messageText}"</p>
             </div>
@@ -101,13 +104,13 @@ const templates = {
                 <a href="${CLIENT_URL}/dashboard" style="display: inline-block; background-color: #22c55e; color: #ffffff; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600;">Reply Now</a>
             </div>
         `;
-        return { subject: `💬 New Message from ${senderName}`, html: baseTemplate(content, title) };
+        return { subject: `💬 Message: ${taskName || 'Task #' + taskId}`, html: baseTemplate(content, title) };
     },
 
-    newFileAdmin: (uploaderName, filename, taskId) => {
+    newFileAdmin: (uploaderName, filename, taskId, taskName) => {
         const title = 'New File Uploaded';
         const content = `
-            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;"><strong>${uploaderName}</strong> uploaded a file to Task #${taskId}.</p>
+            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;"><strong>${uploaderName}</strong> uploaded a file to <strong>${taskName || 'Task #' + taskId}</strong>.</p>
             <div style="background-color: #eff6ff; border-radius: 8px; padding: 15px; margin-bottom: 24px; display: flex; align-items: center;">
                 <span style="font-size: 24px; margin-right: 15px;">📎</span>
                 <span style="font-weight: 600; color: #1f2937;">${filename}</span>
@@ -116,7 +119,7 @@ const templates = {
                 <a href="${CLIENT_URL}/dashboard" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600;">View File</a>
             </div>
         `;
-        return { subject: `📎 New File: ${filename}`, html: baseTemplate(content, title) };
+        return { subject: `📎 New File: ${filename} (Task #${taskId})`, html: baseTemplate(content, title) };
     },
 
     // CLIENT NOTIFICATIONS
@@ -127,7 +130,7 @@ const templates = {
             <p style="color: #374151; font-size: 16px;">Hi ${userName},</p>
             <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Thanks for submitting your task! We've received it and are reviewing the details.</p>
             <div style="background-color: #f9fafb; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
-                <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #111827;">Task Details:</h3>
+                <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #111827;">${task.task_name || 'Untitled Task'}</h3>
                 <p style="margin: 0; color: #4b5563;">${task.task_description}</p>
             </div>
             <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">We'll get back to you shortly with a quote or any questions.</p>
@@ -135,14 +138,14 @@ const templates = {
                 <a href="${CLIENT_URL}/dashboard" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600;">Track Status</a>
             </div>
         `;
-        return { subject: `✅ Task Received (ID: ${task.id})`, html: baseTemplate(content, title) };
+        return { subject: `✅ Task Received: ${task.task_name || 'Task #' + task.id}`, html: baseTemplate(content, title) };
     },
 
     quoteSent: (userName, task, amount) => {
         const title = 'Quote Ready';
         const content = `
             <p style="color: #374151; font-size: 16px;">Hi ${userName},</p>
-            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">We've prepared a quote for your task request.</p>
+            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">We've prepared a quote for <strong>${task.task_name || 'Task #' + task.id}</strong>.</p>
             <div style="background-color: #f0fdf4; border-radius: 8px; padding: 24px; margin-bottom: 24px; text-align: center;">
                 <p style="margin: 0 0 5px 0; color: #6b7280; font-size: 14px;">Total Quote Amount</p>
                 <div style="color: #15803d; font-size: 32px; font-weight: 700;">$${amount}</div>
@@ -152,7 +155,7 @@ const templates = {
                 <a href="${CLIENT_URL}/dashboard" style="display: inline-block; background-color: #16a34a; color: #ffffff; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600;">Review Quote</a>
             </div>
         `;
-        return { subject: `💰 Quote for Task #${task.id}`, html: baseTemplate(content, title) };
+        return { subject: `💰 Quote for ${task.task_name || 'Task #' + task.id}`, html: baseTemplate(content, title) };
     },
 
     taskStatusUpdate: (userName, task, status) => {
@@ -168,21 +171,21 @@ const templates = {
             <p style="color: #374151; font-size: 16px;">Hi ${userName},</p>
             <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">Your task status has been updated.</p>
             <div style="background-color: #eff6ff; border-radius: 8px; padding: 20px; margin-bottom: 24px; text-align: center;">
-                 <p style="margin: 0 0 10px 0; color: #1e3a8a; font-weight: 600;">Task #${task.id}</p>
+                 <p style="margin: 0 0 10px 0; color: #1e3a8a; font-weight: 600;">${task.task_name || 'Task #' + task.id}</p>
                  <div style="font-size: 18px; font-weight: 700; color: #2563eb;">${displayStatus}</div>
             </div>
             <div style="text-align: center;">
                 <a href="${CLIENT_URL}/dashboard" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600;">View Details</a>
             </div>
         `;
-        return { subject: `🔄 Update: Task #${task.id} is ${displayStatus}`, html: baseTemplate(content, title) };
+        return { subject: `🔄 Update: ${task.task_name || 'Task #' + task.id} is ${displayStatus}`, html: baseTemplate(content, title) };
     },
 
-    newFileClient: (userName, filename, taskId) => {
+    newFileClient: (userName, filename, taskId, taskName) => {
         const title = 'New Deliverable Ready';
         const content = `
             <p style="color: #374151; font-size: 16px;">Hi ${userName},</p>
-            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">We've just uploaded a new file for your task.</p>
+            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">We've just uploaded a new file for <strong>${taskName || 'Task #' + taskId}</strong>.</p>
             <div style="background-color: #fce7f3; border-radius: 8px; padding: 15px; margin-bottom: 24px; display: flex; align-items: center; border-left: 4px solid #db2777;">
                 <span style="font-size: 24px; margin-right: 15px;">📦</span>
                 <span style="font-weight: 600; color: #1f2937;">${filename}</span>
@@ -194,11 +197,11 @@ const templates = {
         return { subject: `📦 New File: ${filename}`, html: baseTemplate(content, title) };
     },
 
-    newMessageClient: (userName, messageText, taskId) => {
+    newMessageClient: (userName, messageText, taskId, taskName) => {
         const title = 'New Reply';
         const content = `
             <p style="color: #374151; font-size: 16px;">Hi ${userName},</p>
-            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">You have a new message regarding Task #${taskId}.</p>
+            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">You have a new message regarding <strong>${taskName || 'Task #' + taskId}</strong>.</p>
             <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin-bottom: 24px; border-left: 4px solid #4f46e5;">
                 <p style="margin: 0; color: #1f2937; font-style: italic;">"${messageText}"</p>
             </div>
@@ -206,7 +209,7 @@ const templates = {
                 <a href="${CLIENT_URL}/dashboard" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600;">View Conversation</a>
             </div>
         `;
-        return { subject: `💬 New Message - Task #${taskId}`, html: baseTemplate(content, title) };
+        return { subject: `💬 New Message: ${taskName || 'Task #' + taskId}`, html: baseTemplate(content, title) };
     }
 };
 

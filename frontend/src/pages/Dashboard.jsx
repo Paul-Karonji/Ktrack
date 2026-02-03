@@ -29,6 +29,7 @@ const Dashboard = () => {
     // Form state
     const [formData, setFormData] = useState({
         clientName: '',
+        taskName: '', // Added
         taskDescription: '',
         dateCommissioned: '',
         dateDelivered: '',
@@ -49,6 +50,7 @@ const Dashboard = () => {
     const resetForm = () => {
         setFormData({
             clientName: user?.role === 'client' ? (user.fullName || user.full_name) : '',
+            taskName: '', // Added
             taskDescription: '',
             dateCommissioned: '',
             dateDelivered: '',
@@ -130,6 +132,7 @@ const Dashboard = () => {
     const handleEdit = (task) => {
         setFormData({
             clientName: task.client_name,
+            taskName: task.task_name || '', // Added
             taskDescription: task.task_description,
             dateCommissioned: task.date_commissioned || '',
             dateDelivered: task.date_delivered || '',
@@ -212,6 +215,7 @@ const Dashboard = () => {
     const handleDuplicate = (task) => {
         setFormData({
             clientName: task.client_name,
+            taskName: task.task_name ? `${task.task_name} (Copy)` : '', // Added copy
             taskDescription: task.task_description,
             dateCommissioned: '',
             dateDelivered: '',

@@ -45,7 +45,7 @@ const EmailService = {
         }
 
         if (!EMAIL_USER || !EMAIL_PASS) {
-            console.error('[Email] Missing credentials');
+            console.error('[Email] CRITICAL: Missing credentials. EMAIL_USER:', !!EMAIL_USER, 'EMAIL_PASS:', !!EMAIL_PASS);
             return { success: false, message: 'Email credentials not configured' };
         }
 
@@ -58,11 +58,16 @@ const EmailService = {
                 text: text || html.replace(/<[^>]*>/g, '') // Strip HTML for plain text fallback
             };
 
+            console.log(`[Email] Attempting to send to: ${to} | Subject: ${subject}`);
             const info = await transporter.sendMail(mailOptions);
-            console.log('✅ Email sent:', subject, 'to', to);
+            console.log(`[Email] ✅ Success! MessageID: ${info.messageId}`);
             return { success: true, messageId: info.messageId };
         } catch (error) {
-            console.error('❌ Email send failed:', error.message);
+            console.error('[Email] ❌ FAILED to send email.');
+            console.error('Error Code:', error.code);
+            console.error('Error Command:', error.command);
+            console.error('Error Message:', error.message);
+            // Don't log full error object if it contains sensitive data, but usually safe to log code/msg
             return { success: false, error: error.message };
         }
     },

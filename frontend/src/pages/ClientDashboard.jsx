@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Plus, Clock, CheckCircle, HelpCircle, Search, LayoutDashboard, History, Wallet, Sparkles } from 'lucide-react';
+import { Plus, Clock, CheckCircle, HelpCircle, Search, LayoutDashboard, History, Wallet, Sparkles } from 'lucide-react';
 import StatCard from '../components/dashboard/StatCard';
 import TaskTable from '../components/tasks/TaskTable';
 import TaskForm from '../components/tasks/TaskForm';
@@ -145,8 +145,8 @@ const ClientDashboard = ({
                         <button
                             onClick={() => setActiveTab('active')}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'active'
-                                    ? 'bg-white text-indigo-600 shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-700'
+                                ? 'bg-white text-indigo-600 shadow-sm'
+                                : 'text-gray-500 hover:text-gray-700'
                                 }`}
                         >
                             <Sparkles size={16} />
@@ -155,8 +155,8 @@ const ClientDashboard = ({
                         <button
                             onClick={() => setActiveTab('quotes')}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'quotes'
-                                    ? 'bg-white text-orange-600 shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-700'
+                                ? 'bg-white text-orange-600 shadow-sm'
+                                : 'text-gray-500 hover:text-gray-700'
                                 }`}
                         >
                             <Wallet size={16} />
@@ -168,8 +168,8 @@ const ClientDashboard = ({
                         <button
                             onClick={() => setActiveTab('history')}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'history'
-                                    ? 'bg-white text-gray-700 shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-700'
+                                ? 'bg-white text-gray-700 shadow-sm'
+                                : 'text-gray-500 hover:text-gray-700'
                                 }`}
                         >
                             <History size={16} />

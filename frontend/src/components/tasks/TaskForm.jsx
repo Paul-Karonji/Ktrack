@@ -11,21 +11,22 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
             </h2>
             <form onSubmit={onSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Client Name <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            name="clientName"
-                            value={formData.clientName}
-                            onChange={onChange}
-                            disabled={user?.role === 'client'}
-                            className={`w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all ${user?.role === 'client' ? 'bg-gray-100 cursor-not-allowed text-gray-500' : ''}`}
-                            required
-                            placeholder="Enter client name"
-                        />
-                    </div>
+                    {user?.role === 'admin' && (
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Client Name <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                name="clientName"
+                                value={formData.clientName}
+                                onChange={onChange}
+                                className="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                                required
+                                placeholder="Enter client name"
+                            />
+                        </div>
+                    )}
                     {/* Amount & Quantity - Two Columns */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>

@@ -23,6 +23,7 @@ const FileController = {
                     tf.file_type,
                     tf.file_size,
                     tf.uploaded_at,
+                    tf.uploaded_at as created_at,
                     tf.uploaded_by,
                     t.task_name,
                     t.client_name,

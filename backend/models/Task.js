@@ -4,7 +4,10 @@ class Task {
   static async findAll(filters = {}, viewerId = null) {
     let query = `
       SELECT t.*, 
-      (SELECT COUNT(*) FROM messages m WHERE m.task_id = t.id AND m.sender_id != ? AND m.read_at IS NULL) as unread_count
+      (SELECT COUNT(*) FROM messages m WHERE m.task_id = t.id AND m.sender_id != ? AND m.read_at IS NULL) as unread_count,
+      (SELECT COUNT(*) FROM task_files tf WHERE tf.task_id = t.id) as file_count,
+      (SELECT SUM(tf.file_size) FROM task_files tf WHERE tf.task_id = t.id) as total_file_size,
+      CASE WHEN EXISTS(SELECT 1 FROM task_files tf WHERE tf.task_id = t.id) THEN 1 ELSE 0 END as has_file
       FROM tasks t
     `;
     const params = [viewerId || 0]; // Use 0 if no viewerId to safely return 0 count

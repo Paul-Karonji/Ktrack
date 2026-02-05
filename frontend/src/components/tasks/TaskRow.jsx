@@ -22,7 +22,15 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
             <tr className="hover:bg-indigo-50/30 transition-colors border-b border-gray-100 last:border-0">
                 <td className="px-6 py-5">
                     <div className="flex flex-col">
-                        <span className="font-bold text-gray-900 text-lg mb-1">{task.task_name || 'Untitled Task'}</span>
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="font-bold text-gray-900 text-lg">{task.task_name || 'Untitled Task'}</span>
+                            {task.file_count > 0 && (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
+                                    <FileText size={12} />
+                                    {task.file_count}
+                                </span>
+                            )}
+                        </div>
                         <span className="text-sm text-gray-600 line-clamp-2 leading-relaxed">{task.task_description}</span>
                         {task.quantity > 1 && (
                             <span className="text-xs text-indigo-600 font-semibold mt-1">Qty: {task.quantity}</span>
@@ -38,7 +46,7 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
                                 onClick={() => onDownloadFile(task.id)}
                                 className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 mt-2 font-medium"
                             >
-                                <FileText size={14} /> View File
+                                <FileText size={14} /> View Files ({task.file_count || 1})
                             </button>
                         )}
 

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Users, FileText, CheckCircle, Clock, Plus } from 'lucide-react';
+import { Users, FileText, CheckCircle, Clock, Plus, Search, HardDrive } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { apiService } from '../services/api';
 import StatCard from '../components/dashboard/StatCard';
 import TaskTable from '../components/tasks/TaskTable';
 import TaskForm from '../components/tasks/TaskForm';
 import AnalyticsCharts from '../components/charts/AnalyticsCharts';
+import AdminFilesView from '../components/admin/AdminFilesView';
 
 const AdminDashboard = ({
     user,
@@ -37,7 +38,22 @@ const AdminDashboard = ({
     // Admin specific state
     const [stats, setStats] = useState(null);
     const [pendingUsers, setPendingUsers] = useState([]);
-    const [activeTab, setActiveTab] = useState('tasks'); // 'tasks', 'users', 'analytics'
+    const [activeTab, setActiveTab] = useState('tasks'); // 'tasks', 'users', 'analytics', 'files'
+    const [searchTerm, setSearchTerm] = useState('');
+
+    // Calculate file statistics
+    const totalFiles = tasks.reduce((sum, t) => sum + (t.file_count || 0), 0);
+    const tasksWithFiles = tasks.filter(t => t.has_file).length;
+    const totalStorage = tasks.reduce((sum, t) => sum + (t.total_file_size || 0), 0);
+
+    // Filter tasks by search
+    const filteredTasks = searchTerm
+        ? tasks.filter(t =>
+            t.task_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            t.task_description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            t.client_name?.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+        : tasks;
 
     // Load extra admin data
     useEffect(() => {
@@ -67,8 +83,30 @@ const AdminDashboard = ({
         }
     };
 
+    const formatBytes = (bytes) => {
+        if (!bytes) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+    };
+
     return (
         <div className="space-y-6">
+            {/* Search Bar */}
+            <div className="bg-white rounded-2xl p-4 border-2 border-gray-100 shadow-sm">
+                <div className="relative">
+                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                    <input
+                        type="text"
+                        placeholder="Search tasks, clients, or files..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                    />
+                </div>
+            </div>
+
             {/* Admin Stats Row */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <StatCard
@@ -98,25 +136,60 @@ const AdminDashboard = ({
                 />
             </div>
 
+            {/* File Stats Row */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <StatCard
+                    title="Total Files"
+                    value={totalFiles}
+                    icon={FileText}
+                    color="bg-cyan-500"
+                    onClick={() => setActiveTab('files')}
+                />
+                <StatCard
+                    title="Tasks with Files"
+                    value={tasksWithFiles}
+                    icon={CheckCircle}
+                    color="bg-teal-500"
+                />
+                <StatCard
+                    title="Storage Used"
+                    value={formatBytes(totalStorage)}
+                    icon={HardDrive}
+                    color="bg-indigo-500"
+                />
+                <StatCard
+                    title="Avg Files/Task"
+                    value={tasks.length > 0 ? (totalFiles / tasks.length).toFixed(1) : 0}
+                    icon={FileText}
+                    color="bg-pink-500"
+                />
+            </div>
+
             {/* Navigation Tabs */}
             <div className="flex space-x-4 border-b">
                 <button
-                    className={`pb - 2 px - 4 ${activeTab === 'tasks' ? 'border-b-2 border-indigo-600 font-bold' : ''} `}
+                    className={`pb-2 px-4 ${activeTab === 'tasks' ? 'border-b-2 border-indigo-600 font-bold' : ''}`}
                     onClick={() => setActiveTab('tasks')}
                 >
                     Tasks Management
                 </button>
                 <button
-                    className={`pb - 2 px - 4 ${activeTab === 'users' ? 'border-b-2 border-indigo-600 font-bold' : ''} `}
+                    className={`pb-2 px-4 ${activeTab === 'users' ? 'border-b-2 border-indigo-600 font-bold' : ''}`}
                     onClick={() => setActiveTab('users')}
                 >
                     User Approvals {pendingUsers.length > 0 && <span className="bg-red-500 text-white text-xs rounded-full px-2">{pendingUsers.length}</span>}
                 </button>
                 <button
-                    className={`pb - 2 px - 4 ${activeTab === 'analytics' ? 'border-b-2 border-indigo-600 font-bold' : ''} `}
+                    className={`pb-2 px-4 ${activeTab === 'analytics' ? 'border-b-2 border-indigo-600 font-bold' : ''}`}
                     onClick={() => setActiveTab('analytics')}
                 >
                     Analytics
+                </button>
+                <button
+                    className={`pb-2 px-4 ${activeTab === 'files' ? 'border-b-2 border-indigo-600 font-bold' : ''}`}
+                    onClick={() => setActiveTab('files')}
+                >
+                    Files Overview
                 </button>
             </div>
 
@@ -152,7 +225,7 @@ const AdminDashboard = ({
                             </button>
                         </div>
                         <TaskTable
-                            tasks={tasks}
+                            tasks={filteredTasks}
                             isOnline={isOnline}
                             hideAmounts={hideAmounts}
                             onEdit={onEdit}
@@ -226,6 +299,10 @@ const AdminDashboard = ({
 
             {activeTab === 'analytics' && (
                 <AnalyticsCharts tasks={tasks} />
+            )}
+
+            {activeTab === 'files' && (
+                <AdminFilesView />
             )}
         </div>
     );

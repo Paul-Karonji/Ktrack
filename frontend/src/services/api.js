@@ -80,6 +80,8 @@ export const apiService = {
     deleteTask: (id) => api.delete(`/tasks/${id}`).then(res => res.data),
     togglePayment: (id) => api.patch(`/tasks/${id}/toggle-payment`).then(res => res.data),
     // Files
+    getAllFiles: (params) => api.get('/files', { params }).then(res => res.data),
+    getFileStats: () => api.get('/files/stats').then(res => res.data),
     uploadFile: (taskId, formData) => api.post(`/tasks/${taskId}/files`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     }).then(res => res.data),
@@ -95,6 +97,9 @@ export const apiService = {
     getMessages: (taskId) => api.get(`/messages/tasks/${taskId}`).then(res => res.data),
     sendMessage: (taskId, message) => api.post(`/messages/tasks/${taskId}`, { message }).then(res => res.data),
     markMessagesRead: (taskId) => api.put(`/messages/tasks/${taskId}/read`).then(res => res.data),
+    uploadMessageFile: (taskId, formData) => api.post(`/messages/tasks/${taskId}/file`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    }).then(res => res.data),
 
     // Users (Admin)
     getUsers: (filters) => api.get('/users', { params: filters }).then(res => res.data),
@@ -102,6 +107,11 @@ export const apiService = {
     rejectUser: (id) => api.delete(`/auth/users/${id}`).then(res => res.data),
     suspendUser: (id) => api.put(`/users/${id}/suspend`).then(res => res.data),
     getUserStats: () => api.get('/users/stats').then(res => res.data),
+
+    // Settings
+    updateProfile: (data) => api.put('/auth/profile', data).then(res => res.data),
+    changePassword: (data) => api.put('/auth/password', data).then(res => res.data),
+    updateEmail: (data) => api.put('/auth/email', data).then(res => res.data),
 
     // Public
     getPublicStats: () => api.get('/public/stats').then(res => res.data),

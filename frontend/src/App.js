@@ -4,6 +4,9 @@ import { AuthProvider } from './context/AuthContext';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import Dashboard from './pages/Dashboard';
+import Projects from './pages/Projects';
+import Files from './pages/Files';
+import Settings from './pages/Settings';
 import UserManagement from './pages/admin/UserManagement';
 import PrivateRoute from './components/auth/PrivateRoute';
 import LandingPage from './pages/LandingPage';
@@ -56,6 +59,32 @@ const App = () => {
             }
           />
 
+          <Route
+            path="/projects"
+            element={
+              <PrivateRoute>
+                <Projects />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/files"
+            element={
+              <PrivateRoute>
+                <Files />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/settings"
+            element={
+              <PrivateRoute>
+                <Settings />
+              </PrivateRoute>
+            }
+          />
 
           {/* Landing Page */}
           <Route path="/" element={<LandingPage />} />

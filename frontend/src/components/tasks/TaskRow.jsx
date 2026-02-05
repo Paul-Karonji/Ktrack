@@ -19,13 +19,13 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
 
     return (
         <>
-            <tr className="hover:bg-indigo-50/50 transition-colors">
-                <td className="px-6 py-4">
+            <tr className="hover:bg-indigo-50/30 transition-colors border-b border-gray-100 last:border-0">
+                <td className="px-6 py-5">
                     <div className="flex flex-col">
-                        <span className="font-bold text-gray-900 text-lg">{task.task_name || 'Untitled Task'}</span>
-                        <span className="text-sm text-gray-500 line-clamp-2">{task.task_description}</span>
+                        <span className="font-bold text-gray-900 text-lg mb-1">{task.task_name || 'Untitled Task'}</span>
+                        <span className="text-sm text-gray-600 line-clamp-2 leading-relaxed">{task.task_description}</span>
                         {task.quantity > 1 && (
-                            <span className="text-xs text-indigo-600 font-medium">Qty: {task.quantity}</span>
+                            <span className="text-xs text-indigo-600 font-semibold mt-1">Qty: {task.quantity}</span>
                         )}
                         <input
                             type="file"
@@ -36,9 +36,9 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
                         {task.has_file && (
                             <button
                                 onClick={() => onDownloadFile(task.id)}
-                                className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 mt-1"
+                                className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 mt-2 font-medium"
                             >
-                                <FileText size={12} /> View File
+                                <FileText size={14} /> View File
                             </button>
                         )}
 
@@ -46,37 +46,36 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
                             <button
                                 onClick={() => fileRef.current.click()}
                                 disabled={!isOnline}
-                                className={`flex items-center gap-1 text-xs mt-1 ${task.has_file ? 'text-gray-400 hover:text-indigo-600' : 'text-gray-400 hover:text-indigo-600'}`}
+                                className={`flex items-center gap-1 text-xs mt-1 ${task.has_file ? 'text-gray-400 hover:text-indigo-600' : 'text-gray-400 hover:text-indigo-600'} font-medium`}
                                 title={task.has_file ? "Upload New File" : "Upload File"}
                             >
-                                <Upload size={12} /> {task.has_file ? 'New' : 'Upload'}
+                                <Upload size={14} /> {task.has_file ? 'New' : 'Upload'}
                             </button>
                         )}
-                        {/* Allow re-upload/overwrite for admin even if file exists? Maybe too complex for now. */}
 
                         {user.role === 'admin' && (
-                            <span className="text-xs text-gray-500 mt-1">{task.client_name}</span>
+                            <span className="text-xs text-gray-500 mt-2">{task.client_name}</span>
                         )}
                     </div>
                 </td>
-                <td className="px-6 py-4">
-                    <div className="flex flex-col gap-1 text-sm text-gray-600">
-                        <div className="flex items-center gap-1">
-                            <Calendar size={14} />
-                            <span>Due: {formatDate(task.date_delivered)}</span>
+                <td className="px-6 py-5">
+                    <div className="flex flex-col gap-2 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                            <Calendar size={16} className="text-gray-400" />
+                            <span className="font-medium">Due: {formatDate(task.date_delivered)}</span>
                         </div>
-                        <div className="flex items-center gap-1 text-xs text-gray-400">
-                            <Clock size={12} />
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                            <Clock size={14} />
                             <span>Created: {formatDate(task.created_at)}</span>
                         </div>
                     </div>
                 </td>
-                <td className="px-6 py-4">
-                    <span className={`font-bold ${hideAmounts ? 'blur-sm select-none' : 'text-gray-700'}`}>
+                <td className="px-6 py-5">
+                    <span className={`font-bold text-base ${hideAmounts ? 'blur-sm select-none' : 'text-gray-900'}`}>
                         {formatCurrency(task.expected_amount)}
                     </span>
                     {task.quoted_amount && task.status === 'pending_quote' && (
-                        <div className="text-xs text-orange-600 font-bold mt-1">
+                        <div className="text-sm text-orange-600 font-bold mt-1">
                             Quote: {formatCurrency(task.quoted_amount)}
                         </div>
                     )}

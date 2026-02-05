@@ -230,11 +230,159 @@ const rejectUser = async (req, res) => {
     }
 };
 
+// Update profile (authenticated user)
+const updateProfile = async (req, res) => {
+    const requestId = req.requestId || 'unknown';
+    try {
+        const { fullName, phoneNumber, course } = req.body;
+        const userId = req.user.id;
+
+        console.log(`[${requestId}] [Auth] Updating profile for user: ${userId}`);
+
+        // Validation
+        if (!fullName || fullName.trim().length < 2) {
+            return res.status(400).json({ error: 'Full name must be at least 2 characters' });
+        }
+
+        // Update user
+        const updatedUser = await User.update(userId, {
+            full_name: fullName,
+            phone_number: phoneNumber || null,
+            course: course || null
+        });
+
+        console.log(`[${requestId}] [Auth] ✅ Profile updated successfully for user: ${userId}`);
+
+        res.json({
+            message: 'Profile updated successfully',
+            user: {
+                id: updatedUser.id,
+                email: updatedUser.email,
+                role: updatedUser.role,
+                fullName: updatedUser.full_name,
+                phoneNumber: updatedUser.phone_number,
+                course: updatedUser.course
+            }
+        });
+    } catch (error) {
+        console.error(`[${requestId}] [Auth] Update profile error:`, error);
+        res.status(500).json({ error: 'Failed to update profile' });
+    }
+};
+
+// Change password (authenticated user)
+const changePassword = async (req, res) => {
+    const requestId = req.requestId || 'unknown';
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const userId = req.user.id;
+
+        console.log(`[${requestId}] [Auth] Password change request for user: ${userId}`);
+
+        // Validation
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ error: 'Current and new passwords are required' });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ error: 'New password must be at least 6 characters' });
+        }
+
+        // Get user with password hash
+        const user = await User.findByEmail(req.user.email);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Verify current password
+        const isValidPassword = await User.verifyPassword(currentPassword, user.password_hash);
+        if (!isValidPassword) {
+            console.log(`[${requestId}] [Auth] Invalid current password`);
+            return res.status(401).json({ error: 'Current password is incorrect' });
+        }
+
+        // Hash new password
+        const bcrypt = require('bcrypt');
+        const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+        // Update password
+        await User.updatePassword(userId, newPasswordHash);
+
+        console.log(`[${requestId}] [Auth] ✅ Password changed successfully for user: ${userId}`);
+
+        res.json({ message: 'Password changed successfully' });
+    } catch (error) {
+        console.error(`[${requestId}] [Auth] Change password error:`, error);
+        res.status(500).json({ error: 'Failed to change password' });
+    }
+};
+
+// Update email (authenticated user)
+const updateEmail = async (req, res) => {
+    const requestId = req.requestId || 'unknown';
+    try {
+        const { newEmail, password } = req.body;
+        const userId = req.user.id;
+
+        console.log(`[${requestId}] [Auth] Email update request for user: ${userId}`);
+
+        // Validation
+        if (!newEmail || !password) {
+            return res.status(400).json({ error: 'New email and password are required' });
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(newEmail)) {
+            return res.status(400).json({ error: 'Invalid email format' });
+        }
+
+        // Get user with password hash
+        const user = await User.findByEmail(req.user.email);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Verify password
+        const isValidPassword = await User.verifyPassword(password, user.password_hash);
+        if (!isValidPassword) {
+            console.log(`[${requestId}] [Auth] Invalid password for email update`);
+            return res.status(401).json({ error: 'Password is incorrect' });
+        }
+
+        // Update email (will throw error if email already exists)
+        const updatedUser = await User.updateEmail(userId, newEmail);
+
+        console.log(`[${requestId}] [Auth] ✅ Email updated successfully for user: ${userId}`);
+
+        res.json({
+            message: 'Email updated successfully',
+            user: {
+                id: updatedUser.id,
+                email: updatedUser.email,
+                role: updatedUser.role,
+                fullName: updatedUser.full_name,
+                phoneNumber: updatedUser.phone_number,
+                course: updatedUser.course
+            }
+        });
+    } catch (error) {
+        console.error(`[${requestId}] [Auth] Update email error:`, error);
+        if (error.message === 'Email already in use') {
+            return res.status(400).json({ error: 'Email already in use' });
+        }
+        res.status(500).json({ error: 'Failed to update email' });
+    }
+};
+
 module.exports = {
     register,
     login,
     logout,
     getCurrentUser,
     refreshToken,
-    rejectUser
+    rejectUser,
+    updateProfile,
+    changePassword,
+    updateEmail
 };

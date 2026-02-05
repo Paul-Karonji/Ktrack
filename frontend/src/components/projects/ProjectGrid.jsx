@@ -1,0 +1,27 @@
+import React from 'react';
+import ProjectCard from './ProjectCard';
+
+const ProjectGrid = ({ tasks, onTaskClick }) => {
+    if (!tasks || tasks.length === 0) {
+        return (
+            <div className="bg-white rounded-2xl p-12 text-center border-2 border-dashed border-gray-200">
+                <p className="text-gray-500 text-lg">No projects found</p>
+                <p className="text-gray-400 text-sm mt-2">Try adjusting your filters or create a new project</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {tasks.map(task => (
+                <ProjectCard
+                    key={task.id}
+                    task={task}
+                    onClick={() => onTaskClick && onTaskClick(task)}
+                />
+            ))}
+        </div>
+    );
+};
+
+export default ProjectGrid;

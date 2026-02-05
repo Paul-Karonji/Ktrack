@@ -45,6 +45,9 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-2">
                                 Expected Price (Total)
+                                {user?.role !== 'admin' && (
+                                    <span className="text-xs text-gray-500 ml-2">(Admin will quote)</span>
+                                )}
                             </label>
                             <div className="relative">
                                 <span className="absolute left-3 top-3 text-gray-400">$</span>
@@ -53,8 +56,12 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
                                     name="expectedAmount"
                                     value={formData.expectedAmount}
                                     onChange={onChange}
-                                    className="w-full pl-8 p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-mono"
-                                    placeholder="0.00"
+                                    disabled={user?.role !== 'admin'}
+                                    className={`w-full pl-8 p-3 border-2 rounded-xl font-mono transition-all ${user?.role !== 'admin'
+                                            ? 'bg-gray-100 cursor-not-allowed text-gray-500 border-gray-200'
+                                            : 'border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                                        }`}
+                                    placeholder={user?.role === 'admin' ? '0.00' : 'Pending quote'}
                                 />
                             </div>
                         </div>

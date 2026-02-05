@@ -29,4 +29,9 @@ router.post('/refresh', authController.refreshToken);
 router.get('/me', authenticate, authController.getCurrentUser);
 router.delete('/users/:id', authenticate, authController.rejectUser);
 
+// Settings routes (authenticated users only)
+router.put('/profile', authenticate, authController.updateProfile);
+router.put('/password', authenticate, authController.changePassword);
+router.put('/email', authenticate, authController.updateEmail);
+
 module.exports = router;

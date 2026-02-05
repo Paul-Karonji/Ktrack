@@ -76,6 +76,14 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    // Update user function (for profile updates)
+    const updateUser = (updatedUserData) => {
+        setUser(prevUser => ({
+            ...prevUser,
+            ...updatedUserData
+        }));
+    };
+
     const value = {
         user,
         loading,
@@ -85,7 +93,8 @@ export const AuthProvider = ({ children }) => {
         isClient: user?.role === 'client',
         login,
         register,
-        logout
+        logout,
+        updateUser
     };
 
     return (

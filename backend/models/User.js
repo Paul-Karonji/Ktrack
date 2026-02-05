@@ -142,6 +142,30 @@ class User {
     return this.findById(userId);
   }
 
+  // Update password
+  static async updatePassword(userId, newPasswordHash) {
+    await pool.execute(
+      'UPDATE users SET password_hash = ? WHERE id = ?',
+      [newPasswordHash, userId]
+    );
+    return this.findById(userId);
+  }
+
+  // Update email
+  static async updateEmail(userId, newEmail) {
+    // Check if email already exists
+    const existing = await this.findByEmail(newEmail);
+    if (existing && existing.id !== userId) {
+      throw new Error('Email already in use');
+    }
+
+    await pool.execute(
+      'UPDATE users SET email = ? WHERE id = ?',
+      [newEmail, userId]
+    );
+    return this.findById(userId);
+  }
+
   // Delete user
   static async delete(userId) {
     await pool.execute('DELETE FROM users WHERE id = ?', [userId]);

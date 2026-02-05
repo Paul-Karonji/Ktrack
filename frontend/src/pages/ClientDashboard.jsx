@@ -71,17 +71,17 @@ const ClientDashboard = ({
     return (
         <div className="space-y-8 animate-fade-in">
             {/* 1. Cockpit Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-                        Welcome back, {firstName} <span className="text-2xl">👋</span>
+                    <h1 className="text-5xl font-bold text-gray-900 mb-2">
+                        Welcome back, {firstName} 👋
                     </h1>
-                    <p className="text-gray-500 mt-1">Here's what's happening with your projects today.</p>
+                    <p className="text-lg text-gray-500">Here's your project overview</p>
                 </div>
                 <div className="flex gap-3">
                     <button
                         onClick={() => setShowHelp(true)}
-                        className="flex items-center gap-2 bg-white/80 backdrop-blur-sm border border-indigo-200 text-indigo-700 px-4 py-2.5 rounded-xl hover:bg-indigo-50 transition-all font-medium shadow-sm"
+                        className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-5 py-3 rounded-xl hover:bg-gray-50 transition-all font-medium shadow-sm"
                     >
                         <HelpCircle size={18} />
                         Help Guide
@@ -91,7 +91,7 @@ const ClientDashboard = ({
                             resetForm();
                             setShowForm(true);
                         }}
-                        className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-5 py-2.5 rounded-xl hover:shadow-lg hover:shadow-indigo-200 transition-all transform hover:scale-105 font-bold"
+                        className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:shadow-lg hover:shadow-indigo-200 transition-all transform hover:-translate-y-0.5 font-semibold"
                     >
                         <Plus size={20} />
                         New Project
@@ -136,56 +136,56 @@ const ClientDashboard = ({
             </div>
 
             {/* 3. Main Content Area */}
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 {/* Tabs & Search Header */}
-                <div className="border-b border-gray-100 bg-gray-50/50 p-4 md:p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="border-b border-gray-100 bg-white p-6 flex flex-col md:flex-row justify-between items-center gap-4">
 
                     {/* Tabs */}
-                    <div className="flex p-1 bg-gray-200/50 rounded-xl">
+                    <div className="flex gap-1">
                         <button
                             onClick={() => setActiveTab('active')}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'active'
-                                ? 'bg-white text-indigo-600 shadow-sm'
-                                : 'text-gray-500 hover:text-gray-700'
+                            className={`flex items-center gap-2 px-6 py-3 text-base font-semibold transition-all border-b-2 ${activeTab === 'active'
+                                ? 'border-indigo-600 text-indigo-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
-                            <Sparkles size={16} />
+                            <Sparkles size={18} />
                             Active Projects
                         </button>
                         <button
                             onClick={() => setActiveTab('quotes')}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'quotes'
-                                ? 'bg-white text-orange-600 shadow-sm'
-                                : 'text-gray-500 hover:text-gray-700'
+                            className={`flex items-center gap-2 px-6 py-3 text-base font-semibold transition-all border-b-2 ${activeTab === 'quotes'
+                                ? 'border-orange-600 text-orange-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
-                            <Wallet size={16} />
+                            <Wallet size={18} />
                             Quotes
                             {pendingQuotes > 0 && (
-                                <span className="bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full">{pendingQuotes}</span>
+                                <span className="bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">{pendingQuotes}</span>
                             )}
                         </button>
                         <button
                             onClick={() => setActiveTab('history')}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'history'
-                                ? 'bg-white text-gray-700 shadow-sm'
-                                : 'text-gray-500 hover:text-gray-700'
+                            className={`flex items-center gap-2 px-6 py-3 text-base font-semibold transition-all border-b-2 ${activeTab === 'history'
+                                ? 'border-gray-700 text-gray-700'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
-                            <History size={16} />
-                            history
+                            <History size={18} />
+                            History
                         </button>
                     </div>
 
                     {/* Search */}
-                    <div className="relative w-full md:w-64">
+                    <div className="relative w-full md:w-72">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                         <input
                             type="text"
                             placeholder="Search projects..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm"
+                            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white outline-none transition-all text-sm"
                         />
                     </div>
                 </div>

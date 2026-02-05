@@ -3,11 +3,11 @@ const { pool } = require('../config/database');
 class Message {
     // Create new message
     static async create(messageData) {
-        const { taskId, senderId, message } = messageData;
+        const { taskId, senderId, message, fileUrl, fileName, fileSize, fileType } = messageData;
 
         const [result] = await pool.execute(
-            'INSERT INTO messages (task_id, sender_id, message) VALUES (?, ?, ?)',
-            [taskId, senderId, message]
+            'INSERT INTO messages (task_id, sender_id, message, file_url, file_name, file_size, file_type) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [taskId, senderId, message, fileUrl || null, fileName || null, fileSize || null, fileType || null]
         );
 
         // Update last_message_at on task

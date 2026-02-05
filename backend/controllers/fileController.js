@@ -6,6 +6,140 @@ const templates = require('../templates/emailTemplates');
 const Notification = require('../models/Notification');
 
 const FileController = {
+    // Get all files (with optional filters)
+    async getAllFiles(req, res) {
+        try {
+            const { search, fileType, taskId, sortBy = 'uploaded_at', order = 'DESC' } = req.query;
+            const userId = req.user.id;
+            const userRole = req.user.role;
+
+            console.log(`[FileController] Getting all files for user ${userId} (${userRole})`);
+
+            let query = `
+                SELECT 
+                    tf.id,
+                    tf.task_id,
+                    tf.original_filename,
+                    tf.file_type,
+                    tf.file_size,
+                    tf.uploaded_at,
+                    tf.uploaded_by,
+                    t.task_name,
+                    t.client_name,
+                    u.full_name as uploader_name,
+                    u.role as uploader_role
+                FROM task_files tf
+                LEFT JOIN tasks t ON tf.task_id = t.id
+                LEFT JOIN users u ON tf.uploaded_by = u.id
+                WHERE 1=1
+            `;
+
+            const params = [];
+
+            // Role-based filtering
+            if (userRole === 'client') {
+                query += ' AND (t.client_id = ? OR t.client_name = ?)';
+                params.push(userId, req.user.full_name);
+            }
+            // Admins see all files
+
+            // Search filter
+            if (search) {
+                query += ' AND tf.original_filename LIKE ?';
+                params.push(`%${search}%`);
+            }
+
+            // File type filter
+            if (fileType) {
+                query += ' AND tf.file_type LIKE ?';
+                params.push(`%${fileType}%`);
+            }
+
+            // Task filter
+            if (taskId) {
+                query += ' AND tf.task_id = ?';
+                params.push(taskId);
+            }
+
+            // Sorting
+            const validSortFields = ['uploaded_at', 'original_filename', 'file_size', 'file_type'];
+            const sortField = validSortFields.includes(sortBy) ? sortBy : 'uploaded_at';
+            const sortOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+            query += ` ORDER BY tf.${sortField} ${sortOrder}`;
+
+            const { pool } = require('../config/database');
+            const [files] = await pool.execute(query, params);
+
+            console.log(`[FileController] Found ${files.length} files`);
+            res.json(files);
+        } catch (error) {
+            console.error('Get All Files Error:', error);
+            res.status(500).json({ error: 'Failed to fetch files', details: error.message });
+        }
+    },
+
+    // Get file statistics
+    async getFileStats(req, res) {
+        try {
+            const userId = req.user.id;
+            const userRole = req.user.role;
+            const { pool } = require('../config/database');
+
+            let whereClause = '';
+            const params = [];
+
+            if (userRole === 'client') {
+                whereClause = 'WHERE (t.client_id = ? OR t.client_name = ?)';
+                params.push(userId, req.user.full_name);
+            }
+
+            // Total files and storage
+            const [totals] = await pool.execute(`
+                SELECT 
+                    COUNT(*) as total_files,
+                    COALESCE(SUM(tf.file_size), 0) as total_storage
+                FROM task_files tf
+                LEFT JOIN tasks t ON tf.task_id = t.id
+                ${whereClause}
+            `, params);
+
+            // Files this month
+            const [thisMonth] = await pool.execute(`
+                SELECT COUNT(*) as files_this_month
+                FROM task_files tf
+                LEFT JOIN tasks t ON tf.task_id = t.id
+                ${whereClause}
+                ${whereClause ? 'AND' : 'WHERE'} tf.uploaded_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            `, params);
+
+            // Most used file type
+            const [fileTypes] = await pool.execute(`
+                SELECT 
+                    tf.file_type,
+                    COUNT(*) as count
+                FROM task_files tf
+                LEFT JOIN tasks t ON tf.task_id = t.id
+                ${whereClause}
+                GROUP BY tf.file_type
+                ORDER BY count DESC
+                LIMIT 1
+            `, params);
+
+            const stats = {
+                totalFiles: totals[0].total_files,
+                totalStorage: totals[0].total_storage,
+                filesThisMonth: thisMonth[0].files_this_month,
+                mostUsedType: fileTypes[0]?.file_type || 'N/A',
+                mostUsedTypeCount: fileTypes[0]?.count || 0
+            };
+
+            console.log('[FileController] Stats:', stats);
+            res.json(stats);
+        } catch (error) {
+            console.error('Get File Stats Error:', error);
+            res.status(500).json({ error: 'Failed to fetch statistics', details: error.message });
+        }
+    },
     // Upload file(s) - supports both single and multiple files
     async uploadFile(req, res) {
         try {

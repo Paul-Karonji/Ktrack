@@ -1,20 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const FileController = require('../controllers/fileController');
-const { authenticate } = require('../middleware/auth');
-const upload = require('../middleware/upload');
+const { authenticate: auth } = require('../middleware/auth');
 
-// All file routes require authentication
-router.use(authenticate);
+// Apply authentication to all routes
+router.use(auth);
 
-// Note: Task-related file routes have been moved to routes/tasks.js
-// - POST /tasks/:taskId/files
-// - GET /tasks/:taskId/files
+// Get all files (with filters)
+router.get('/', FileController.getAllFiles);
 
-// Get download URL for a file
-router.get('/files/:fileId/download', FileController.getDownloadUrl);
+// Get file statistics
+router.get('/stats', FileController.getFileStats);
 
-// Delete file (admin only check in controller)
-router.delete('/files/:fileId', FileController.deleteFile);
+// Get download URL for a specific file
+router.get('/:fileId/download', FileController.getDownloadUrl);
+
+// Delete a file
+router.delete('/:fileId', FileController.deleteFile);
 
 module.exports = router;

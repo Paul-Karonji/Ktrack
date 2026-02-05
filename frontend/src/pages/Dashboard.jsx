@@ -6,6 +6,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import ErrorMessage from '../components/common/ErrorMessage';
 import Header from '../components/layout/Header';
+import Sidebar from '../components/layout/Sidebar';
 import FileManager from '../components/files/FileManager';
 
 import AdminDashboard from './AdminDashboard';
@@ -255,75 +256,81 @@ const Dashboard = () => {
     if (loading) return <LoadingSpinner message="Loading..." />;
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
-            <div className="max-w-7xl mx-auto space-y-6">
-                <Header
-                    isOnline={isOnline}
-                    hideAmounts={hideAmounts}
-                    onToggleAmounts={() => setHideAmounts(!hideAmounts)} // Only meaningful for admin?
-                    onAddTask={() => {
-                        resetForm();
-                        setShowForm(true);
-                    }}
-                    user={user}
-                    onLogout={logout}
-                />
+        <div className="min-h-screen bg-gray-50">
+            {/* Sidebar */}
+            <Sidebar user={user} onLogout={logout} />
 
-                <ErrorMessage error={error} />
-
-                {user?.role === 'admin' ? (
-                    <AdminDashboard
-                        user={user}
-                        tasks={tasks}
-                        loadTasks={loadTasks}
-                        onLogout={logout}
-                        // Handlers
+            {/* Main Content */}
+            <div className="ml-64 min-h-screen">
+                <div className="p-8 max-w-7xl mx-auto space-y-8">
+                    <Header
                         isOnline={isOnline}
                         hideAmounts={hideAmounts}
-                        onEdit={handleEdit}
-                        onDelete={handleDelete}
-                        onTogglePayment={handleTogglePayment}
-                        onAddTask={handleAddTask}
-                        onDownloadFile={handleDownloadFile}
-                        onQuoteResponse={handleQuoteResponse}
-                        onSendQuote={handleSendQuote}
-                        onDuplicate={handleDuplicate}
-                        onUploadFile={handleUploadFile}
-                        // Form
-                        showForm={showForm}
-                        setShowForm={setShowForm}
-                        formData={formData}
-                        setFormData={setFormData}
-                        editingTask={editingTask}
-                        handleFormSubmit={handleSubmit}
-                        handleInputChange={handleInputChange}
-                        resetForm={resetForm}
-                    />
-                ) : (
-                    <ClientDashboard
+                        onToggleAmounts={() => setHideAmounts(!hideAmounts)}
+                        onAddTask={() => {
+                            resetForm();
+                            setShowForm(true);
+                        }}
                         user={user}
-                        tasks={tasks} // Hooks likely already filter this via backend, IF backend is updated. 
-                        // If not, we should filter here:
-                        // tasks.filter(t => t.client_id === user.id) -- Assuming backend sends all.
-                        // Actually better to rely on backend security.
-                        loading={loading}
-                        handleAddTask={handleSubmit} // Form submit handler
-                        handleEdit={handleEdit}
-                        handleDelete={handleDelete}
-                        handleSendQuote={null}
-                        handleQuoteResponse={handleQuoteResponse}
-                        handleDuplicate={handleDuplicate}
-                        onDownloadFile={handleDownloadFile}
-                        showForm={showForm}
-                        setShowForm={setShowForm}
-                        formData={formData}
-                        setFormData={setFormData}
-                        editingTask={editingTask}
-                        resetForm={resetForm}
-                        handleInputChange={handleInputChange}
-                        fileInputRef={fileInputRef}
+                        onLogout={logout}
                     />
-                )}
+
+                    <ErrorMessage error={error} />
+
+                    {user?.role === 'admin' ? (
+                        <AdminDashboard
+                            user={user}
+                            tasks={tasks}
+                            loadTasks={loadTasks}
+                            onLogout={logout}
+                            // Handlers
+                            isOnline={isOnline}
+                            hideAmounts={hideAmounts}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                            onTogglePayment={handleTogglePayment}
+                            onAddTask={handleAddTask}
+                            onDownloadFile={handleDownloadFile}
+                            onQuoteResponse={handleQuoteResponse}
+                            onSendQuote={handleSendQuote}
+                            onDuplicate={handleDuplicate}
+                            onUploadFile={handleUploadFile}
+                            // Form
+                            showForm={showForm}
+                            setShowForm={setShowForm}
+                            formData={formData}
+                            setFormData={setFormData}
+                            editingTask={editingTask}
+                            handleFormSubmit={handleSubmit}
+                            handleInputChange={handleInputChange}
+                            resetForm={resetForm}
+                        />
+                    ) : (
+                        <ClientDashboard
+                            user={user}
+                            tasks={tasks} // Hooks likely already filter this via backend, IF backend is updated. 
+                            // If not, we should filter here:
+                            // tasks.filter(t => t.client_id === user.id) -- Assuming backend sends all.
+                            // Actually better to rely on backend security.
+                            loading={loading}
+                            handleAddTask={handleSubmit} // Form submit handler
+                            handleEdit={handleEdit}
+                            handleDelete={handleDelete}
+                            handleSendQuote={null}
+                            handleQuoteResponse={handleQuoteResponse}
+                            handleDuplicate={handleDuplicate}
+                            onDownloadFile={handleDownloadFile}
+                            showForm={showForm}
+                            setShowForm={setShowForm}
+                            formData={formData}
+                            setFormData={setFormData}
+                            editingTask={editingTask}
+                            resetForm={resetForm}
+                            handleInputChange={handleInputChange}
+                            fileInputRef={fileInputRef}
+                        />
+                    )}
+                </div>
             </div>
 
             {/* File Manager Modal */}
@@ -334,7 +341,7 @@ const Dashboard = () => {
                     onClose={() => {
                         setShowFileManager(false);
                         setSelectedTaskId(null);
-                        loadTasks(); // Refresh tasks to update file counts
+                        loadTasks();
                     }}
                 />
             )}

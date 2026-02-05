@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, DollarSign, User, Clock } from 'lucide-react';
+import { Calendar, DollarSign, User } from 'lucide-react';
 
 const ProjectCard = ({ task, onClick }) => {
     const priorityColors = {

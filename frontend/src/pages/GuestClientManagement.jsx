@@ -60,39 +60,7 @@ const GuestClientManagement = ({ isOnline }) => {
         }
     };
 
-    const confirmCreate = async () => {
-        try {
-            // Re-submit but ignore check? Or just call create directly? 
-            // The backend flow for ignore check isn't strictly defined, 
-            // but the backend returns "allowCreate: true" so we just need to bypass the client-side stop.
-            // Actually, the previous POST created it? No, if warning returned, it didn't create?
-            // Wait, my backend implementation for warning returns 200 OK with `warning: true`.
-            // So it did NOT create it yet.
-            // Ah, I set "allowCreate: true".
-            // But I didn't verify if my backend actually creates it when warning is returned.
-            // Let's check backend logic: 
-            // `if (nameDuplicates.length > 0) { return res.status(200).json(...) }`
-            // So it RETURNS before creating.
-            // So I need a flag to force create? 
-            // The plan said "Provide options: Cancel or Create Anyway".
-            // My backend controller didn't seem to have a "force" flag logic implemented in the `createGuestClient` function I wrote earlier.
-            // I better check `guestClientController.js` again.
-            // If I missed it, I need to update the controller to accept a `force` flag.
-        } catch (error) {
-            console.error('Error forcing create', error);
-        }
-    };
 
-    // I need to correct my thought process.
-    // Let's implement the frontend assuming I might need to update the backend or I'll check the backend now.
-    // Checking backend controller content from my memory/previous turn...
-    // I wrote:
-    // `if (nameDuplicates.length > 0) { return res.status(200).json({...}); }`
-    // It returns EARLY. So it does NOT create.
-    // I need to add `force: true` handling in the backend to bypass this check.
-
-    // So, I will pause writing this file, update the backend controller, then come back.
-    // Or I can write this file assuming `force` param works, then update backend.
 
     const handleDelete = async (id) => {
         if (window.confirm('Are you sure? This guest client will be permanently deleted.')) {

@@ -62,7 +62,19 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
                         )}
 
                         {user.role === 'admin' && (
-                            <span className="text-xs text-gray-500 mt-2">{task.client_name}</span>
+                            <div className="mt-2 text-xs">
+                                <span className="text-gray-500 font-medium">{task.display_client_name || task.client_name}</span>
+                                {task.client_type === 'guest' && (
+                                    <span className="ml-2 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] border border-gray-200">
+                                        Guest
+                                    </span>
+                                )}
+                                {task.guest_client_phone && (
+                                    <span className="ml-2 text-gray-400">
+                                        📱 {task.guest_client_phone}
+                                    </span>
+                                )}
+                            </div>
                         )}
                     </div>
                 </td>

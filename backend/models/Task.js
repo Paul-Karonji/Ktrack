@@ -4,20 +4,45 @@ class Task {
   static async findAll(filters = {}, viewerId = null) {
     let query = `
       SELECT t.*, 
+      u.full_name as registered_client_name,
+      u.email as registered_client_email,
+      gc.name as guest_client_name,
+      gc.email as guest_client_email,
+      gc.phone as guest_client_phone,
+      COALESCE(u.full_name, gc.name, t.client_name) as display_client_name,
+      CASE 
+        WHEN t.client_id IS NOT NULL THEN 'registered'
+        WHEN t.guest_client_id IS NOT NULL THEN 'guest'
+        ELSE 'legacy'
+      END as client_type,
       (SELECT COUNT(*) FROM messages m WHERE m.task_id = t.id AND m.sender_id != ? AND m.read_at IS NULL) as unread_count,
       (SELECT COUNT(*) FROM task_files tf WHERE tf.task_id = t.id) as file_count,
       (SELECT SUM(tf.file_size) FROM task_files tf WHERE tf.task_id = t.id) as total_file_size,
       CASE WHEN EXISTS(SELECT 1 FROM task_files tf WHERE tf.task_id = t.id) THEN 1 ELSE 0 END as has_file
       FROM tasks t
+      LEFT JOIN users u ON t.client_id = u.id
+      LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id
     `;
-    const params = [viewerId || 0]; // Use 0 if no viewerId to safely return 0 count
+    const params = [viewerId || 0]; // param for unread_count subquery
+
+    // Fix: unread_count subquery needs viewerId param, so it should be the first param.
+    // However, existing code used [viewerId || 0] and appended to it.
+    // The query structure:
+    // SELECT ... (SELECT ... WHERE ... sender_id != ?) ...
+    // WHERE ...
+    // So the first param IS for sender_id != ?.
+
+    // Let's refine the params array handling
 
     if (filters.clientId) {
-      query += ' WHERE client_id = ?';
+      query += ' WHERE t.client_id = ?';
       params.push(filters.clientId);
+    } else if (filters.guestClientId) {
+      query += ' WHERE t.guest_client_id = ?';
+      params.push(filters.guestClientId);
     }
 
-    query += ' ORDER BY created_at DESC';
+    query += ' ORDER BY t.created_at DESC';
 
     const [rows] = await pool.execute(query, params);
     return rows;
@@ -34,7 +59,7 @@ class Task {
   static async create(taskData) {
     const {
       clientName,
-      taskName, // Added
+      taskName,
       taskDescription,
       dateCommissioned,
       dateDelivered,
@@ -47,27 +72,29 @@ class Task {
       quotedAmount = null,
       quantity = 1,
       clientId = null,
+      guestClientId = null,
     } = taskData;
 
     const [result] = await pool.execute(
       `INSERT INTO tasks 
-       (client_name, task_name, task_description, date_commissioned, date_delivered, expected_amount, is_paid, priority, status, notes, quote_status, quoted_amount, quantity, client_id) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (client_name, task_name, task_description, date_commissioned, date_delivered, expected_amount, is_paid, priority, status, notes, quote_status, quoted_amount, quantity, client_id, guest_client_id) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        clientName,
-        taskName || 'Untitled Task', // Default if missing
-        taskDescription,
+        clientName || null,
+        taskName || 'Untitled Task',
+        taskDescription || null,
         dateCommissioned || null,
         dateDelivered || null,
         (expectedAmount === '' || expectedAmount === undefined || expectedAmount === null) ? 0 : expectedAmount,
-        isPaid,
-        priority,
-        status,
-        notes,
-        quoteStatus,
+        isPaid || 0,
+        priority || 'medium',
+        status || 'not_started',
+        notes || null,
+        quoteStatus || 'pending_quote',
         (quotedAmount === '' || quotedAmount === undefined || quotedAmount === null) ? 0 : quotedAmount,
         (quantity === '' || quantity === undefined || quantity === null) ? 1 : quantity,
-        clientId
+        clientId || null,
+        guestClientId || null
       ]
     );
 
@@ -78,9 +105,9 @@ class Task {
     const existingTask = await this.findById(id);
     if (!existingTask) return null;
 
-    const {
+    let {
       clientName = existingTask.client_name,
-      taskName = existingTask.task_name, // Added
+      taskName = existingTask.task_name,
       taskDescription = existingTask.task_description,
       dateCommissioned = existingTask.date_commissioned,
       dateDelivered = existingTask.date_delivered,
@@ -93,6 +120,10 @@ class Task {
       quotedAmount = existingTask.quoted_amount,
       quantity = existingTask.quantity,
     } = taskData;
+
+    // Fix: Convert empty strings to null for date fields
+    if (dateCommissioned === '') dateCommissioned = null;
+    if (dateDelivered === '') dateDelivered = null;
 
     await pool.execute(
       `UPDATE tasks 
@@ -139,6 +170,18 @@ class Task {
       [id]
     );
     return this.findById(id);
+  }
+
+  static async transferGuestTasks(guestClientId, userId) {
+    const [result] = await pool.execute(`
+      UPDATE tasks 
+      SET client_id = ?, 
+          guest_client_id = NULL,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE guest_client_id = ?
+    `, [userId, guestClientId]);
+
+    return result.affectedRows;
   }
 }
 

@@ -12,5 +12,6 @@ router.get('/stats', userController.getUserStats);
 router.put('/:id/approve', userController.approveUser);
 router.put('/:id/reject', userController.rejectUser);
 router.put('/:id/suspend', userController.suspendUser);
+router.put('/:id', userController.updateUser);
 
 module.exports = router;

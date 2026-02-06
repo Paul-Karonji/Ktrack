@@ -30,6 +30,7 @@ const authenticate = async (req, res, next) => {
 
         // Attach user to request
         req.user = user;
+        console.log(`[DEBUG] Auth PASSED for user ${user.email} (${user.role})`);
         next();
     } catch (error) {
         console.error('Authentication error:', error);

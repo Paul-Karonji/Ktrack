@@ -106,9 +106,14 @@ export const apiService = {
     approveUser: (id) => api.put(`/users/${id}/approve`).then(res => res.data),
     rejectUser: (id) => api.delete(`/auth/users/${id}`).then(res => res.data),
     suspendUser: (id) => api.put(`/users/${id}/suspend`).then(res => res.data),
+    updateUser: (id, data) => api.put(`/users/${id}`, data).then(res => res.data),
     getUserStats: () => api.get('/users/stats').then(res => res.data),
 
-    // Settings
+    // Guest Clients
+    getGuestClients: () => api.get('/guest-clients').then(res => res.data),
+    updateGuestClient: (id, data) => api.put(`/guest-clients/${id}`, data).then(res => res.data),
+
+    // Settings (User's own profile)
     updateProfile: (data) => api.put('/auth/profile', data).then(res => res.data),
     changePassword: (data) => api.put('/auth/password', data).then(res => res.data),
     updateEmail: (data) => api.put('/auth/email', data).then(res => res.data),

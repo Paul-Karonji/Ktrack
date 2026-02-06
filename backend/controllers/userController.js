@@ -96,5 +96,99 @@ module.exports = {
     approveUser,
     rejectUser,
     suspendUser,
-    getUserStats
+    getUserStats,
+
+    // Update user (admin)
+    updateUser: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const updates = req.body;
+
+            // Filter allowed fields
+            const allowedUpdates = {};
+            if (updates.full_name) allowedUpdates.full_name = updates.full_name;
+            if (updates.phone_number) allowedUpdates.phone_number = updates.phone_number;
+            if (updates.course) allowedUpdates.course = updates.course;
+
+            const user = await User.update(id, allowedUpdates);
+            res.json(user);
+        } catch (error) {
+            console.error('Update user error:', error);
+            res.status(500).json({ error: 'Failed to update user' });
+        }
+    },
+
+    // Merge guest into user (admin only)
+    mergeGuestIntoUser: async (req, res) => {
+        try {
+            const { userId, guestId } = req.params;
+
+            // Verify user
+            const user = await User.findById(userId);
+            if (!user) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+
+            if (user.status !== 'pending') {
+                return res.status(400).json({ error: 'Can only merge into pending users' });
+            }
+
+            // Verify guest
+            const GuestClient = require('../models/GuestClient');
+            const guest = await GuestClient.findById(guestId);
+            if (!guest) {
+                return res.status(404).json({ error: 'Guest not found' });
+            }
+
+            if (guest.upgraded_to_user_id) {
+                return res.status(400).json({ error: 'Guest already upgraded/merged' });
+            }
+
+            // Transfer tasks
+            const Task = require('../models/Task');
+            const taskCount = await Task.transferGuestTasks(guestId, userId);
+
+            // Mark guest as merged
+            await GuestClient.markAsUpgraded(guestId, userId);
+
+            // Auto-approve user
+            await User.approve(userId, req.user.id);
+
+            res.json({
+                success: true,
+                message: `Merged ${taskCount} tasks and approved user`,
+                userId,
+                taskCount
+            });
+
+        } catch (error) {
+            console.error('Error merging accounts:', error);
+            res.status(500).json({ error: 'Failed to merge accounts' });
+        }
+    },
+
+    // Find potential guest matches (admin only)
+    findPotentialGuestMatches: async (req, res) => {
+        try {
+            const { userId } = req.params;
+
+            const user = await User.findById(userId);
+            if (!user) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+
+            const GuestClient = require('../models/GuestClient');
+            const matches = await GuestClient.findPotentialMatches(
+                user.full_name || user.name, // Use full_name if available
+                user.email,
+                user.phone
+            );
+
+            res.json({ success: true, matches });
+
+        } catch (error) {
+            console.error('Error finding matches:', error);
+            res.status(500).json({ error: 'Failed to find matches' });
+        }
+    }
 };

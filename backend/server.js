@@ -25,6 +25,17 @@ const requestIdMiddleware = require('./middleware/requestId');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// GLOBAL DEBUG LOGGER - FIRST MIDDLEWARE
+app.use((req, res, next) => {
+  const fs = require('fs');
+  const log = `[${new Date().toISOString()}] ${req.method} ${req.url}\nHeaders: ${JSON.stringify(req.headers)}\n\n`;
+  try {
+    fs.appendFileSync('debug_global_top.log', log);
+  } catch (e) { }
+  console.log(`[DEBUG TOP] Received ${req.method} ${req.url}`);
+  next();
+});
+
 // Test database connection on startup
 testConnection();
 
@@ -62,9 +73,33 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Debug Logging Middleware (Moved to top)
+app.use((req, res, next) => {
+  const fs = require('fs');
+  const log = `[${new Date().toISOString()}] ${req.method} ${req.url}\nHeaders: ${JSON.stringify(req.headers)}\n\n`;
+  try {
+    fs.appendFileSync('debug_global.log', log);
+  } catch (e) { console.error('Logging failed', e); }
+  console.log(`[DEBUG] Received ${req.method} ${req.url}`);
+  console.log('[DEBUG] Body:', JSON.stringify(req.body));
+  next();
+});
+
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// JSON Parse Error Handler
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    const fs = require('fs');
+    fs.appendFileSync('debug_global.log', `[${new Date().toISOString()}] JSON PARSE ERROR: ${err.message}\n\n`);
+    console.error('JSON Parse Error:', err.message);
+    return res.status(400).json({ success: false, message: 'Invalid JSON payload' });
+  }
+  next();
+});
+
 app.use(cookieParser());
 
 // Health check endpoint
@@ -88,6 +123,7 @@ app.use('/api/messages', apiLimiter, messageRoutes);
 app.use('/api/public', require('./routes/public')); // No rate limit for public stats
 app.use('/api/files', apiLimiter, filesRoutes);
 app.use('/api/notifications', apiLimiter, notificationRoutes);
+app.use('/api/guest-clients', apiLimiter, require('./routes/guestClients')); // Guest Client Routes
 // Serve local uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 

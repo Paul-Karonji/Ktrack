@@ -11,6 +11,7 @@ import UserManagement from './pages/admin/UserManagement';
 import PrivateRoute from './components/auth/PrivateRoute';
 import LandingPage from './pages/LandingPage';
 import WhatsAppButton from './components/common/WhatsAppButton';
+import GuestClientManagement from './pages/GuestClientManagement';
 
 const App = () => {
   return (
@@ -55,6 +56,15 @@ const App = () => {
             element={
               <PrivateRoute allowedRoles={['admin']}>
                 <UserManagement />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/admin/guests"
+            element={
+              <PrivateRoute allowedRoles={['admin']}>
+                <GuestClientManagement />
               </PrivateRoute>
             }
           />

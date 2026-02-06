@@ -4,7 +4,7 @@ exports.getPublicStats = async (req, res) => {
     try {
         // Run queries in parallel for speed
         const clientCountPromise = pool.query(
-            'SELECT COUNT(*) as count FROM users WHERE role = ?',
+            'SELECT (SELECT COUNT(*) FROM users WHERE role = ?) + (SELECT COUNT(*) FROM guest_clients WHERE upgraded_to_user_id IS NULL) as count',
             ['client']
         );
 

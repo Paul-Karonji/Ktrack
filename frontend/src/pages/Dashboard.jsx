@@ -32,7 +32,7 @@ const Dashboard = () => {
         clientName: '',
         taskName: '', // Added
         taskDescription: '',
-        dateCommissioned: '',
+        dateCommissioned: new Date().toISOString().split('T')[0],
         dateDelivered: '',
         expectedAmount: '',
         isPaid: false,
@@ -53,7 +53,7 @@ const Dashboard = () => {
             clientName: user?.role === 'client' ? (user.fullName || user.full_name) : '',
             taskName: '', // Added
             taskDescription: '',
-            dateCommissioned: '',
+            dateCommissioned: new Date().toISOString().split('T')[0],
             dateDelivered: '',
             expectedAmount: '',
             isPaid: false,
@@ -86,7 +86,11 @@ const Dashboard = () => {
         // Auto-fill clientName for clients if missing (redundant safety)
         const effectiveClientName = formData.clientName || (user?.role === 'client' ? (user.fullName || user.full_name) : '');
 
-        const submissionData = { ...formData, clientName: effectiveClientName };
+        const submissionData = {
+            ...formData,
+            clientName: effectiveClientName,
+            isPaid: Boolean(formData.isPaid) // Fix: Ensure boolean for backend validation
+        };
         // Remove file from submission data as it's handled separately
         delete submissionData.file;
 
@@ -98,14 +102,14 @@ const Dashboard = () => {
         try {
             let taskResult;
             if (editingTask) {
-                taskResult = await updateTask(editingTask, submissionData);
+                taskResult = await updateTask(editingTask.id, submissionData);
             } else {
                 taskResult = await createTask(submissionData);
             }
 
             // Upload files if present
             if (formData.files && formData.files.length > 0 && taskResult) {
-                const taskId = editingTask || taskResult.id;
+                const taskId = (editingTask && editingTask.id) || taskResult.id;
                 const uploadData = new FormData();
 
                 // Append all files
@@ -133,10 +137,13 @@ const Dashboard = () => {
     const handleEdit = (task) => {
         setFormData({
             clientName: task.client_name,
+            clientId: task.client_id || '', // Fix: Populate IDs for edit
+            guestClientId: task.guest_client_id || '', // Fix: Populate IDs for edit
+            guestClientName: task.guest_client_name || '', // Fix: Populate IDs for edit
             taskName: task.task_name || '', // Added
             taskDescription: task.task_description,
-            dateCommissioned: task.date_commissioned || '',
-            dateDelivered: task.date_delivered || '',
+            dateCommissioned: task.date_commissioned ? task.date_commissioned.split('T')[0] : '',
+            dateDelivered: task.date_delivered ? task.date_delivered.split('T')[0] : '',
             expectedAmount: task.expected_amount.toString(),
             isPaid: task.is_paid,
             priority: task.priority || 'medium',
@@ -145,7 +152,7 @@ const Dashboard = () => {
             quantity: task.quantity || 1,
             files: null
         });
-        setEditingTask(task.id);
+        setEditingTask(task); // Set full task object instead of ID
         setShowForm(true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };

@@ -175,11 +175,10 @@ class User {
   static async getStats() {
     const [stats] = await pool.execute(`
       SELECT 
-        COUNT(*) as total_users,
-        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_users,
-        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved_users,
-        SUM(CASE WHEN role = 'client' THEN 1 ELSE 0 END) as total_clients
-      FROM users
+        (SELECT COUNT(*) FROM users) as total_users,
+        (SELECT COUNT(*) FROM users WHERE status = 'pending') as pending_users,
+        (SELECT COUNT(*) FROM users WHERE status = 'approved') as approved_users,
+        (SELECT COUNT(*) FROM users WHERE role = 'client') + (SELECT COUNT(*) FROM guest_clients WHERE upgraded_to_user_id IS NULL) as total_clients
     `);
     return stats[0];
   }

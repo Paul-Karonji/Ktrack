@@ -2,6 +2,7 @@ const Joi = require('joi');
 
 const taskSchema = Joi.object({
   clientName: Joi.string().allow('', null).optional().max(255),
+  taskName: Joi.string().required().min(1).max(255),
   taskDescription: Joi.string().required().min(1),
   dateCommissioned: Joi.date().iso().allow(null, ''),
   dateDelivered: Joi.date().iso().allow(null, ''),
@@ -10,13 +11,27 @@ const taskSchema = Joi.object({
   quantity: Joi.number().min(1).allow('', null).default(1),
   priority: Joi.string().valid('low', 'medium', 'high', 'urgent').default('medium'),
   status: Joi.string().valid('not_started', 'in_progress', 'review', 'completed').default('not_started'),
-  notes: Joi.string().allow('', null)
+  notes: Joi.string().allow('', null),
+  guestClientId: Joi.alternatives().try(Joi.number(), Joi.string()).allow(null, ''),
+  clientId: Joi.alternatives().try(Joi.number(), Joi.string()).allow(null, ''),
+  guestClientName: Joi.string().allow('', null),
+  files: Joi.any().optional().allow(null)
 });
 
 const validateTask = (req, res, next) => {
+  const fs = require('fs');
+  try {
+    fs.appendFileSync('debug_validation.log', `[${new Date().toISOString()}] Entering validateTask. Body keys: ${Object.keys(req.body)}\nBody: ${JSON.stringify(req.body)}\n\n`);
+  } catch (e) { }
+
   const { error, value } = taskSchema.validate(req.body);
 
   if (error) {
+    try {
+      fs.appendFileSync('debug_validation.log', `[${new Date().toISOString()}] Validation FAILED: ${JSON.stringify(error.details)}\n\n`);
+    } catch (e) { }
+    console.error('Validation FAILED:', JSON.stringify(error.details, null, 2));
+    // ...
     return res.status(400).json({
       success: false,
       message: 'Validation error',
@@ -25,10 +40,18 @@ const validateTask = (req, res, next) => {
   }
 
   req.body = value;
+  try {
+    fs.appendFileSync('debug_validation.log', `[${new Date().toISOString()}] Validation PASSED.\n`);
+  } catch (e) { }
   next();
 };
 
 const validateId = (req, res, next) => {
+  const fs = require('fs');
+  try {
+    fs.appendFileSync('debug_validation.log', `[${new Date().toISOString()}] Entering validateId. Params: ${JSON.stringify(req.params)}\n`);
+  } catch (e) { }
+
   // Check for 'id' or 'taskId' in params
   let id = req.params.id || req.params.taskId;
   id = parseInt(id);

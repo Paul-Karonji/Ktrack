@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/api';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import { Check, X, Shield, Clock, AlertCircle, ArrowLeft, Merge, UserPlus } from 'lucide-react';
+import { Check, X, Shield, Clock, AlertCircle, ArrowLeft, Merge } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api'; // Import raw api for custom endpoints
 

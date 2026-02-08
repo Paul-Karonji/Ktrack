@@ -1,15 +1,24 @@
-# K-Track | Commission & Task Management
+# K-Track | Advanced Task & Commission Management
 
-**K-Track** is a specialized task management platform designed to bridge the gap between professionals and their clients. It features real-time task tracking, secure file sharing (Cloudflare R2), instant chat, and commission status management.
+**K-Track** is a professional task management platform designed to bridge the gap between service providers and their clients. It features real-time task tracking, secure file sharing (Cloudflare R2), instant chat, commission management, and a unique **Hybrid Client System** supporting both registered users and guest clients.
 
-## ✨ Features
+## ✨ Key Features
 
-*   **Role-Based Dashboards**: tailored views for **Clients** (request & track) and **Admins** (manage & fulfill).
-*   **Real-Time Status**: Live updates on task progress (Pending -> In Progress -> Completed).
-*   **File Management**: Secure file uploads using **Cloudflare R2** with automatic local fallback.
-*   **Integrated Chat**: Per-task messaging with read receipts and unread badges.
-*   **Commission Tracking**: Track expected amounts, send quotes, and record payment status (Manual confirmation).
-*   **Responsive Design**: Modern, mobile-friendly UI.
+### 👥 Client Management
+*   **Hybrid Client System**: Seamlessly manage **Registered Users** (full access) and **Guest Clients** (admin-managed) in one unified dashboard.
+*   **Account Merging**: Powerful workflow to merge a Guest Client's history into a Registered User account when they sign up.
+*   **Admin Dashboard**: comprehensive view of all clients with "Edit," "New Task," and "View Profile" actions.
+
+### 📊 Analytics & Insights
+*   **Interactive Dashboard**: Real-time charts for Revenue Trends, Task Distribution, and Priority Breakdown.
+*   **Client Growth Tracking**: Visualize client acquisition rates (Registered vs. Guest) over time.
+*   **Financial Reports**: Track expected vs. actual revenue with monthly breakdowns.
+
+### ⚡ Task & Workflow
+*   **Real-Time Tracking**: Live status updates (Pending -> In Progress -> Review -> Completed).
+*   **Quote Negotiation**: Built-in workflow for sending quotes and receiving client approval/rejection.
+*   **File Management**: Secure, task-specific file uploads using **Cloudflare R2** with local storage fallback.
+*   **Contextual Chat**: Private messaging thread for every task with read receipts.
 
 ## 🚀 Getting Started
 
@@ -63,24 +72,18 @@ The app will open at `http://localhost:3000`.
 ## 📂 Project Structure
 
 *   **`backend/`**: Express.js API, Database handling, and R2 File services.
+    *   **`models/`**: `User`, `Task`, `GuestClient` (New!)
+    *   **`controllers/`**: Logic for task flow, guest management, and analytics.
 *   **`frontend/`**: React application (UI).
-    *   `src/pages/`: Main views (Dashboard, Login, Landing Page).
-    *   `src/components/`: Reusable UI components.
-    *   `public/branding/`: Place your custom Logo and Favicon here.
-
-## 📖 User Guide
-For new clients, check out the comprehensive [User Guide](USER_GUIDE.md) which includes:
-*   Step-by-step registration and approval process
-*   How to create and manage tasks
-*   Understanding the quote approval workflow
-*   Using the chat feature
-*   File upload and download instructions
-*   Frequently Asked Questions
+    *   **`src/pages/`**: 
+        *   `AdminDashboard.jsx`: The command center for admins.
+        *   `GuestClientManagement.jsx`: Dedicated guest handling.
+    *   **`src/components/charts/`**: Recharts visualizations (`AnalyticsCharts`, `ClientGrowthChart`).
 
 ## 🛠️ Admin Utilities
 The `backend/scripts/` folder contains helpful tools for server management:
+*   `node scripts/create_admin.js`: Create an initial admin account.
 *   `node scripts/list_all_users.js`: View all registered users.
-*   `node scripts/reset_admin_password.js`: Emergency password reset.
 
 ## 📄 License
 Private Property of K-Track Systems. All Rights Reserved.

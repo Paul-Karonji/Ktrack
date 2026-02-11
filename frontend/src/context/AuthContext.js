@@ -14,14 +14,25 @@ export const AuthProvider = ({ children }) => {
             const token = localStorage.getItem('accessToken');
             if (token) {
                 try {
-                    const userData = await apiService.getCurrentUser();
+                    // Add timeout to prevent hanging
+                    const timeoutPromise = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Auth check timeout')), 5000)
+                    );
+
+                    const authPromise = apiService.getCurrentUser();
+                    const userData = await Promise.race([authPromise, timeoutPromise]);
+
                     setUser(userData.data);
                 } catch (err) {
                     console.error('Auth check failed:', err);
                     localStorage.removeItem('accessToken');
+                    setUser(null);
+                } finally {
+                    setLoading(false);
                 }
+            } else {
+                setLoading(false);
             }
-            setLoading(false);
         };
 
         checkAuth();
@@ -99,7 +110,16 @@ export const AuthProvider = ({ children }) => {
 
     return (
         <AuthContext.Provider value={value}>
-            {!loading && children}
+            {loading ? (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                        <p className="text-gray-600">Loading...</p>
+                    </div>
+                </div>
+            ) : (
+                children
+            )}
         </AuthContext.Provider>
     );
 };

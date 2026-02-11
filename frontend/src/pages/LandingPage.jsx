@@ -27,16 +27,16 @@ const LandingPage = () => {
             {/* Navigation */}
             <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-gray-100">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center h-20">
+                    <div className="flex justify-between items-center h-16 md:h-20">
                         <div className="flex items-center gap-2">
-                            <img src={ktrackLogo} alt="K-Track" className="h-10 w-auto object-contain" />
+                            <img src={ktrackLogo} alt="K-Track" className="h-8 md:h-10 w-auto object-contain" />
                         </div>
-                        <div className="flex items-center gap-4">
-                            <Link to="/login" className="text-gray-600 hover:text-indigo-600 font-medium transition-colors">
+                        <div className="flex items-center gap-2 md:gap-4">
+                            <Link to="/login" className="text-gray-600 hover:text-indigo-600 font-medium transition-colors text-sm md:text-base">
                                 Log In
                             </Link>
-                            <Link to="/register" className="bg-indigo-600 text-white px-5 py-2.5 rounded-full font-medium hover:bg-indigo-700 transition-all hover:shadow-lg transform hover:-translate-y-0.5">
-                                Get Started Free
+                            <Link to="/register" className="bg-indigo-600 text-white px-3 md:px-5 py-2 md:py-2.5 rounded-full font-medium hover:bg-indigo-700 transition-all hover:shadow-lg transform hover:-translate-y-0.5 text-sm md:text-base">
+                                Get Started
                             </Link>
                         </div>
                     </div>
@@ -54,35 +54,35 @@ const LandingPage = () => {
                         <span>Trusted by Clients Worldwide</span>
                     </div>
 
-                    <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-gray-900 mb-8 leading-tight">
-                        Submit Your Project. <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Track Progress.</span><br />
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-extrabold tracking-tight text-gray-900 mb-6 md:mb-8 leading-tight px-4">
+                        Submit Your Project. <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Track Progress.</span><br className="hidden sm:block" />
                         Get Results.
                     </h1>
 
-                    <p className="mt-4 max-w-2xl mx-auto text-xl text-gray-600 mb-10 leading-relaxed">
+                    <p className="mt-4 max-w-2xl mx-auto text-base md:text-lg lg:text-xl text-gray-600 mb-8 md:mb-10 leading-relaxed px-4">
                         The easiest way for clients to submit tasks and monitor their progress.
                         Upload your project, track every update, and stay connected with your service provider - all in one place.
                     </p>
 
-                    <div className="flex flex-col sm:flex-row justify-center gap-4 animate-fade-in-up delay-100">
-                        <Link to="/register" className="inline-flex items-center justify-center px-8 py-4 border border-transparent text-lg font-bold rounded-full text-white bg-indigo-600 hover:bg-indigo-700 md:py-4 md:text-lg md:px-10 transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1">
+                    <div className="flex flex-col sm:flex-row justify-center gap-3 md:gap-4 animate-fade-in-up delay-100 px-4">
+                        <Link to="/register" className="inline-flex items-center justify-center px-6 md:px-8 lg:px-10 py-3 md:py-4 border border-transparent text-base md:text-lg font-bold rounded-full text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1">
                             Submit Your First Task
-                            <ArrowRight className="ml-2 -mr-1 w-5 h-5" />
+                            <ArrowRight className="ml-2 -mr-1 w-4 h-4 md:w-5 md:h-5" />
                         </Link>
                         <Link to="/login" className="inline-flex items-center justify-center px-8 py-4 border-2 border-gray-200 text-lg font-bold rounded-full text-gray-700 bg-white hover:bg-gray-50 md:py-4 md:text-lg md:px-10 transition-all hover:border-gray-300">
                             <LogIn className="mr-2 w-5 h-5" />
                             I Have an Account
                         </Link>
                     </div>
-                    <div className="mt-12 pt-8 border-t border-indigo-100/50 flex flex-row justify-center gap-16 animate-fade-in-up delay-200">
+                    <div className="mt-8 md:mt-12 pt-6 md:pt-8 border-t border-indigo-100/50 flex flex-col sm:flex-row justify-center gap-8 md:gap-16 animate-fade-in-up delay-200 px-4">
                         <div className="text-center">
-                            <p className="text-4xl font-extrabold text-indigo-600 mb-1">{stats.clients > 0 ? stats.clients : '150'}+</p>
-                            <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Happy Clients</p>
+                            <p className="text-3xl md:text-4xl font-extrabold text-indigo-600 mb-1">{stats.clients > 0 ? stats.clients : '150'}+</p>
+                            <p className="text-xs md:text-sm font-medium text-gray-500 uppercase tracking-wide">Happy Clients</p>
                         </div>
-                        <div className="w-px h-16 bg-gradient-to-b from-transparent via-indigo-200 to-transparent"></div>
+                        <div className="hidden sm:block w-px h-16 bg-gradient-to-b from-transparent via-indigo-200 to-transparent"></div>
                         <div className="text-center">
-                            <p className="text-4xl font-extrabold text-purple-600 mb-1">{stats.jobsDone > 0 ? stats.jobsDone : '500'}+</p>
-                            <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Projects Completed</p>
+                            <p className="text-3xl md:text-4xl font-extrabold text-purple-600 mb-1">{stats.jobsDone > 0 ? stats.jobsDone : '500'}+</p>
+                            <p className="text-xs md:text-sm font-medium text-gray-500 uppercase tracking-wide">Projects Completed</p>
                         </div>
                     </div>
                 </div>

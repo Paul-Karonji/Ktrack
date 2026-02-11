@@ -43,7 +43,7 @@ const Settings = () => {
         <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
             <Sidebar user={user} onLogout={logout} />
 
-            <main className="flex-1 ml-64 p-8">
+            <main className="flex-1 lg:ml-64 p-4 md:p-6 lg:p-8">
                 <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
                     {/* Header */}
                     <div>
@@ -61,8 +61,8 @@ const Settings = () => {
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`px-6 py-3 rounded-xl font-semibold transition-all ${activeTab === tab.id
-                                        ? 'bg-indigo-600 text-white shadow-lg'
-                                        : 'text-gray-600 hover:bg-gray-50'
+                                    ? 'bg-indigo-600 text-white shadow-lg'
+                                    : 'text-gray-600 hover:bg-gray-50'
                                     }`}
                             >
                                 {tab.label}

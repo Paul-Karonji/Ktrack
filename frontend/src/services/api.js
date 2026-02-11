@@ -6,7 +6,9 @@ const apiFunc = (url) => {
     const cleanUrl = url.endsWith('/') ? url.slice(0, -1) : url;
     return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
 }
-const API_BASE_URL = apiFunc(process.env.REACT_APP_API_URL);
+const API_BASE_URL = apiFunc(process.env.REACT_APP_API_URL || 'http://localhost:3001');
+
+console.log('🔗 API Base URL:', API_BASE_URL);
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -177,6 +179,17 @@ export const apiService = {
 
     // Public
     getPublicStats: () => api.get('/public/stats').then(res => res.data),
+
+    // Analytics
+    analytics: {
+        getKPIs: (params) => api.get('/analytics/kpis', { params }).then(res => res.data),
+        getRevenue: (params) => api.get('/analytics/revenue', { params }).then(res => res.data),
+        getPipeline: (params) => api.get('/analytics/pipeline', { params }).then(res => res.data),
+        getClientGrowth: (params) => api.get('/analytics/clients/growth', { params }).then(res => res.data),
+        getTaskStatus: (params) => api.get('/analytics/tasks/status', { params }).then(res => res.data)
+    }
 };
 
-export default api;
+export default apiService;
+
+

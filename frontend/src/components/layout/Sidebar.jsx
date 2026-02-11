@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, FolderOpen, FileText, Settings, LogOut, X } from 'lucide-react';
+import { Home, FolderOpen, FileText, Settings, LogOut, X, BarChart3 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useNavigation } from '../../context/NavigationContext';
 
@@ -12,8 +12,14 @@ const Sidebar = ({ user, onLogout }) => {
         { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
         { id: 'projects', label: 'Projects', icon: FolderOpen, path: '/projects' },
         { id: 'files', label: 'Files', icon: FileText, path: '/files' },
+        { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/analytics', adminOnly: true },
         { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
     ];
+
+    // Filter nav items based on user role
+    const filteredNavItems = navItems.filter(item =>
+        !item.adminOnly || (item.adminOnly && user?.role === 'admin')
+    );
 
     const isActive = (path) => location.pathname === path;
 
@@ -53,7 +59,7 @@ const Sidebar = ({ user, onLogout }) => {
 
                 {/* Navigation */}
                 <nav className="flex-1 p-4 space-y-1">
-                    {navItems.map((item) => {
+                    {filteredNavItems.map((item) => {
                         const Icon = item.icon;
                         const active = isActive(item.path);
 

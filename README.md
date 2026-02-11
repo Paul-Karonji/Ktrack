@@ -15,10 +15,16 @@
 *   **Financial Reports**: Track expected vs. actual revenue with monthly breakdowns.
 
 ### ⚡ Task & Workflow
-*   **Real-Time Tracking**: Live status updates (Pending -> In Progress -> Review -> Completed).
-*   **Quote Negotiation**: Built-in workflow for sending quotes and receiving client approval/rejection.
-*   **File Management**: Secure, task-specific file uploads using **Cloudflare R2** with local storage fallback.
-*   **Contextual Chat**: Private messaging thread for every task with read receipts.
+*   **Real-Time Tracking**: Live status updates with complete workflow:
+    *   **Pending Quote** → Admin reviews and sends quote
+    *   **Quote Sent** → Client approves/rejects via one-click buttons
+    *   **In Progress** → Work is being done
+    *   **Review** → Client reviews deliverables
+    *   **Completed** → Task finished
+*   **Quote Approval System**: Clients can approve or reject quotes with dedicated Accept/Reject buttons directly in the dashboard.
+*   **File Management**: Secure, task-specific file uploads using **Cloudflare R2** with local storage fallback (10MB per file limit).
+*   **Contextual Chat**: Private messaging thread for every task with unread message badges and real-time updates.
+*   **Mobile Responsive**: Fully optimized for mobile devices with adaptive layouts, card views, and touch-friendly interfaces.
 
 ## 🚀 Getting Started
 

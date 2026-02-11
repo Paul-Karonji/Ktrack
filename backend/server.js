@@ -19,6 +19,7 @@ const userRoutes = require('./routes/users');
 const filesRoutes = require('./routes/files');
 const notificationRoutes = require('./routes/notifications');
 const messageRoutes = require('./routes/messages');
+const analyticsRoutes = require('./routes/analytics');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const requestIdMiddleware = require('./middleware/requestId');
 
@@ -120,6 +121,7 @@ app.use('/api/auth', apiLimiter, authRoutes);
 app.use('/api/users', apiLimiter, userRoutes);
 app.use('/api/tasks', apiLimiter, taskRoutes);
 app.use('/api/messages', apiLimiter, messageRoutes);
+app.use('/api/analytics', apiLimiter, analyticsRoutes);
 app.use('/api/public', require('./routes/public')); // No rate limit for public stats
 app.use('/api/files', apiLimiter, filesRoutes);
 app.use('/api/notifications', apiLimiter, notificationRoutes);

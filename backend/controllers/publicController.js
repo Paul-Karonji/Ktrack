@@ -9,8 +9,8 @@ exports.getPublicStats = async (req, res) => {
         );
 
         const jobsDonePromise = pool.query(
-            'SELECT COUNT(*) as count FROM tasks WHERE status = ? OR status = ?',
-            ['completed', 'approved'] // Assuming 'approved' might also count as "done" or just 'completed'
+            'SELECT COUNT(*) as count FROM tasks WHERE status = ?',
+            ['completed']
         );
 
         const [clientRows] = await clientCountPromise;

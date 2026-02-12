@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Calendar, ChevronDown, X } from 'lucide-react';
+import { Calendar, ChevronDown } from 'lucide-react';
 import { subDays, startOfYear, startOfMonth, subMonths, endOfMonth, format, isSameDay, isValid } from 'date-fns';
 
 const DateRangeFilter = ({ value, onChange }) => {

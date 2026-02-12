@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FolderOpen, Search, SlidersHorizontal } from 'lucide-react';
+import { FolderOpen, Search, SlidersHorizontal, Menu } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import Sidebar from '../components/layout/Sidebar';
@@ -8,9 +8,11 @@ import ProjectFilters from '../components/projects/ProjectFilters';
 import ProjectAnalytics from '../components/projects/ProjectAnalytics';
 import ViewToggle from '../components/projects/ViewToggle';
 import TaskTable from '../components/tasks/TaskTable';
+import { useNavigation } from '../context/NavigationContext';
 
 const Projects = () => {
     const { user, logout } = useAuth();
+    const { openSidebar } = useNavigation();
     const [tasks, setTasks] = useState([]);
     const [filteredTasks, setFilteredTasks] = useState([]);
     const [filters, setFilters] = useState({});
@@ -112,9 +114,18 @@ const Projects = () => {
                     {/* Header */}
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div>
-                            <h1 className="text-5xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-                                <FolderOpen size={48} className="text-indigo-600" />
-                                Projects
+                            <h1 className="text-3xl md:text-5xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+                                <button
+                                    onClick={openSidebar}
+                                    className="lg:hidden p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                                >
+                                    <Menu size={32} className="text-gray-900" />
+                                </button>
+                                <FolderOpen size={48} className="text-indigo-600 hidden lg:block" />
+                                <span className="flex items-center gap-2">
+                                    <FolderOpen size={32} className="text-indigo-600 lg:hidden" />
+                                    Projects
+                                </span>
                             </h1>
                             <p className="text-lg text-gray-500">
                                 Showing {filteredTasks.length} of {tasks.length} projects
@@ -162,10 +173,10 @@ const Projects = () => {
                     </div>
 
                     {/* Main Content */}
-                    <div className="flex gap-6">
+                    <div className="flex flex-col lg:flex-row gap-6">
                         {/* Filters Sidebar */}
                         {showFilters && (
-                            <div className="w-64 flex-shrink-0">
+                            <div className="w-full lg:w-64 flex-shrink-0">
                                 <ProjectFilters
                                     filters={filters}
                                     onFilterChange={setFilters}

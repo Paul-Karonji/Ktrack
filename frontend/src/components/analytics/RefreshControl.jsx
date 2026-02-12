@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { RefreshCw, ChevronDown } from 'lucide-react';
 
-const RefreshControl = ({ interval, onChange, onManualRefresh }) => {
+const RefreshControl = ({ interval, onChange, onManualRefresh, lastUpdated }) => {
     const [showDropdown, setShowDropdown] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -43,27 +43,35 @@ const RefreshControl = ({ interval, onChange, onManualRefresh }) => {
     };
 
     return (
-        <div className="relative" ref={dropdownRef}>
-            <button
-                onClick={handleRefreshClick}
-                className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors text-white border border-white/20"
-            >
-                <RefreshCw
-                    size={18}
-                    className={interval ? 'animate-spin' : 'hover:rotate-180 transition-transform duration-500'}
-                />
-                <span className="hidden sm:inline text-sm font-medium">
-                    {getCurrentLabel()}
-                </span>
-                <ChevronDown
-                    size={16}
-                    className={`transition-transform ${showDropdown ? 'rotate-180' : ''}`}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setShowDropdown(!showDropdown);
-                    }}
-                />
-            </button>
+        <div className="relative w-full sm:w-auto" ref={dropdownRef}>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+                {lastUpdated && (
+                    <span className="text-xs text-gray-500 hidden lg:inline whitespace-nowrap">
+                        Updated {new Date(lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                )}
+                <button
+                    onClick={handleRefreshClick}
+                    className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors text-white border border-white/20"
+                    title={lastUpdated ? `Last updated: ${new Date(lastUpdated).toLocaleString()}` : 'Refresh data'}
+                >
+                    <RefreshCw
+                        size={18}
+                        className={interval ? 'animate-spin' : 'hover:rotate-180 transition-transform duration-500'}
+                    />
+                    <span className="hidden sm:inline text-sm font-medium">
+                        {getCurrentLabel()}
+                    </span>
+                    <ChevronDown
+                        size={16}
+                        className={`transition-transform ${showDropdown ? 'rotate-180' : ''}`}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowDropdown(!showDropdown);
+                        }}
+                    />
+                </button>
+            </div>
 
             {/* Dropdown Menu */}
             {showDropdown && (

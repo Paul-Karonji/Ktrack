@@ -1,7 +1,9 @@
 import React from 'react';
 import { Activity, Clock, CheckCircle, AlertTriangle, TrendingUp } from 'lucide-react';
+import WorkflowTimeline from '../charts/WorkflowTimeline';
+import TaskVolumeHeatmap from '../charts/TaskVolumeHeatmap';
 
-const TaskSection = ({ data }) => {
+const TaskSection = ({ data, dateRange }) => {
     if (!data) {
         return (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -116,9 +118,9 @@ const TaskSection = ({ data }) => {
                             <div key={index} className="flex justify-between items-center">
                                 <div className="flex items-center gap-2">
                                     <div className={`w-3 h-3 rounded-full ${priority.priority === 'urgent' ? 'bg-red-500' :
-                                            priority.priority === 'high' ? 'bg-orange-500' :
-                                                priority.priority === 'medium' ? 'bg-yellow-500' :
-                                                    'bg-green-500'
+                                        priority.priority === 'high' ? 'bg-orange-500' :
+                                            priority.priority === 'medium' ? 'bg-yellow-500' :
+                                                'bg-green-500'
                                         }`} />
                                     <span className="text-sm text-gray-700 capitalize">{priority.priority}</span>
                                 </div>
@@ -151,6 +153,12 @@ const TaskSection = ({ data }) => {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* New Charts: Timeline & Heatmap */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <WorkflowTimeline dateRange={dateRange} />
+                <TaskVolumeHeatmap dateRange={dateRange} />
             </div>
 
             {/* Quote Performance */}

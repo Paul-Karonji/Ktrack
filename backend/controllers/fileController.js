@@ -4,6 +4,7 @@ const User = require('../models/User');
 const EmailService = require('../services/emailService');
 const templates = require('../templates/emailTemplates');
 const Notification = require('../models/Notification');
+const { invalidateCache } = require('../middleware/cache');
 
 const FileController = {
     // Get all files (with optional filters)
@@ -180,6 +181,9 @@ const FileController = {
 
             console.log('[FileController] Upload success:', results.length, 'file(s) uploaded');
 
+            // Invalidate analytics cache (storage changed)
+            invalidateCache('/analytics');
+
             res.status(201).json({
                 message: `${results.length} file(s) uploaded successfully`,
                 files: results
@@ -267,6 +271,9 @@ const FileController = {
             if (!success) {
                 return res.status(404).json({ error: 'File not found' });
             }
+
+            // Invalidate analytics cache
+            invalidateCache('/analytics');
 
             res.json({ message: 'File deleted successfully' });
         } catch (error) {

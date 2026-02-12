@@ -7,9 +7,7 @@ import { useNavigation } from '../../context/NavigationContext';
 import Sidebar from '../../components/layout/Sidebar';
 import api from '../../services/api';
 import {
-    Users, Search, Filter, MoreVertical,
-    UserPlus, Shield, Ban, CheckCircle, XCircle,
-    AlertCircle, Menu, Clock, Check, Merge, X
+    Users, Shield, AlertCircle, Menu, Clock, Check, Merge, X
 } from 'lucide-react';
 
 const UserManagement = () => {

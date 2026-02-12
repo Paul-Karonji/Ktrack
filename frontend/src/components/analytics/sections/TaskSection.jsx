@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Clock, CheckCircle, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Activity, Clock, CheckCircle, TrendingUp } from 'lucide-react';
 import WorkflowTimeline from '../charts/WorkflowTimeline';
 import TaskVolumeHeatmap from '../charts/TaskVolumeHeatmap';
 

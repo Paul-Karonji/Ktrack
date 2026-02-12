@@ -4,12 +4,10 @@ import api from '../services/api';
 import Sidebar from '../components/layout/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { useNavigation } from '../context/NavigationContext';
-import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 const GuestClientManagement = () => {
     const { user, logout } = useAuth();
     const { openSidebar } = useNavigation();
-    const isOnline = useOnlineStatus();
 
     const [guests, setGuests] = useState([]);
     const [loading, setLoading] = useState(true);

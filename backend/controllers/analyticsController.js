@@ -31,9 +31,10 @@ exports.getKPIs = async (req, res) => {
     // Client metrics
     const clientQuery = `
       SELECT 
-        (SELECT COUNT(*) FROM users WHERE role = 'client' AND status = 'approved') as total_clients,
+        (SELECT COUNT(*) FROM users WHERE role = 'client' AND status = 'approved') + 
+        (SELECT COUNT(*) FROM guest_clients WHERE upgraded_to_user_id IS NULL) as total_clients,
         (SELECT COUNT(*) FROM users WHERE role = 'client' AND status = 'approved') as registered_clients,
-        0 as guest_clients
+        (SELECT COUNT(*) FROM guest_clients WHERE upgraded_to_user_id IS NULL) as guest_clients
     `;
 
 
@@ -227,13 +228,37 @@ exports.getClientGrowth = async (req, res) => {
       FROM users
       WHERE role = 'client' AND created_at BETWEEN ? AND ?
       GROUP BY period
+      UNION ALL
+      SELECT 
+        DATE_FORMAT(created_at, '%Y-%m') as period,
+        0 as registered,
+        COUNT(*) as guests
+      FROM guest_clients
+      WHERE created_at BETWEEN ? AND ?
+      GROUP BY period
       ORDER BY period
     `;
 
 
-    const [results] = await pool.query(query, [start, end]);
+    const [results] = await pool.query(query, [start, end, start, end]);
 
-    res.json(results);
+    // Merge results by period
+    const mergedResults = results.reduce((acc, curr) => {
+      const existing = acc.find(item => item.period === curr.period);
+      if (existing) {
+        existing.registered += Number(curr.registered);
+        existing.guests += Number(curr.guests);
+      } else {
+        acc.push({
+          period: curr.period,
+          registered: Number(curr.registered),
+          guests: Number(curr.guests)
+        });
+      }
+      return acc;
+    }, []);
+
+    res.json(mergedResults);
   } catch (error) {
     console.error('Get client growth error:', error);
     res.status(500).json({ error: 'Failed to fetch client growth' });
@@ -270,40 +295,41 @@ exports.getFinancialStats = async (req, res) => {
     const end = endDate ? new Date(endDate) : new Date();
 
     // 1. Revenue Breakdown by Client
-    // Joins tasks with users to get client names
+    // Joins tasks with users AND guest_clients
     const breakdownQuery = `
       SELECT 
-        u.full_name as client,
+        COALESCE(u.full_name, gc.name, t.client_name) as client,
         COUNT(t.id) as projectCount,
         SUM(CASE WHEN t.quote_status = 'approved' THEN t.quoted_amount ELSE 0 END) as expected,
         SUM(CASE WHEN t.is_paid = 1 THEN t.quoted_amount ELSE 0 END) as paid,
         SUM(CASE WHEN t.is_paid = 1 THEN t.quoted_amount ELSE 0 END) as revenue
       FROM tasks t
-      JOIN users u ON t.client_id = u.id
+      LEFT JOIN users u ON t.client_id = u.id
+      LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id
       WHERE t.created_at BETWEEN ? AND ?
-      GROUP BY t.client_id, u.full_name
+        AND (t.client_id IS NOT NULL OR t.guest_client_id IS NOT NULL)
+      GROUP BY COALESCE(u.full_name, gc.name, t.client_name)
       ORDER BY revenue DESC
       LIMIT 5
     `;
 
     // 2. Overdue Payments
-    // Tasks that are approved, not paid, and past due date
     const overdueQuery = `
       SELECT 
-        u.full_name as client,
+        COALESCE(u.full_name, gc.name, t.client_name) as client,
         t.task_name as project,
         t.quoted_amount as amount,
         t.date_delivered as dueDate,
         DATEDIFF(NOW(), t.date_delivered) as daysOverdue
       FROM tasks t
-      JOIN users u ON t.client_id = u.id
+      LEFT JOIN users u ON t.client_id = u.id
+      LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id
       WHERE t.quote_status = 'approved' AND t.is_paid = 0 AND t.date_delivered < NOW()
       ORDER BY daysOverdue DESC
       LIMIT 5
     `;
 
     // 3. Payment Status by Month
-    // Grouped by month for the stacked bar chart
     const paymentStatusQuery = `
       SELECT 
         DATE_FORMAT(updated_at, '%b') as month,
@@ -342,19 +368,21 @@ exports.getClientStats = async (req, res) => {
     // 1. Top Clients by Revenue
     const topClientsQuery = `
       SELECT 
-        u.full_name as name,
+        COALESCE(u.full_name, gc.name, t.client_name) as name,
         COUNT(t.id) as projectCount,
         SUM(CASE WHEN t.is_paid = 1 THEN t.quoted_amount ELSE 0 END) as revenue,
         4.8 as rating -- Placeholder
       FROM tasks t
-      JOIN users u ON t.client_id = u.id
+      LEFT JOIN users u ON t.client_id = u.id
+      LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id
       WHERE t.created_at BETWEEN ? AND ?
-      GROUP BY t.client_id, u.full_name
+        AND (t.client_id IS NOT NULL OR t.guest_client_id IS NOT NULL)
+      GROUP BY COALESCE(u.full_name, gc.name, t.client_name)
       ORDER BY revenue DESC
       LIMIT 10
     `;
 
-    // 2. Client Loyalty Distribution (Real Data)
+    // 2. Client Loyalty Distribution
     let clientLoyalty = [];
     try {
       const loyaltyQuery = `
@@ -366,9 +394,16 @@ exports.getClientStats = async (req, res) => {
           END as category,
           COUNT(*) as count
         FROM (
-          SELECT client_id, COUNT(*) as project_count 
+          -- Combined project counts for users and guests
+          SELECT client_id as id, COUNT(*) as project_count 
           FROM tasks 
+          WHERE client_id IS NOT NULL
           GROUP BY client_id
+          UNION ALL
+          SELECT guest_client_id as id, COUNT(*) as project_count 
+          FROM tasks 
+          WHERE guest_client_id IS NOT NULL
+          GROUP BY guest_client_id
         ) as client_counts
         GROUP BY category
       `;
@@ -392,13 +427,14 @@ exports.getClientStats = async (req, res) => {
     try {
       const scatterQuery = `
         SELECT 
-          u.full_name as name,
+          COALESCE(u.full_name, gc.name, t.client_name) as name,
           COUNT(t.id) as projects,
           SUM(CASE WHEN t.is_paid = 1 THEN t.quoted_amount ELSE 0 END) as revenue,
           MAX(t.created_at) as lastActive
         FROM tasks t
-        JOIN users u ON t.client_id = u.id
-        GROUP BY t.client_id, u.full_name
+        LEFT JOIN users u ON t.client_id = u.id
+        LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id
+        GROUP BY COALESCE(u.full_name, gc.name, t.client_name)
         HAVING revenue > 0
         ORDER BY revenue DESC
         LIMIT 50
@@ -414,11 +450,17 @@ exports.getClientStats = async (req, res) => {
     try {
       const retentionQuery = `
         SELECT 
-          COUNT(DISTINCT CASE WHEN project_count > 1 THEN client_id END) * 100.0 / NULLIF(COUNT(DISTINCT client_id), 0) as retention_rate
+          COUNT(DISTINCT CASE WHEN project_count > 1 THEN id END) * 100.0 / NULLIF(COUNT(DISTINCT id), 0) as retention_rate
         FROM (
-          SELECT client_id, COUNT(*) as project_count 
+          SELECT client_id as id, COUNT(*) as project_count 
           FROM tasks 
+          WHERE client_id IS NOT NULL
           GROUP BY client_id
+          UNION ALL
+          SELECT guest_client_id as id, COUNT(*) as project_count 
+          FROM tasks 
+          WHERE guest_client_id IS NOT NULL
+          GROUP BY guest_client_id
         ) as client_projects
       `;
       const [retentionResult] = await pool.query(retentionQuery);
@@ -451,13 +493,14 @@ exports.getProjectTimeline = async (req, res) => {
       SELECT 
         t.id,
         t.task_name as name,
-        COALESCE(u.full_name, t.client_name) as client,
+        COALESCE(u.full_name, gc.name, t.client_name) as client,
         t.status,
         t.date_commissioned as start,
         t.date_delivered as end,
         t.quoted_amount as amount
       FROM tasks t
       LEFT JOIN users u ON t.client_id = u.id
+      LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id
       WHERE t.date_commissioned BETWEEN ? AND ?
       ORDER BY t.date_commissioned DESC
       LIMIT 20

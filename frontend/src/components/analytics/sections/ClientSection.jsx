@@ -1,6 +1,8 @@
 import React from 'react';
-import { Users, UserPlus, UserCheck, TrendingUp, Star, MessageCircle } from 'lucide-react';
+import { Users, UserPlus, UserCheck, TrendingUp } from 'lucide-react';
 import TopClientsChart from '../charts/TopClientsChart';
+import LifetimeValueScatter from '../charts/LifetimeValueScatter';
+import EngagementGauge from '../charts/EngagementGauge';
 
 const ClientSection = ({ data }) => {
     if (!data) {
@@ -47,15 +49,6 @@ const ClientSection = ({ data }) => {
         yellow: 'bg-yellow-100 text-yellow-600'
     };
 
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount || 0);
-    };
-
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -81,6 +74,15 @@ const ClientSection = ({ data }) => {
                     );
                 })}
             </div>
+
+            {/* Client Engagement & Retention Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <LifetimeValueScatter data={data.clientScatter} />
+                <EngagementGauge score={data.retentionRate} />
+            </div>
+
+            {/* Top Clients Chart */}
+            <TopClientsChart data={data.topClients} />
 
             {/* Client Segmentation */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -115,75 +117,27 @@ const ClientSection = ({ data }) => {
                 </div>
             </div>
 
-            {/* Top Clients Chart */}
-            <TopClientsChart data={data.topClients} />
-
-            {/* Client Engagement & Retention */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4">Engagement Metrics</h3>
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Avg Projects per Client</span>
-                            <span className="text-sm font-bold text-gray-900">{data.avgProjectsPerClient || 0}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Avg Lifetime Value</span>
-                            <span className="text-sm font-bold text-gray-900">{formatCurrency(data.avgLifetimeValue)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Repeat Client Rate</span>
-                            <span className="text-sm font-bold text-gray-900">{data.repeatClientRate || 0}%</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Avg Response Time</span>
-                            <span className="text-sm font-bold text-gray-900">{data.avgClientResponseTime || 0} hrs</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4">Retention Metrics</h3>
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Retention Rate</span>
-                            <span className="text-sm font-bold text-green-600">{data.retentionRate || 0}%</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Churn Rate</span>
-                            <span className="text-sm font-bold text-red-600">{data.churnRate || 0}%</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Avg Client Tenure</span>
-                            <span className="text-sm font-bold text-gray-900">{data.avgClientTenure || 0} months</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Satisfaction Score</span>
-                            <span className="text-sm font-bold text-gray-900">{data.satisfactionScore || 0}/5</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Client Acquisition */}
+            {/* Client Loyalty Distribution */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Acquisition Channels</h3>
+                <h3 className="text-lg font-bold text-gray-800 mb-4">Client Project Frequency</h3>
                 <div className="space-y-3">
-                    {data.acquisitionChannels?.map((channel, index) => (
+                    {data.clientLoyalty?.map((category, index) => (
                         <div key={index}>
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm text-gray-700">{channel.name}</span>
-                                <span className="text-sm font-bold text-gray-900">{channel.count} clients ({channel.percentage}%)</span>
+                                <span className="text-sm text-gray-700">{category.name}</span>
+                                <span className="text-sm font-bold text-gray-900">{category.count} clients ({category.percentage}%)</span>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-2">
                                 <div
-                                    className="bg-purple-600 h-2 rounded-full transition-all"
-                                    style={{ width: `${channel.percentage}%` }}
+                                    className={`h-2 rounded-full transition-all ${category.name === 'VIP' ? 'bg-indigo-600' :
+                                            category.name === 'Returning' ? 'bg-blue-500' : 'bg-gray-400'
+                                        }`}
+                                    style={{ width: `${category.percentage}%` }}
                                 />
                             </div>
                         </div>
                     )) || (
-                            <p className="text-gray-500 text-center py-4">No acquisition data available</p>
+                            <p className="text-gray-500 text-center py-4">No data available</p>
                         )}
                 </div>
             </div>

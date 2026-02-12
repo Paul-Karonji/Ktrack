@@ -186,7 +186,12 @@ export const apiService = {
         getRevenue: (params) => api.get('/analytics/revenue', { params }).then(res => res.data),
         getPipeline: (params) => api.get('/analytics/pipeline', { params }).then(res => res.data),
         getClientGrowth: (params) => api.get('/analytics/clients/growth', { params }).then(res => res.data),
-        getTaskStatus: (params) => api.get('/analytics/tasks/status', { params }).then(res => res.data)
+        getTaskStatus: (params) => api.get('/analytics/tasks/status', { params }).then(res => res.data),
+        getFinancialStats: (params) => api.get('/analytics/financial/detailed', { params }).then(res => res.data),
+        getClientStats: (params) => api.get('/analytics/clients/performance', { params }).then(res => res.data),
+        getProjectTimeline: (params) => api.get('/analytics/projects/timeline', { params }).then(res => res.data),
+        getActivityHeatmap: (params) => api.get('/analytics/activity/heatmap', { params }).then(res => res.data),
+        getStorageAnalytics: (params) => api.get('/analytics/storage', { params }).then(res => res.data)
     }
 };
 

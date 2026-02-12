@@ -3,6 +3,7 @@ const User = require('../models/User');
 const EmailService = require('../services/emailService');
 const templates = require('../templates/emailTemplates');
 const Notification = require('../models/Notification');
+const { invalidateCache } = require('../middleware/cache');
 
 class TaskController {
   static async getAllTasks(req, res) {
@@ -44,6 +45,9 @@ class TaskController {
         };
 
         const task = await Task.create(taskData);
+
+        // Invalidate analytics cache
+        invalidateCache('/analytics');
 
         // Notifications...
         // ... (reuse existing logic for client notifications)
@@ -132,11 +136,18 @@ class TaskController {
         clientName: finalClientName
       });
 
+      // Invalidate analytics cache
+      invalidateCache('/analytics');
+
       // Email Notifications
       // ... (Rest of notification logic checks for clientId to send emails)
       // We should wrap validation and creation, and then let existing logic run?
       // The Existing logic relies on `taskData` variable which we haven't fully reconstructed.
       // It's better to rewrite the notification part briefly or ensure it uses `task` object.
+      // It's better to rewrite the notification part briefly or ensure it uses `task` object.
+      // The previous file content had complex notification logic.
+      // I will attempt to preserve it by not modifying the notification logic block too much
+      // but I am replacing the whole function body in this tool call strategy.
 
       // Let's implement the notification logic here as per existing file but adapted.
       try {
@@ -219,6 +230,9 @@ class TaskController {
 
       const updatedTask = await Task.update(req.params.id, req.body);
 
+      // Invalidate analytics cache
+      invalidateCache('/analytics');
+
       // Check if status changed and notify client
       if (req.body.status && req.body.status !== existingTask.status) {
         try {
@@ -263,6 +277,10 @@ class TaskController {
       }
 
       await Task.delete(req.params.id);
+
+      // Invalidate analytics cache
+      invalidateCache('/analytics');
+
       res.json({
         success: true,
         message: 'Task deleted successfully'
@@ -288,6 +306,10 @@ class TaskController {
       }
 
       const updatedTask = await Task.togglePayment(req.params.id);
+
+      // Invalidate analytics cache
+      invalidateCache('/analytics');
+
       res.json(updatedTask);
     } catch (error) {
       console.error('Error toggling payment status:', error);
@@ -321,6 +343,9 @@ class TaskController {
         quoteStatus,
         status
       });
+
+      // Invalidate analytics cache
+      invalidateCache('/analytics');
 
       // Notify Client of Quote
       try {
@@ -382,6 +407,10 @@ class TaskController {
       }
 
       const updatedTask = await Task.update(req.params.id, updates);
+
+      // Invalidate analytics cache
+      invalidateCache('/analytics');
+
       res.json(updatedTask);
     } catch (error) {
       console.error('Error responding to quote:', error);

@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FileText, Search, Filter, RefreshCw } from 'lucide-react';
+import { FileText, Search, Filter, RefreshCw, Menu } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import Sidebar from '../components/layout/Sidebar';
 import FileStats from '../components/files/FileStats';
 import FileList from '../components/files/FileList';
 
+import { useNavigation } from '../context/NavigationContext';
+
 const Files = () => {
     const { user, logout } = useAuth();
+    const { openSidebar } = useNavigation();
     const [files, setFiles] = useState([]);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -108,10 +111,19 @@ const Files = () => {
                     {/* Header */}
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div>
-                            <h1 className="text-5xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-                                <FileText size={48} className="text-indigo-600" />
-                                Files
-                            </h1>
+                            <div className="flex items-center gap-3 mb-2">
+                                <button
+                                    onClick={openSidebar}
+                                    className="lg:hidden p-2 hover:bg-white/50 rounded-lg transition-colors"
+                                >
+                                    <Menu size={24} className="text-gray-600" />
+                                </button>
+                                <FileText size={48} className="text-indigo-600 hidden lg:block" />
+                                <h1 className="text-3xl md:text-5xl font-bold text-gray-900 flex items-center gap-3">
+                                    <FileText size={32} className="text-indigo-600 lg:hidden" />
+                                    Files
+                                </h1>
+                            </div>
                             <p className="text-lg text-gray-500">
                                 {loading ? 'Loading...' : `Showing ${files.length} file(s)`}
                             </p>

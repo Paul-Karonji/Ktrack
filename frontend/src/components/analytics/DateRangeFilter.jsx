@@ -1,18 +1,45 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Calendar, ChevronDown } from 'lucide-react';
+import { Calendar, ChevronDown, X } from 'lucide-react';
+import { subDays, startOfYear, startOfMonth, subMonths, endOfMonth, format, isSameDay, isValid } from 'date-fns';
 
 const DateRangeFilter = ({ value, onChange }) => {
     const [showDropdown, setShowDropdown] = useState(false);
     const [showCustom, setShowCustom] = useState(false);
+    const [tempCustomRange, setTempCustomRange] = useState({ start: '', end: '' });
     const dropdownRef = useRef(null);
 
     const presets = [
-        { label: 'Today', days: 0 },
-        { label: 'Last 7 days', days: 7 },
-        { label: 'Last 30 days', days: 30 },
-        { label: 'Last 90 days', days: 90 },
-        { label: 'This Year', days: 365 },
-        { label: 'Custom Range', days: null }
+        {
+            label: 'Today',
+            getValue: () => ({ start: new Date(), end: new Date() })
+        },
+        {
+            label: 'Yesterday',
+            getValue: () => ({ start: subDays(new Date(), 1), end: subDays(new Date(), 1) })
+        },
+        {
+            label: 'Last 7 Days',
+            getValue: () => ({ start: subDays(new Date(), 6), end: new Date() })
+        },
+        {
+            label: 'Last 30 Days',
+            getValue: () => ({ start: subDays(new Date(), 29), end: new Date() })
+        },
+        {
+            label: 'This Month',
+            getValue: () => ({ start: startOfMonth(new Date()), end: new Date() })
+        },
+        {
+            label: 'Last Month',
+            getValue: () => ({
+                start: startOfMonth(subMonths(new Date(), 1)),
+                end: endOfMonth(subMonths(new Date(), 1))
+            })
+        },
+        {
+            label: 'This Year',
+            getValue: () => ({ start: startOfYear(new Date()), end: new Date() })
+        },
     ];
 
     // Close dropdown when clicking outside
@@ -27,43 +54,51 @@ const DateRangeFilter = ({ value, onChange }) => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handlePresetClick = (days) => {
-        if (days === null) {
-            setShowCustom(true);
-            return;
-        }
-
-        const end = new Date();
-        const start = new Date();
-        start.setDate(start.getDate() - days);
-        onChange({ start, end });
+    const handlePresetClick = (preset) => {
+        const range = preset.getValue();
+        onChange(range);
         setShowDropdown(false);
         setShowCustom(false);
     };
 
-    const handleCustomDateChange = (type, dateString) => {
-        const newDate = new Date(dateString);
-        if (type === 'start') {
-            onChange({ ...value, start: newDate });
-        } else {
-            onChange({ ...value, end: newDate });
+    const handleCustomApply = () => {
+        const start = new Date(tempCustomRange.start);
+        const end = new Date(tempCustomRange.end);
+
+        if (isValid(start) && isValid(end)) {
+            // Ensure end date includes the full day
+            end.setHours(23, 59, 59, 999);
+            onChange({ start, end });
+            setShowDropdown(false);
+            setShowCustom(false);
         }
     };
 
     const formatDateRange = () => {
         if (!value?.start || !value?.end) return 'Select Date Range';
 
-        const startStr = value.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const endStr = value.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        // Check if it matches a preset
+        const matchingPreset = presets.find(p => {
+            const range = p.getValue();
+            return isSameDay(range.start, value.start) && isSameDay(range.end, value.end);
+        });
 
-        return `${startStr} - ${endStr}`;
+        if (matchingPreset) return matchingPreset.label;
+
+        return `${format(value.start, 'MMM d')} - ${format(value.end, 'MMM d')}`;
     };
 
     return (
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative w-full sm:w-auto" ref={dropdownRef}>
             <button
                 onClick={() => setShowDropdown(!showDropdown)}
-                className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors text-white border border-white/20"
+                className={`
+                    w-full sm:w-auto flex items-center justify-between sm:justify-start gap-2 px-4 py-2 rounded-lg transition-colors border
+                    ${showDropdown
+                        ? 'bg-white text-indigo-700 border-indigo-200 ring-2 ring-indigo-500/20'
+                        : 'bg-white/20 hover:bg-white/30 text-white border-white/20'
+                    }
+                `}
             >
                 <Calendar size={18} />
                 <span className="hidden sm:inline text-sm font-medium">
@@ -74,54 +109,81 @@ const DateRangeFilter = ({ value, onChange }) => {
 
             {/* Dropdown Menu */}
             {showDropdown && (
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
-                    <div className="p-3">
-                        <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Quick Select</p>
-                        <div className="space-y-1">
-                            {presets.map((preset, index) => (
-                                <button
-                                    key={index}
-                                    onClick={() => handlePresetClick(preset.days)}
-                                    className="w-full text-left px-3 py-2 rounded-md hover:bg-indigo-50 text-sm text-gray-700 hover:text-indigo-700 transition-colors"
-                                >
-                                    {preset.label}
-                                </button>
-                            ))}
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
+                    <div className="flex">
+                        {/* Presets Column */}
+                        <div className="w-1/2 border-r border-gray-100 bg-gray-50 p-2 space-y-1">
+                            {presets.map((preset, index) => {
+                                const range = preset.getValue();
+                                const isActive = value?.start && isSameDay(range.start, value.start) && isSameDay(range.end, value.end);
+
+                                return (
+                                    <button
+                                        key={index}
+                                        onClick={() => handlePresetClick(preset)}
+                                        className={`
+                                            w-full text-left px-3 py-2 rounded-md text-sm transition-colors
+                                            ${isActive
+                                                ? 'bg-indigo-100 text-indigo-700 font-medium'
+                                                : 'text-gray-600 hover:bg-white hover:shadow-sm'
+                                            }
+                                        `}
+                                    >
+                                        {preset.label}
+                                    </button>
+                                );
+                            })}
+                            <button
+                                onClick={() => setShowCustom(true)}
+                                className={`
+                                    w-full text-left px-3 py-2 rounded-md text-sm transition-colors
+                                    ${showCustom
+                                        ? 'bg-indigo-100 text-indigo-700 font-medium'
+                                        : 'text-gray-600 hover:bg-white hover:shadow-sm'
+                                    }
+                                `}
+                            >
+                                Custom Range
+                            </button>
+                        </div>
+
+                        {/* Custom Input Column */}
+                        <div className="w-1/2 p-4 flex flex-col justify-center">
+                            {showCustom ? (
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-xs uppercase font-semibold text-gray-500 mb-1 block">Start Date</label>
+                                        <input
+                                            type="date"
+                                            value={tempCustomRange.start}
+                                            onChange={(e) => setTempCustomRange(prev => ({ ...prev, start: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs uppercase font-semibold text-gray-500 mb-1 block">End Date</label>
+                                        <input
+                                            type="date"
+                                            value={tempCustomRange.end}
+                                            onChange={(e) => setTempCustomRange(prev => ({ ...prev, end: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={handleCustomApply}
+                                        className="w-full py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+                                    >
+                                        Apply Range
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="text-center text-gray-400 py-8">
+                                    <Calendar size={32} className="mx-auto mb-2 opacity-50" />
+                                    <p className="text-sm">Select a preset or custom range</p>
+                                </div>
+                            )}
                         </div>
                     </div>
-
-                    {/* Custom Date Inputs */}
-                    {showCustom && (
-                        <div className="border-t border-gray-200 p-3">
-                            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Custom Range</p>
-                            <div className="space-y-2">
-                                <div>
-                                    <label className="text-xs text-gray-600 block mb-1">Start Date</label>
-                                    <input
-                                        type="date"
-                                        value={value?.start?.toISOString().split('T')[0] || ''}
-                                        onChange={(e) => handleCustomDateChange('start', e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs text-gray-600 block mb-1">End Date</label>
-                                    <input
-                                        type="date"
-                                        value={value?.end?.toISOString().split('T')[0] || ''}
-                                        onChange={(e) => handleCustomDateChange('end', e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                    />
-                                </div>
-                                <button
-                                    onClick={() => setShowDropdown(false)}
-                                    className="w-full px-3 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors"
-                                >
-                                    Apply
-                                </button>
-                            </div>
-                        </div>
-                    )}
                 </div>
             )}
         </div>

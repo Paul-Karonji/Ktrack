@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { invalidateCache } = require('../middleware/cache');
 
 // Get all users (admin only)
 const getAllUsers = async (req, res) => {
@@ -31,6 +32,9 @@ const approveUser = async (req, res) => {
         const { id } = req.params;
         const user = await User.approve(id, req.user.id);
 
+        // Invalidate analytics cache (client count changed)
+        invalidateCache('/analytics');
+
         // Send email notification
         if (user.email) {
             // Run asynchronously, don't block response
@@ -54,6 +58,10 @@ const rejectUser = async (req, res) => {
     try {
         const { id } = req.params;
         const user = await User.reject(id);
+
+        // Invalidate analytics cache
+        invalidateCache('/analytics');
+
         res.json({
             message: 'User rejected',
             user
@@ -69,6 +77,10 @@ const suspendUser = async (req, res) => {
     try {
         const { id } = req.params;
         const user = await User.suspend(id);
+
+        // Invalidate analytics cache
+        invalidateCache('/analytics');
+
         res.json({
             message: 'User suspended',
             user
@@ -111,6 +123,10 @@ module.exports = {
             if (updates.course) allowedUpdates.course = updates.course;
 
             const user = await User.update(id, allowedUpdates);
+
+            // Invalidate analytics cache (names might change)
+            invalidateCache('/analytics');
+
             res.json(user);
         } catch (error) {
             console.error('Update user error:', error);

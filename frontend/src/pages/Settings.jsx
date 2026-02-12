@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { Settings as SettingsIcon, Menu } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import Sidebar from '../components/layout/Sidebar';
 import ProfileSettings from '../components/settings/ProfileSettings';
 import SecuritySettings from '../components/settings/SecuritySettings';
 import AccountInfo from '../components/settings/AccountInfo';
+import { useNavigation } from '../context/NavigationContext';
 
 const Settings = () => {
     const { user, logout, updateUser } = useAuth();
+    const { openSidebar } = useNavigation();
     const [activeTab, setActiveTab] = useState('profile');
 
     const handleUpdateProfile = async (data) => {
@@ -47,15 +49,24 @@ const Settings = () => {
                 <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
                     {/* Header */}
                     <div>
-                        <h1 className="text-5xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-                            <SettingsIcon size={48} className="text-indigo-600" />
-                            Settings
+                        <h1 className="text-3xl md:text-5xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+                            <button
+                                onClick={openSidebar}
+                                className="lg:hidden p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                            >
+                                <Menu size={32} className="text-gray-900" />
+                            </button>
+                            <SettingsIcon size={48} className="text-indigo-600 hidden lg:block" />
+                            <span className="flex items-center gap-2">
+                                <SettingsIcon size={32} className="text-indigo-600 lg:hidden" />
+                                Settings
+                            </span>
                         </h1>
                         <p className="text-lg text-gray-500">Customize your K-Track experience</p>
                     </div>
 
                     {/* Tabs */}
-                    <div className="bg-white rounded-2xl p-2 border-2 border-gray-100 inline-flex gap-2">
+                    <div className="bg-white rounded-2xl p-2 border-2 border-gray-100 flex flex-wrap gap-2">
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}

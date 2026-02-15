@@ -6,7 +6,7 @@ const apiFunc = (url) => {
     const cleanUrl = url.endsWith('/') ? url.slice(0, -1) : url;
     return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
 }
-const API_BASE_URL = apiFunc(process.env.REACT_APP_API_URL || 'http://localhost:3001');
+const API_BASE_URL = apiFunc(import.meta.env.VITE_API_URL || 'http://localhost:3001');
 
 console.log('🔗 API Base URL:', API_BASE_URL);
 
@@ -17,6 +17,38 @@ const api = axios.create({
         'Content-Type': 'application/json'
     }
 });
+
+// CSRF Token Management
+let csrfToken = null;
+
+// Fetch CSRF token from backend
+export const fetchCsrfToken = async () => {
+    try {
+        const response = await api.get('/csrf-token');
+        csrfToken = response.data.csrfToken;
+        api.defaults.headers.common['X-CSRF-Token'] = csrfToken;
+        return csrfToken;
+    } catch (error) {
+        console.error('Failed to fetch CSRF token', error);
+    }
+};
+
+// Initialize CSRF token
+fetchCsrfToken();
+
+// Add a request interceptor to ensure token is present for mutations
+api.interceptors.request.use(
+    async (config) => {
+        if (config.method !== 'get' && !csrfToken) {
+            await fetchCsrfToken();
+            config.headers['X-CSRF-Token'] = csrfToken;
+        } else if (csrfToken) {
+            config.headers['X-CSRF-Token'] = csrfToken;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
 
 // Global flag to prevent multiple refresh attempts
 let isRefreshing = false;

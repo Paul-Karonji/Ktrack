@@ -12,7 +12,7 @@
     "@types/node": "^16.18.126",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
-    "axios": "^1.13.4",
+    "axios": "^1.13.5",
     "date-fns": "^4.1.0",
     "jspdf": "^4.1.0",
     "jspdf-autotable": "^5.0.7",
@@ -21,7 +21,6 @@
     "react-calendar-heatmap": "^1.10.0",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.13.0",
-    "react-scripts": "5.0.1",
     "react-tooltip": "^5.30.0",
     "recharts": "^3.7.0",
     "typescript": "^4.9.5",
@@ -29,8 +28,9 @@
     "xlsx": "^0.18.5"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
@@ -53,8 +53,11 @@
     ]
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.13"
+    "tailwindcss": "^3.4.13",
+    "vite": "^7.3.1",
+    "vite-tsconfig-paths": "^6.1.1"
   }
 }

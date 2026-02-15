@@ -236,6 +236,22 @@ const FileController = {
     async getDownloadUrl(req, res) {
         try {
             const { fileId } = req.params;
+            const { pool } = require('../config/database');
+
+            // 1. Get file info to find taskId
+            const [rows] = await pool.execute('SELECT task_id FROM task_files WHERE id = ?', [fileId]);
+            if (rows.length === 0) return res.status(404).json({ error: 'File not found' });
+
+            const taskId = rows[0].task_id;
+
+            // 2. Security Check on Task
+            const task = await Task.findById(taskId);
+            if (!task) return res.status(404).json({ error: 'Task not found' });
+
+            if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
+                return res.status(403).json({ error: 'Access denied' });
+            }
+
             const { url, filename } = await R2Service.getDownloadUrl(fileId);
             res.json({ url, filename });
         } catch (error) {
@@ -248,6 +264,15 @@ const FileController = {
     async getTaskFiles(req, res) {
         try {
             const { taskId } = req.params;
+
+            // Security Check
+            const task = await Task.findById(taskId);
+            if (!task) return res.status(404).json({ error: 'Task not found' });
+
+            if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
+                return res.status(403).json({ error: 'Access denied' });
+            }
+
             const files = await R2Service.getTaskFiles(taskId);
             res.json(files);
         } catch (error) {
@@ -260,11 +285,19 @@ const FileController = {
     async deleteFile(req, res) {
         try {
             const { fileId } = req.params;
+            const { pool } = require('../config/database');
 
-            // Only admins or maybe the uploader can delete?
-            // For now, let's restrict deletion to admins only
-            if (req.user.role !== 'admin') {
-                return res.status(403).json({ error: 'Only admins can delete files' });
+            // Get file info to find taskId
+            const [rows] = await pool.execute('SELECT task_id FROM task_files WHERE id = ?', [fileId]);
+            if (rows.length === 0) return res.status(404).json({ error: 'File not found' });
+
+            const taskId = rows[0].task_id;
+            const task = await Task.findById(taskId);
+
+            // Security Check: Admin or Task Owner
+            const isOwner = task && task.client_id === req.user.id;
+            if (req.user.role !== 'admin' && !isOwner) {
+                return res.status(403).json({ error: 'Access denied. Admin or Owner rights required.' });
             }
 
             const success = await R2Service.deleteFile(fileId);

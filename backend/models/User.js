@@ -26,8 +26,8 @@ class User {
       email,
       password,
       fullName,
-      phoneNumber,
-      course,
+      phoneNumber = null,
+      course = null,
       role = 'client'
     } = userData;
 

@@ -9,7 +9,17 @@ const r2Service = require('../services/r2Service');
 class MessageController {
     static async getMessages(req, res) {
         try {
-            const messages = await Message.findByTaskId(req.params.taskId);
+            const taskId = req.params.taskId;
+
+            // Security Check
+            const task = await Task.findById(taskId);
+            if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
+
+            if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
+                return res.status(403).json({ success: false, message: 'Access denied' });
+            }
+
+            const messages = await Message.findByTaskId(taskId);
             res.json(messages);
         } catch (error) {
             console.error('Error fetching messages:', error);
@@ -25,6 +35,14 @@ class MessageController {
 
             if (!message || !message.trim()) {
                 return res.status(400).json({ success: false, message: 'Message cannot be empty' });
+            }
+
+            // Security Check
+            const task = await Task.findById(taskId);
+            if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
+
+            if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
+                return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
             const newMessage = await Message.create({
@@ -84,6 +102,14 @@ class MessageController {
             const taskId = req.params.taskId;
             const userId = req.user.id;
 
+            // Security Check
+            const task = await Task.findById(taskId);
+            if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
+
+            if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
+                return res.status(403).json({ success: false, message: 'Access denied' });
+            }
+
             await Message.markAsRead(taskId, userId);
             res.json({ success: true });
         } catch (error) {
@@ -100,6 +126,14 @@ class MessageController {
 
             if (!file) {
                 return res.status(400).json({ success: false, message: 'No file provided' });
+            }
+
+            // Security Check
+            const task = await Task.findById(taskId);
+            if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
+
+            if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
+                return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
             // Upload to R2
@@ -149,6 +183,14 @@ class MessageController {
 
             if (!message || !message.file_url) {
                 return res.status(404).json({ success: false, message: 'File not found' });
+            }
+
+            // Security Check
+            const task = await Task.findById(message.task_id);
+            if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
+
+            if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
+                return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
             // Get file from R2

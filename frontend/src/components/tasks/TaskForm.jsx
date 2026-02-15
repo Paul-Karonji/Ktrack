@@ -31,12 +31,12 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
 
     const fetchClients = async () => {
         try {
-            const [usersRes, guestsRes] = await Promise.all([
-                api.get('/users?role=client'),
-                api.get('/guest-clients')
+            const [usersData, guestsData] = await Promise.all([
+                api.getUsers({ role: 'client' }),
+                api.getGuestClients()
             ]);
-            setRegisteredClients(usersRes.data);
-            setGuestClients(guestsRes.data.guests);
+            setRegisteredClients(usersData);
+            setGuestClients(guestsData.guests);
         } catch (error) {
             console.error('Failed to fetch clients:', error);
         }

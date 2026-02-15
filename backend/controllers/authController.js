@@ -13,6 +13,17 @@ const register = async (req, res) => {
             return res.status(400).json({ error: 'Email, password, and full name are required' });
         }
 
+        // Strong Password Validation
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+        if (password.length < 8) {
+            return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+        }
+        if (!passwordRegex.test(password)) {
+            return res.status(400).json({
+                error: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)'
+            });
+        }
+
         // Check if user already exists
         const existingUser = await User.findByEmail(email);
         if (existingUser) {
@@ -284,8 +295,15 @@ const changePassword = async (req, res) => {
             return res.status(400).json({ error: 'Current and new passwords are required' });
         }
 
-        if (newPassword.length < 6) {
-            return res.status(400).json({ error: 'New password must be at least 6 characters' });
+        // Strong Password Validation
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+        if (newPassword.length < 8) {
+            return res.status(400).json({ error: 'New password must be at least 8 characters long' });
+        }
+        if (!passwordRegex.test(newPassword)) {
+            return res.status(400).json({
+                error: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)'
+            });
         }
 
         // Get user with password hash

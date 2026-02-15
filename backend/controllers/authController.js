@@ -67,6 +67,10 @@ const register = async (req, res) => {
         });
     } catch (error) {
         console.error(`[${requestId}] [Auth] Registration error:`, error);
+        try {
+            const fs = require('fs');
+            fs.appendFileSync('debug_error.log', `[${new Date().toISOString()}] REGISTRATION ERROR: ${error.message}\nStack: ${error.stack}\n\n`);
+        } catch (e) { }
         res.status(500).json({ error: 'Registration failed. Please try again later.' });
     }
 };
@@ -222,6 +226,13 @@ const rejectUser = async (req, res) => {
     const requestId = req.requestId || 'unknown';
     try {
         const { id } = req.params;
+
+        // Security Check: Only admins can delete users
+        if (req.user.role !== 'admin') {
+            console.warn(`[${requestId}] [Auth] Unauth delete attempt by user: ${req.user.id}`);
+            return res.status(403).json({ error: 'Access denied. Admin rights required.' });
+        }
+
         console.log(`[${requestId}] [Auth] Rejecting (Deleting) user ID: ${id}`);
 
         const user = await User.findById(id);

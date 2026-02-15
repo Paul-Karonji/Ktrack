@@ -18,6 +18,17 @@ The K-Track Task Tracker is a full-stack web application designed for managing t
 - **Encryption**: Bcrypt for password hashing.
 - **File Handling**: Multer (processing) and AWS SDK (storage).
 - **Validation**: Joi (schema validation).
+- **Migration System**: Custom manual migration runner (`run_migration.js`) executing SQL scripts.
+
+### Database & Migrations Deep Dive
+- **Technology**: Raw SQL via `mysql2/promise` (No ORM).
+- **Schema Management**:
+  - `ktrack_db_dump.sql`: Baseline schema snapshot.
+  - `migrations/*.sql`: Incremental changes (e.g., `add_message_files.sql`).
+- **Connection**: Connection pool configured in `config/database.js` with environment variables (`DB_HOST`, `DB_USER`, etc.) and optional SSL for TiDB.
+- **Migration Execution**:
+  - The `run_migration.js` script is hardcoded to run specific migration files (currently `add_message_files.sql`).
+  - **Risk**: This manual process requires careful management to ensure migrations are tracked and not re-applied destructively.
 
 ### Data Models
 - **User**: Manage client and admin profiles, statuses (pending/approved), and roles.

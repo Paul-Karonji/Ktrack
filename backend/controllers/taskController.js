@@ -217,6 +217,14 @@ class TaskController {
         });
       }
 
+      // Security Check: Ensure user owns the task or is admin
+      if (req.user.role !== 'admin' && existingTask.client_id !== req.user.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You do not own this task.'
+        });
+      }
+
       // Auto-accept quote for guest clients
       if (existingTask.guest_client_id) {
         const amount = req.body.expectedAmount || req.body.quotedAmount;
@@ -302,6 +310,14 @@ class TaskController {
         return res.status(404).json({
           success: false,
           message: 'Task not found'
+        });
+      }
+
+      // Security Check: Ensure user owns the task or is admin
+      if (req.user.role !== 'admin' && existingTask.client_id !== req.user.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You do not own this task.'
         });
       }
 

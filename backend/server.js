@@ -85,7 +85,7 @@ app.use(
 
 // Trust proxy (Required for rate limiting behind proxies like Vercel/Render/Ngrok)
 // Fixes: ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
-app.set('trust proxy', 1);
+app.set('trust proxy', 'loopback, linklocal, uniquelocal'); // Standard for safely handling cloud load balancers (Render/Heroku)
 
 // Rate limiting - General API limiter for most endpoints
 const apiLimiter = rateLimit({

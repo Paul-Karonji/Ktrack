@@ -20,6 +20,7 @@ const loginLimiter = rateLimit({
 // Public routes with strict rate limiting for login/register
 router.post('/register', loginLimiter, authController.register);
 router.post('/login', loginLimiter, authController.login);
+router.all('/login', (req, res) => res.status(405).json({ message: 'Method Not Allowed' }));
 
 // Public routes without strict rate limiting (uses general API limiter from server.js)
 router.post('/logout', authController.logout);

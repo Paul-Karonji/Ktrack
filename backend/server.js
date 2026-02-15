@@ -141,8 +141,8 @@ app.use(cookieParser()); // Ensure cookie-parser is used before csrf
 const csrfProtection = csrf({
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict'
+    secure: process.env.NODE_ENV === 'production' ? true : false, // Ensure this matches user's deployment (HTTPS)
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' // 'none' is required for cross-site if frontend/backend are on different domains, otherwise 'strict' or 'lax'. changing to 'lax' or 'none' might help if domains differ.
   }
 });
 

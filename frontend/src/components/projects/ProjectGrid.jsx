@@ -1,7 +1,7 @@
 import React from 'react';
 import ProjectCard from './ProjectCard';
 
-const ProjectGrid = ({ tasks, onTaskClick }) => {
+const ProjectGrid = ({ tasks, isOnline, hideAmounts, user, onEdit, onDelete, onTogglePayment, onDownloadFile }) => {
     if (!tasks || tasks.length === 0) {
         return (
             <div className="bg-white rounded-2xl p-12 text-center border-2 border-dashed border-gray-200">
@@ -17,7 +17,13 @@ const ProjectGrid = ({ tasks, onTaskClick }) => {
                 <ProjectCard
                     key={task.id}
                     task={task}
-                    onClick={() => onTaskClick && onTaskClick(task)}
+                    isOnline={isOnline}
+                    hideAmounts={hideAmounts}
+                    user={user}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onTogglePayment={onTogglePayment}
+                    onDownloadFile={onDownloadFile}
                 />
             ))}
         </div>

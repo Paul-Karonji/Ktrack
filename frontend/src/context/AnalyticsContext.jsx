@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useCallback, useContext } from 'react';
 import apiService from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const AnalyticsContext = createContext();
 
@@ -13,7 +14,12 @@ export const AnalyticsProvider = ({ children }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
+    const { user } = useAuth();
+
     const fetchAnalytics = useCallback(async () => {
+        // Only admins have access to analytics endpoints — skip silently for clients
+        if (!user || user.role !== 'admin') return;
+
         setLoading(true);
         setError(null);
 
@@ -184,7 +190,7 @@ export const AnalyticsProvider = ({ children }) => {
         } finally {
             setLoading(false);
         }
-    }, [dateRange]);
+    }, [dateRange, user]);
 
     // Initial fetch
     useEffect(() => {

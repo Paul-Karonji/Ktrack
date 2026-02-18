@@ -270,17 +270,20 @@ const Dashboard = () => {
             {/* Main Content */}
             <div className="lg:ml-64 min-h-screen">
                 <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 md:space-y-8">
-                    <Header
-                        isOnline={isOnline}
-                        hideAmounts={hideAmounts}
-                        onToggleAmounts={() => setHideAmounts(!hideAmounts)}
-                        onAddTask={() => {
-                            resetForm();
-                            setShowForm(true);
-                        }}
-                        user={user}
-                        onLogout={logout}
-                    />
+                    {/* Header only shown for admin — clients have their own hero banner */}
+                    {user?.role === 'admin' && (
+                        <Header
+                            isOnline={isOnline}
+                            hideAmounts={hideAmounts}
+                            onToggleAmounts={() => setHideAmounts(!hideAmounts)}
+                            onAddTask={() => {
+                                resetForm();
+                                setShowForm(true);
+                            }}
+                            user={user}
+                            onLogout={logout}
+                        />
+                    )}
 
                     <ErrorMessage error={error} />
 

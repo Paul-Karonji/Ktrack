@@ -130,7 +130,7 @@ const AdminDashboard = ({
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-6">
             {/* Search Bar */}
             <div className="bg-white rounded-2xl p-4 border-2 border-gray-100 shadow-sm">
                 <div className="relative">
@@ -146,22 +146,22 @@ const AdminDashboard = ({
             </div>
 
             {/* Admin Stats Row */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                 <StatCard
-                    title="Pending Approvals"
+                    title="Pending"
                     value={pendingUsers.length}
                     icon={Users}
                     color="bg-orange-500"
                     onClick={() => setActiveTab('users')}
                 />
                 <StatCard
-                    title="Total Clients"
+                    title="Clients"
                     value={stats?.total_clients || 0}
                     icon={CheckCircle}
                     color="bg-green-500"
                 />
                 <StatCard
-                    title="Total Tasks"
+                    title="Tasks"
                     value={tasks.length}
                     icon={FileText}
                     color="bg-blue-500"
@@ -175,60 +175,57 @@ const AdminDashboard = ({
             </div>
 
             {/* File Stats Row */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                 <StatCard
-                    title="Total Files"
+                    title="Files"
                     value={totalFiles}
                     icon={FileText}
                     color="bg-cyan-500"
                     onClick={() => setActiveTab('files')}
                 />
                 <StatCard
-                    title="Tasks with Files"
+                    title="With Files"
                     value={tasksWithFiles}
                     icon={CheckCircle}
                     color="bg-teal-500"
                 />
                 <StatCard
-                    title="Storage Used"
+                    title="Storage"
                     value={formatBytes(totalStorage)}
                     icon={HardDrive}
                     color="bg-indigo-500"
                 />
                 <StatCard
-                    title="Avg Files/Task"
+                    title="Avg/Task"
                     value={tasks.length > 0 ? (totalFiles / tasks.length).toFixed(1) : 0}
                     icon={FileText}
                     color="bg-pink-500"
                 />
             </div>
 
-            {/* Navigation Tabs */}
-            <div className="flex space-x-4 border-b">
-                <button
-                    className={`pb-2 px-4 ${activeTab === 'tasks' ? 'border-b-2 border-indigo-600 font-bold' : ''}`}
-                    onClick={() => setActiveTab('tasks')}
-                >
-                    Tasks Management
-                </button>
-                <button
-                    className={`pb-2 px-4 ${activeTab === 'users' ? 'border-b-2 border-indigo-600 font-bold' : ''}`}
-                    onClick={() => setActiveTab('users')}
-                >
-                    Clients {pendingUsers.length > 0 && <span className="bg-red-500 text-white text-xs rounded-full px-2">{pendingUsers.length}</span>}
-                </button>
-                <button
-                    className={`pb-2 px-4 ${activeTab === 'analytics' ? 'border-b-2 border-indigo-600 font-bold' : ''}`}
-                    onClick={() => setActiveTab('analytics')}
-                >
-                    Analytics
-                </button>
-                <button
-                    className={`pb-2 px-4 ${activeTab === 'files' ? 'border-b-2 border-indigo-600 font-bold' : ''}`}
-                    onClick={() => setActiveTab('files')}
-                >
-                    Files Overview
-                </button>
+            {/* Navigation Tabs — scrollable on mobile */}
+            <div className="flex border-b overflow-x-auto scrollbar-none -mx-1 px-1">
+                {[
+                    { key: 'tasks', label: 'Tasks' },
+                    { key: 'users', label: 'Clients', badge: pendingUsers.length },
+                    { key: 'analytics', label: 'Analytics' },
+                    { key: 'files', label: 'Files' },
+                ].map(tab => (
+                    <button key={tab.key}
+                        onClick={() => setActiveTab(tab.key)}
+                        className={`flex items-center gap-1.5 pb-2.5 px-3 md:px-4 text-sm font-semibold whitespace-nowrap flex-shrink-0 transition-colors
+                            ${activeTab === tab.key
+                                ? 'border-b-2 border-indigo-600 text-indigo-700'
+                                : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        {tab.label}
+                        {tab.badge > 0 && (
+                            <span className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                                {tab.badge}
+                            </span>
+                        )}
+                    </button>
+                ))}
             </div>
 
             {/* Content Areas */}
@@ -253,7 +250,7 @@ const AdminDashboard = ({
                     )}
 
                     <div className="bg-white rounded-xl shadow overflow-hidden">
-                        <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                        <div className="p-3 md:p-4 border-b flex flex-wrap justify-between items-center gap-2 bg-gray-50">
                             <h3 className="font-bold text-gray-700">All Tasks</h3>
                             <button
                                 onClick={onAddTask}
@@ -291,38 +288,73 @@ const AdminDashboard = ({
                                 <h3 className="font-bold text-orange-900">Pending Approvals</h3>
                                 <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{pendingUsers.length}</span>
                             </div>
-                            <table className="min-w-full divide-y divide-orange-100">
-                                <thead className="bg-white">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-100">
-                                    {pendingUsers.map(u => (
-                                        <tr key={u.id}>
-                                            <td className="px-6 py-4">{u.full_name}</td>
-                                            <td className="px-6 py-4">{u.email}</td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex gap-2">
-                                                    <button onClick={() => handleApproveUser(u.id)} className="text-green-600 hover:text-green-900 font-bold bg-green-50 px-3 py-1 rounded">Approve</button>
-                                                    <button onClick={() => { if (window.confirm('Reject user?')) apiService.rejectUser(u.id).then(loadAdminData) }} className="text-red-600 hover:text-red-900 font-bold bg-red-50 px-3 py-1 rounded">Reject</button>
-                                                </div>
-                                            </td>
+                            {/* Mobile: card list; Desktop: table */}
+                            <div className="block md:hidden divide-y divide-orange-100">
+                                {pendingUsers.map(u => (
+                                    <div key={u.id} className="p-4 space-y-2">
+                                        <p className="font-semibold text-gray-800">{u.full_name}</p>
+                                        <p className="text-sm text-gray-500">{u.email}</p>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => handleApproveUser(u.id)} className="flex-1 text-green-600 font-bold bg-green-50 px-3 py-1.5 rounded-lg text-sm">Approve</button>
+                                            <button onClick={() => { if (window.confirm('Reject user?')) apiService.rejectUser(u.id).then(loadAdminData) }} className="flex-1 text-red-600 font-bold bg-red-50 px-3 py-1.5 rounded-lg text-sm">Reject</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="hidden md:block overflow-x-auto">
+                                <table className="min-w-full divide-y divide-orange-100">
+                                    <thead className="bg-white">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-100">
+                                        {pendingUsers.map(u => (
+                                            <tr key={u.id}>
+                                                <td className="px-6 py-4">{u.full_name}</td>
+                                                <td className="px-6 py-4">{u.email}</td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => handleApproveUser(u.id)} className="text-green-600 hover:text-green-900 font-bold bg-green-50 px-3 py-1 rounded">Approve</button>
+                                                        <button onClick={() => { if (window.confirm('Reject user?')) apiService.rejectUser(u.id).then(loadAdminData) }} className="text-red-600 hover:text-red-900 font-bold bg-red-50 px-3 py-1 rounded">Reject</button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
 
                     {/* Registered Clients */}
                     <div className="bg-white rounded-xl shadow overflow-hidden">
-                        <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                        <div className="p-4 border-b bg-gray-50">
                             <h3 className="font-bold text-gray-700">Registered Clients</h3>
                         </div>
-                        <div className="p-4">
+                        {/* Mobile: card list */}
+                        <div className="block md:hidden divide-y divide-gray-100">
+                            {allUsers.filter(u => u.status === 'approved' && u.role === 'client').map(u => (
+                                <div key={u.id} className="p-4 space-y-2">
+                                    <p className="font-semibold text-gray-800">{u.full_name}</p>
+                                    <p className="text-sm text-gray-500">{u.email}</p>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => { setEditingClient({ type: 'user', data: u }); setShowClientForm(true); }}
+                                            className="p-2 text-blue-600 bg-blue-50 rounded-lg border border-blue-200">
+                                            <Edit2 size={15} />
+                                        </button>
+                                        <button onClick={() => { setFormData(prev => ({ ...prev, clientId: u.id, clientName: u.full_name })); setShowForm(true); setActiveTab('tasks'); }}
+                                            className="flex-1 flex items-center justify-center gap-1 text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 text-sm font-medium">
+                                            <Plus size={15} /> New Task
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        {/* Desktop: table */}
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>
@@ -338,24 +370,12 @@ const AdminDashboard = ({
                                             <td className="px-6 py-4 text-gray-500">{u.email}</td>
                                             <td className="px-6 py-4">
                                                 <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => {
-                                                            setEditingClient({ type: 'user', data: u });
-                                                            setShowClientForm(true);
-                                                        }}
-                                                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200"
-                                                        title="Edit Details"
-                                                    >
+                                                    <button onClick={() => { setEditingClient({ type: 'user', data: u }); setShowClientForm(true); }}
+                                                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200" title="Edit Details">
                                                         <Edit2 size={16} />
                                                     </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            setFormData(prev => ({ ...prev, clientId: u.id, clientName: u.full_name }));
-                                                            setShowForm(true);
-                                                            setActiveTab('tasks');
-                                                        }}
-                                                        className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 transition-colors"
-                                                    >
+                                                    <button onClick={() => { setFormData(prev => ({ ...prev, clientId: u.id, clientName: u.full_name })); setShowForm(true); setActiveTab('tasks'); }}
+                                                        className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 transition-colors">
                                                         <Plus size={16} /> New Task
                                                     </button>
                                                 </div>
@@ -371,59 +391,73 @@ const AdminDashboard = ({
                     <div className="bg-white rounded-xl shadow overflow-hidden">
                         <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
                             <h3 className="font-bold text-gray-700">Guest Clients</h3>
-                            <Link to="/admin/guests" className="text-sm text-indigo-600 hover:underline">Manage Guests</Link>
+                            <Link to="/admin/guests" className="text-sm text-indigo-600 hover:underline">Manage</Link>
                         </div>
-                        <div className="p-4">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
+                        {guestClients.length === 0 ? (
+                            <p className="text-center text-gray-400 italic py-6 text-sm">No guest clients found</p>
+                        ) : (
+                            <>
+                                {/* Mobile: card list */}
+                                <div className="block md:hidden divide-y divide-gray-100">
                                     {guestClients.map(g => (
-                                        <tr key={g.id} className="hover:bg-gray-50">
-                                            <td className="px-6 py-4 font-medium">{g.name}</td>
-                                            <td className="px-6 py-4 text-gray-500">
-                                                <div className="flex flex-col text-sm">
-                                                    {g.phone && <span className="flex items-center gap-1"><Phone size={12} /> {g.phone}</span>}
-                                                    {g.email && <span className="flex items-center gap-1"><Mail size={12} /> {g.email}</span>}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => {
-                                                            setEditingClient({ type: 'guest', data: g });
-                                                            setShowClientForm(true);
-                                                        }}
-                                                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200"
-                                                        title="Edit Details"
-                                                    >
-                                                        <Edit2 size={16} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            setFormData(prev => ({ ...prev, guestClientId: g.id, guestClientName: g.name }));
-                                                            setShowForm(true);
-                                                            setActiveTab('tasks');
-                                                        }}
-                                                        className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 transition-colors"
-                                                    >
-                                                        <Plus size={16} /> New Task
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
+                                        <div key={g.id} className="p-4 space-y-2">
+                                            <p className="font-semibold text-gray-800">{g.name}</p>
+                                            <div className="flex flex-col text-sm text-gray-500 gap-0.5">
+                                                {g.phone && <span className="flex items-center gap-1"><Phone size={12} /> {g.phone}</span>}
+                                                {g.email && <span className="flex items-center gap-1"><Mail size={12} /> {g.email}</span>}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => { setEditingClient({ type: 'guest', data: g }); setShowClientForm(true); }}
+                                                    className="p-2 text-blue-600 bg-blue-50 rounded-lg border border-blue-200">
+                                                    <Edit2 size={15} />
+                                                </button>
+                                                <button onClick={() => { setFormData(prev => ({ ...prev, guestClientId: g.id, guestClientName: g.name })); setShowForm(true); setActiveTab('tasks'); }}
+                                                    className="flex-1 flex items-center justify-center gap-1 text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 text-sm font-medium">
+                                                    <Plus size={15} /> New Task
+                                                </button>
+                                            </div>
+                                        </div>
                                     ))}
-                                    {guestClients.length === 0 && (
-                                        <tr><td colSpan="3" className="px-6 py-4 text-center text-gray-400 italic">No guest clients found</td></tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                                </div>
+                                {/* Desktop: table */}
+                                <div className="hidden md:block overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            {guestClients.map(g => (
+                                                <tr key={g.id} className="hover:bg-gray-50">
+                                                    <td className="px-6 py-4 font-medium">{g.name}</td>
+                                                    <td className="px-6 py-4 text-gray-500">
+                                                        <div className="flex flex-col text-sm">
+                                                            {g.phone && <span className="flex items-center gap-1"><Phone size={12} /> {g.phone}</span>}
+                                                            {g.email && <span className="flex items-center gap-1"><Mail size={12} /> {g.email}</span>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex gap-2">
+                                                            <button onClick={() => { setEditingClient({ type: 'guest', data: g }); setShowClientForm(true); }}
+                                                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200" title="Edit Details">
+                                                                <Edit2 size={16} />
+                                                            </button>
+                                                            <button onClick={() => { setFormData(prev => ({ ...prev, guestClientId: g.id, guestClientName: g.name })); setShowForm(true); setActiveTab('tasks'); }}
+                                                                className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 transition-colors">
+                                                                <Plus size={16} /> New Task
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

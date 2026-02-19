@@ -24,7 +24,8 @@ const getPendingUsers = async (req, res) => {
     }
 };
 
-const { sendApprovalEmail } = require('../services/emailService');
+const EmailService = require('../services/emailService');
+const templates = require('../templates/emailTemplates');
 
 // Approve user (admin only)
 const approveUser = async (req, res) => {
@@ -35,10 +36,9 @@ const approveUser = async (req, res) => {
         // Invalidate analytics cache (client count changed)
         invalidateCache('/analytics');
 
-        // Send email notification
+        // Send approval email — call as a method to preserve `this` context
         if (user.email) {
-            // Run asynchronously, don't block response
-            sendApprovalEmail(user.email, user.full_name || 'Client').catch(err =>
+            EmailService.sendApprovalEmail(user.email, user.full_name || 'Client').catch(err =>
                 console.error('Failed to send approval email:', err)
             );
         }
@@ -62,6 +62,14 @@ const rejectUser = async (req, res) => {
         // Invalidate analytics cache
         invalidateCache('/analytics');
 
+        // Notify the user their account was not approved
+        if (user && user.email) {
+            const { subject, html } = templates.accountRejected(user.full_name || 'Applicant');
+            EmailService.sendEmail({ to: user.email, subject, html }).catch(err =>
+                console.error('Failed to send rejection email:', err)
+            );
+        }
+
         res.json({
             message: 'User rejected',
             user
@@ -81,6 +89,14 @@ const suspendUser = async (req, res) => {
         // Invalidate analytics cache
         invalidateCache('/analytics');
 
+        // Notify user their account has been suspended
+        if (user && user.email) {
+            const { subject, html } = templates.accountSuspended(user.full_name || 'Client');
+            EmailService.sendEmail({ to: user.email, subject, html }).catch(err =>
+                console.error('Failed to send suspension email:', err)
+            );
+        }
+
         res.json({
             message: 'User suspended',
             user
@@ -88,6 +104,61 @@ const suspendUser = async (req, res) => {
     } catch (error) {
         console.error('Suspend user error:', error);
         res.status(500).json({ error: 'Failed to suspend user' });
+    }
+};
+
+// Unsuspend (reactivate) user (admin only)
+const unsuspendUser = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = await User.unsuspend(id);
+
+        // Invalidate analytics cache
+        invalidateCache('/analytics');
+
+        // Notify user their account has been reactivated
+        if (user && user.email) {
+            const { subject, html } = templates.accountReactivated(user.full_name || 'Client');
+            EmailService.sendEmail({ to: user.email, subject, html }).catch(err =>
+                console.error('Failed to send reactivation email:', err)
+            );
+        }
+
+        res.json({
+            message: 'User reactivated',
+            user
+        });
+    } catch (error) {
+        console.error('Unsuspend user error:', error);
+        res.status(500).json({ error: 'Failed to reactivate user' });
+    }
+};
+
+// Hard delete user (admin only)
+const deleteUser = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Prevent deleting yourself
+        if (parseInt(id) === req.user.id) {
+            return res.status(400).json({ error: 'You cannot delete your own account' });
+        }
+
+        const user = await User.delete(id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Invalidate analytics cache
+        invalidateCache('/analytics');
+
+        res.json({
+            message: 'User permanently deleted',
+            user
+        });
+    } catch (error) {
+        console.error('Delete user error:', error);
+        res.status(500).json({ error: 'Failed to delete user' });
     }
 };
 
@@ -108,6 +179,8 @@ module.exports = {
     approveUser,
     rejectUser,
     suspendUser,
+    unsuspendUser,
+    deleteUser,
     getUserStats,
 
     // Update user (admin)

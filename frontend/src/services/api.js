@@ -18,38 +18,6 @@ const api = axios.create({
     }
 });
 
-// CSRF Token Management
-let csrfToken = null;
-
-// Fetch CSRF token from backend
-export const fetchCsrfToken = async () => {
-    try {
-        const response = await api.get('/csrf-token');
-        csrfToken = response.data.csrfToken;
-        api.defaults.headers.common['X-CSRF-Token'] = csrfToken;
-        return csrfToken;
-    } catch (error) {
-        console.error('Failed to fetch CSRF token', error);
-    }
-};
-
-// Initialize CSRF token
-fetchCsrfToken();
-
-// Add a request interceptor to ensure token is present for mutations
-api.interceptors.request.use(
-    async (config) => {
-        if (config.method !== 'get' && !csrfToken) {
-            await fetchCsrfToken();
-            config.headers['X-CSRF-Token'] = csrfToken;
-        } else if (csrfToken) {
-            config.headers['X-CSRF-Token'] = csrfToken;
-        }
-        return config;
-    },
-    (error) => Promise.reject(error)
-);
-
 // Global flag to prevent multiple refresh attempts
 let isRefreshing = false;
 let failedQueue = [];
@@ -195,8 +163,10 @@ export const apiService = {
     // Users (Admin)
     getUsers: (filters) => api.get('/users', { params: filters }).then(res => res.data),
     approveUser: (id) => api.put(`/users/${id}/approve`).then(res => res.data),
-    rejectUser: (id) => api.delete(`/auth/users/${id}`).then(res => res.data),
+    rejectUser: (id) => api.put(`/users/${id}/reject`).then(res => res.data),
     suspendUser: (id) => api.put(`/users/${id}/suspend`).then(res => res.data),
+    unsuspendUser: (id) => api.put(`/users/${id}/unsuspend`).then(res => res.data),
+    deleteUser: (id) => api.delete(`/users/${id}`).then(res => res.data),
     updateUser: (id, data) => api.put(`/users/${id}`, data).then(res => res.data),
     getUserStats: () => api.get('/users/stats').then(res => res.data),
 

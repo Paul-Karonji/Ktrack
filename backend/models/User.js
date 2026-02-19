@@ -116,6 +116,23 @@ class User {
     return this.findById(userId);
   }
 
+  // Unsuspend user (reactivate)
+  static async unsuspend(userId) {
+    await pool.execute(
+      'UPDATE users SET status = ? WHERE id = ?',
+      ['approved', userId]
+    );
+    return this.findById(userId);
+  }
+
+  // Hard delete user
+  static async delete(userId) {
+    const user = await this.findById(userId);
+    if (!user) return null;
+    await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
+    return user; // return the deleted user for email/logging
+  }
+
   // Update user
   static async update(userId, updates) {
     const allowedFields = ['full_name', 'phone_number', 'course'];

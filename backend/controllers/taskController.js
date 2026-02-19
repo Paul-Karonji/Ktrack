@@ -162,13 +162,18 @@ class TaskController {
         if (finalClientId) {
           const clientUser = await User.findById(finalClientId);
           if (clientUser && clientUser.email) {
-            // If admin created it, notify client
             if (req.user.role === 'admin') {
-              // Logic for "Admin assigned task to you"? Or just "New Task Created"
-              // The current template is `taskReceived` which seems like "We received your task".
-              // Maybe reuse it or generic notification.
+              // Admin created task for client -> notify client they have a new task assigned
+              const { subject: clientSubject, html: clientHtml } = templates.taskAssigned(finalClientName, task);
+              EmailService.sendEmail({ to: clientUser.email, subject: clientSubject, html: clientHtml }).catch(e => console.error('Failed to notify client of assigned task:', e));
+
+              Notification.create({
+                userId: finalClientId,
+                type: 'task_assigned',
+                message: `A new task has been added to your account: ${task.task_name || task.task_description?.substring(0, 50) + '...'}`
+              }).catch(e => console.error('Failed to create client notification:', e));
             } else {
-              // Client created it
+              // Client created it -> confirm receipt
               const { subject: clientSubject, html: clientHtml } = templates.taskReceived(finalClientName, task);
               EmailService.sendEmail({ to: clientUser.email, subject: clientSubject, html: clientHtml }).catch(e => console.error('Failed to notify client:', e));
 

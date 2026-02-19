@@ -56,6 +56,16 @@ const register = async (req, res) => {
             console.error(`[${requestId}] [Auth] Failed to prepare admin notification:`, emailError);
         }
 
+        // Send confirmation email to the new user
+        try {
+            const { subject, html } = templates.registrationConfirmation(user);
+            EmailService.notifyClient({ to: user.email, subject, html }).catch(err =>
+                console.error(`[${requestId}] [Auth] Failed to send user confirmation email:`, err)
+            );
+        } catch (emailError) {
+            console.error(`[${requestId}] [Auth] Failed to prepare user confirmation email:`, emailError);
+        }
+
         res.status(201).json({
             message: 'Registration successful! Your account is pending admin approval.',
             user: {

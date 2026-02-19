@@ -178,13 +178,13 @@ const ClientProjectCard = ({ task, user, onQuoteResponse, onDownloadFile, index 
                 {hasQuote && (
                     <div className="flex flex-wrap gap-2">
                         <button
-                            onClick={() => onQuoteResponse?.(task.id, 'approved')}
+                            onClick={() => onQuoteResponse?.(task.id, 'approve')}
                             className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold transition-all"
                         >
                             <ThumbsUp size={13} /> Accept
                         </button>
                         <button
-                            onClick={() => onQuoteResponse?.(task.id, 'rejected')}
+                            onClick={() => onQuoteResponse?.(task.id, 'reject')}
                             className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-bold transition-all border border-red-200"
                         >
                             <ThumbsDown size={13} /> Decline

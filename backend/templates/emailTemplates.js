@@ -209,7 +209,129 @@ const templates = {
                 <a href="${CLIENT_URL}/dashboard" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600;">View Conversation</a>
             </div>
         `;
-        return { subject: `💬 New Message: ${taskName || 'Task #' + taskId}`, html: baseTemplate(content, title) };
+        return { subject: `\u{1F4AC} New Message: ${taskName || 'Task #' + taskId}`, html: baseTemplate(content, title) };
+    },
+
+    // Sent to the NEW USER immediately after registration
+    registrationConfirmation: (user) => {
+        const title = 'We Received Your Registration \u2705';
+        const content = `
+            <p style="color: #374151; font-size: 16px;">Hi <strong>${user.full_name}</strong>,</p>
+            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">
+                Thank you for registering with K-Track! We've received your account request and it's now <strong>pending review</strong> by our admin team.
+            </p>
+            <div style="background-color: #f0fdf4; border-radius: 8px; padding: 20px; margin-bottom: 24px; border-left: 4px solid #22c55e;">
+                <p style="margin: 0 0 6px 0; font-weight: 700; color: #15803d; font-size: 15px;">What happens next?</p>
+                <ul style="margin: 0; padding-left: 18px; color: #374151; font-size: 14px; line-height: 1.8;">
+                    <li>Our admin will review your registration details</li>
+                    <li>Once approved, you'll receive another email with a login link</li>
+                    <li>You can then log in and start submitting tasks</li>
+                </ul>
+            </div>
+            <div style="background-color: #eff6ff; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+                <table style="width: 100%;">
+                    <tr>
+                        <td style="padding: 3px 0; color: #6b7280; font-size: 13px; width: 70px;">Name:</td>
+                        <td style="padding: 3px 0; color: #1f2937; font-weight: 600; font-size: 13px;">${user.full_name}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 3px 0; color: #6b7280; font-size: 13px;">Email:</td>
+                        <td style="padding: 3px 0; color: #1f2937; font-weight: 600; font-size: 13px;">${user.email}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 3px 0; color: #6b7280; font-size: 13px;">Status:</td>
+                        <td style="padding: 3px 0; font-size: 13px;"><span style="background-color: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 12px; font-weight: 600;">Pending Approval</span></td>
+                    </tr>
+                </table>
+            </div>
+            <p style="color: #6b7280; font-size: 14px; margin-bottom: 0;">
+                If you didn't create this account, please ignore this email or contact us immediately.
+            </p>
+        `;
+        return { subject: `\u2705 Registration Received \u2014 K-Track`, html: baseTemplate(content, title) };
+    },
+
+    // Sent to CLIENT when admin creates/assigns a task to them
+    taskAssigned: (userName, task) => {
+        const title = 'A New Task Has Been Added for You';
+        const content = `
+            <p style="color: #374151; font-size: 16px;">Hi <strong>${userName}</strong>,</p>
+            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">
+                Your account manager has added a new task to your dashboard. Here are the details:
+            </p>
+            <div style="background-color: #f9fafb; border-radius: 8px; padding: 20px; margin-bottom: 24px; border-left: 4px solid #4f46e5;">
+                <h3 style="margin: 0 0 8px 0; color: #111827; font-size: 16px;">${task.task_name || 'New Task'}</h3>
+                <p style="margin: 0 0 12px 0; color: #4b5563; font-size: 14px; line-height: 1.6;">${task.task_description || ''}</p>
+                ${task.expected_amount ? `<p style="margin: 0; color: #6b7280; font-size: 13px;">Expected amount: <strong>$${task.expected_amount}</strong></p>` : ''}
+            </div>
+            <p style="color: #374151; font-size: 15px; margin-bottom: 24px;">
+                Log in to your dashboard to view the full details, ask questions, or track the progress.
+            </p>
+            <div style="text-align: center;">
+                <a href="${CLIENT_URL}/dashboard" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600;">View My Dashboard</a>
+            </div>
+        `;
+        return { subject: `📋 New Task Added: ${task.task_name || 'New Task'}`, html: baseTemplate(content, title) };
+    },
+
+    // Sent to CLIENT when admin rejects their registration
+    accountRejected: (userName) => {
+        const title = 'Update on Your K-Track Registration';
+        const content = `
+            <p style="color: #374151; font-size: 16px;">Hi <strong>${userName}</strong>,</p>
+            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">
+                Thank you for your interest in K-Track. After reviewing your registration, we're unable to approve your account at this time.
+            </p>
+            <div style="background-color: #fef2f2; border-radius: 8px; padding: 20px; margin-bottom: 24px; border-left: 4px solid #ef4444;">
+                <p style="margin: 0; color: #7f1d1d; font-size: 14px; line-height: 1.6;">
+                    This may be due to incomplete information or eligibility requirements. If you believe this is a mistake or would like more information, please reach out to us directly.
+                </p>
+            </div>
+            <p style="color: #374151; font-size: 14px; margin-bottom: 24px;">
+                You can contact us at <a href="mailto:${process.env.ADMIN_EMAIL || 'karonjipaul.w@gmail.com'}" style="color: #4f46e5;">${process.env.ADMIN_EMAIL || 'karonjipaul.w@gmail.com'}</a> to discuss further.
+            </p>
+        `;
+        return { subject: `K-Track Registration Update`, html: baseTemplate(content, title) };
+    },
+
+    // Sent to CLIENT when admin suspends their account
+    accountSuspended: (userName) => {
+        const title = 'Your Account Has Been Suspended';
+        const content = `
+            <p style="color: #374151; font-size: 16px;">Hi <strong>${userName}</strong>,</p>
+            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">
+                We're writing to let you know that your K-Track account has been temporarily suspended by an administrator.
+            </p>
+            <div style="background-color: #fef3c7; border-radius: 8px; padding: 20px; margin-bottom: 24px; border-left: 4px solid #f59e0b;">
+                <p style="margin: 0; color: #78350f; font-size: 14px; line-height: 1.6;">
+                    While suspended, you will not be able to log in or access your dashboard. If you believe this is an error, please contact us.
+                </p>
+            </div>
+            <p style="color: #374151; font-size: 14px; margin-bottom: 0;">
+                Reach us at <a href="mailto:${process.env.ADMIN_EMAIL || 'karonjipaul.w@gmail.com'}" style="color: #4f46e5;">${process.env.ADMIN_EMAIL || 'karonjipaul.w@gmail.com'}</a>.
+            </p>
+        `;
+        return { subject: `⚠️ K-Track Account Suspended`, html: baseTemplate(content, title) };
+    },
+
+    // Sent to CLIENT when admin reactivates their account
+    accountReactivated: (userName) => {
+        const title = 'Your Account Has Been Reactivated 🎉';
+        const content = `
+            <p style="color: #374151; font-size: 16px;">Hi <strong>${userName}</strong>,</p>
+            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">
+                Great news — your K-Track account has been reactivated. You can now log in and access your dashboard normally.
+            </p>
+            <div style="background-color: #f0fdf4; border-radius: 8px; padding: 20px; margin-bottom: 24px; border-left: 4px solid #22c55e;">
+                <p style="margin: 0; color: #15803d; font-size: 14px; line-height: 1.6;">
+                    All your tasks, messages, and files are exactly as you left them.
+                </p>
+            </div>
+            <div style="text-align: center;">
+                <a href="${CLIENT_URL}/login" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600;">Log In Now</a>
+            </div>
+        `;
+        return { subject: `✅ K-Track Account Reactivated`, html: baseTemplate(content, title) };
     }
 };
 

@@ -131,53 +131,11 @@ app.use((err, req, res, next) => {
   next();
 });
 
-// CSRF Protection
-const csrf = require('csurf');
-// const cookieParser = require('cookie-parser'); // Already imported at the top
-
-app.use(cookieParser()); // Ensure cookie-parser is used before csrf
-
-// CSRF Middleware - strict cookie setting
-const csrfProtection = csrf({
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production' ? true : false, // Ensure this matches user's deployment (HTTPS)
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' // 'none' is required for cross-site if frontend/backend are on different domains, otherwise 'strict' or 'lax'. changing to 'lax' or 'none' might help if domains differ.
-  }
-});
-
-// Apply CSRF protection to all unsafe methods (POST, PUT, DELETE)
-// For safe methods (GET, HEAD, OPTIONS), it just sets the token
-// We apply this globally or selectively. For now, let's apply globally but exclude public/webhook routes if any.
-// Note: Since this is an API, we must ensure the frontend sends the X-CSRF-Token header.
-
-// New Route to get CSRF Token
-app.get('/api/csrf-token', csrfProtection, (req, res) => {
-  res.json({ csrfToken: req.csrfToken() });
-});
-
-// Middleware to check CSRF on mutations - Apply to all /api routes except GET
-// OR simply applying `csrfProtection` to specific routes.
-// A common pattern for SPAs is to apply it globally but handle the error gracefully.
-app.use((req, res, next) => {
-  // Skip CSRF for specific paths if needed (e.g. webhooks)
-  if (req.path === '/api/csrf-token') return next();
-
-  csrfProtection(req, res, next);
-});
-
-// CSRF Error Handler
-app.use((err, req, res, next) => {
-  if (err.code !== 'EBADCSRFTOKEN') return next(err);
-
-  // Handle CSRF token errors here
-  logger.security('CSRF Token Invalid/Missing', { ip: req.ip, user: req.user?.email });
-  res.status(403);
-  res.json({
-    error: 'Invalid or missing CSRF token',
-    code: 'CSRF_ERROR'
-  });
-});
+// Note: CSRF protection is not required here because this API uses JWT Bearer tokens
+// in Authorization headers (not cookies). Browsers enforce same-origin policy on
+// headers — a cross-site attacker cannot read localStorage or set Authorization headers,
+// making the app inherently CSRF-safe. Cookie-based CSRF breaks cross-origin SPA deployments.
+app.use(cookieParser());
 
 // Health check endpoint
 app.get('/health', (_req, res) => {

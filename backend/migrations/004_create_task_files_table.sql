@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS task_files (
     file_path VARCHAR(500) NOT NULL,
     file_type VARCHAR(255),
     file_size INT,
+    is_deliverable BOOLEAN DEFAULT FALSE,
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
 );

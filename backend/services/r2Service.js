@@ -61,15 +61,15 @@ const R2Service = {
     },
 
     // Upload file and record in task_files (Legacy/Official Task Files)
-    async uploadFile(file, taskId, userId) {
+    async uploadFile(file, taskId, userId, isDeliverable = false) {
         const { storedFilename, storageType, fileUrl } = await this.uploadToStorage(file, taskId);
 
         try {
             // Save metadata to database
             const [result] = await pool.execute(
                 `INSERT INTO task_files 
-         (task_id, original_filename, stored_filename, file_path, file_type, file_size, uploaded_by) 
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+         (task_id, original_filename, stored_filename, file_path, file_type, file_size, uploaded_by, is_deliverable) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     taskId,
                     file.originalname,
@@ -77,7 +77,8 @@ const R2Service = {
                     fileUrl,
                     file.mimetype,
                     file.size,
-                    userId
+                    userId,
+                    isDeliverable ? 1 : 0
                 ]
             );
 
@@ -193,6 +194,15 @@ const R2Service = {
             await pool.execute('UPDATE tasks SET has_file = FALSE WHERE id = ?', [file.task_id]);
         }
 
+        return true;
+    },
+
+    // Toggle deliverable status
+    async toggleDeliverable(fileId) {
+        await pool.execute(
+            'UPDATE task_files SET is_deliverable = NOT is_deliverable WHERE id = ?',
+            [fileId]
+        );
         return true;
     }
 };

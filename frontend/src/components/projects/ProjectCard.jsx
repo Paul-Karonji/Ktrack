@@ -20,6 +20,8 @@ const ProjectCard = ({ task, isOnline, hideAmounts, user, onEdit, onDelete, onTo
         cancelled: 'bg-red-100 text-red-700'
     };
 
+    const isDeliverableAvailable = task.status === 'completed' && task.has_file;
+
     const formatDate = (dateString) => {
         if (!dateString) return 'Not set';
         return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -84,9 +86,16 @@ const ProjectCard = ({ task, isOnline, hideAmounts, user, onEdit, onDelete, onTo
 
                 {/* Status + Payment row */}
                 <div className="pt-3 border-t border-gray-100 flex items-center justify-between mb-3">
-                    <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${statusColors[task.status || 'not_started']}`}>
-                        {(task.status || 'not_started').replace(/_/g, ' ').toUpperCase()}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                        <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${statusColors[task.status || 'not_started']}`}>
+                            {(task.status || 'not_started').replace(/_/g, ' ').toUpperCase()}
+                        </span>
+                        {task.status === 'completed' && task.has_file && (
+                            <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-1">
+                                <CheckCircle size={10} /> Delivered
+                            </span>
+                        )}
+                    </div>
                     {user?.role === 'admin' ? (
                         <button
                             onClick={() => onTogglePayment && onTogglePayment(task.id)}

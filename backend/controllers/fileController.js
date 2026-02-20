@@ -110,7 +110,6 @@ const FileController = {
                 SELECT COUNT(*) as files_this_month
                 FROM task_files tf
                 LEFT JOIN tasks t ON tf.task_id = t.id
-                ${whereClause}
                 ${whereClause ? 'AND' : 'WHERE'} tf.uploaded_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
             `, params);
 
@@ -175,9 +174,14 @@ const FileController = {
 
             console.log('[FileController] Starting R2 Upload for', files.length, 'file(s)...');
 
-            // Upload all files
-            const uploadPromises = files.map(file => R2Service.uploadFile(file, taskId, req.user.id));
-            const results = await Promise.all(uploadPromises);
+            // 3. Upload to R2 and save metadata
+            const results = [];
+            const isDeliverable = req.body.isDeliverable === 'true' || req.body.isDeliverable === true;
+
+            for (const file of req.files) {
+                const result = await R2Service.uploadFile(file, taskId, req.user.id, isDeliverable);
+                results.push(result);
+            }
 
             console.log('[FileController] Upload success:', results.length, 'file(s) uploaded');
 
@@ -311,7 +315,24 @@ const FileController = {
             res.json({ message: 'File deleted successfully' });
         } catch (error) {
             console.error('Delete File Error:', error);
-            res.status(500).json({ error: 'Failed to delete file' });
+            res.status(500).json({ success: false, message: 'Failed to delete file' });
+        }
+    },
+
+    async toggleDeliverable(req, res) {
+        try {
+            const { fileId } = req.params;
+
+            // Security Check: Only admin can toggle deliverable status
+            if (req.user.role !== 'admin') {
+                return res.status(403).json({ success: false, message: 'Only admins can mark files as deliverables' });
+            }
+
+            await R2Service.toggleDeliverable(fileId);
+            res.json({ success: true, message: 'Deliverable status toggled successfully' });
+        } catch (error) {
+            console.error('Error toggling deliverable status:', error);
+            res.status(500).json({ success: false, message: 'Failed to toggle deliverable status' });
         }
     }
 };

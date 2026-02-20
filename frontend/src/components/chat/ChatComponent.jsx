@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Paperclip, FileText, X, Image as ImageIcon } from 'lucide-react';
-import { apiService } from '../../services/api';
+import { apiService, API_BASE_URL } from '../../services/api';
 import { formatDate } from '../../utils/formatters';
 
 const ChatComponent = ({ taskId, user, onClose }) => {
@@ -144,14 +144,14 @@ const ChatComponent = ({ taskId, user, onClose }) => {
                                         <div className="mb-2">
                                             {isImageFile(msg.file_type) ? (
                                                 <img
-                                                    src={msg.file_url}
+                                                    src={msg.file_url.startsWith('http') ? msg.file_url : `${API_BASE_URL}${msg.file_url}`}
                                                     alt={msg.file_name}
                                                     className="max-w-xs rounded-lg cursor-pointer hover:opacity-90"
-                                                    onClick={() => window.open(msg.file_url, '_blank')}
+                                                    onClick={() => window.open(msg.file_url.startsWith('http') ? msg.file_url : `${API_BASE_URL}${msg.file_url}`, '_blank')}
                                                 />
                                             ) : (
                                                 <a
-                                                    href={`/api/messages/file/${msg.id}`}
+                                                    href={msg.file_url.startsWith('http') ? msg.file_url : `${API_BASE_URL}${msg.file_url}`}
                                                     download={msg.file_name}
                                                     className={`flex items-center gap-2 p-2 rounded-lg ${isMe ? 'bg-indigo-700' : 'bg-gray-100'
                                                         } hover:opacity-80 transition-opacity`}

@@ -20,7 +20,19 @@ class MessageController {
             }
 
             const messages = await Message.findByTaskId(taskId);
-            res.json(messages);
+
+            // Decorate messages with full file URL
+            const decoratedMessages = messages.map(msg => {
+                if (msg.file_url) {
+                    return {
+                        ...msg,
+                        file_url: `/api/messages/file/${msg.id}`
+                    };
+                }
+                return msg;
+            });
+
+            res.json(decoratedMessages);
         } catch (error) {
             console.error('Error fetching messages:', error);
             res.status(500).json({ success: false, message: 'Failed to fetch messages' });
@@ -136,8 +148,8 @@ class MessageController {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
-            // Upload to R2
-            const fileUrl = await r2Service.uploadFile(file);
+            // Upload to storage (R2/Local)
+            const { fileUrl, storedFilename } = await r2Service.uploadToStorage(file, taskId);
 
             // Create message with file
             const newMessage = await Message.create({
@@ -193,10 +205,18 @@ class MessageController {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
-            // Get file from R2
+            // Get file from storage
             const fileStream = await r2Service.getFileStream(message.file_url);
 
-            res.setHeader('Content-Disposition', `attachment; filename="${message.file_name}"`);
+            // If it's an image, we want the browser to show it inline
+            const isImage = message.file_type && message.file_type.startsWith('image/');
+
+            if (isImage) {
+                res.setHeader('Content-Disposition', 'inline');
+            } else {
+                res.setHeader('Content-Disposition', `attachment; filename="${message.file_name}"`);
+            }
+
             res.setHeader('Content-Type', message.file_type || 'application/octet-stream');
 
             fileStream.pipe(res);

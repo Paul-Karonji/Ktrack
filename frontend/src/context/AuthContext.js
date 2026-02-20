@@ -5,7 +5,8 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [initializing, setInitializing] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
     // Check if user is logged in on mount
@@ -28,10 +29,10 @@ export const AuthProvider = ({ children }) => {
                     localStorage.removeItem('accessToken');
                     setUser(null);
                 } finally {
-                    setLoading(false);
+                    setInitializing(false);
                 }
             } else {
-                setLoading(false);
+                setInitializing(false);
             }
         };
 
@@ -110,11 +111,11 @@ export const AuthProvider = ({ children }) => {
 
     return (
         <AuthContext.Provider value={value}>
-            {loading ? (
+            {initializing ? (
                 <div className="min-h-screen flex items-center justify-center bg-gray-50">
                     <div className="text-center">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-                        <p className="text-gray-600">Loading...</p>
+                        <p className="text-gray-600">Initializing...</p>
                     </div>
                 </div>
             ) : (

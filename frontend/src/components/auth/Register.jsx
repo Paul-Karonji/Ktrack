@@ -73,10 +73,14 @@ const Register = () => {
 
         try {
             const { confirmPassword, ...registerData } = formData;
+            console.log('[Register] Submitting registration for:', formData.email);
             await register(registerData);
+            console.log('[Register] Registration success state being set to true');
             setRegisteredEmail(formData.email);
             setSuccess(true);
+            window.scrollTo(0, 0); // Ensure user sees the success message
         } catch (err) {
+            console.error('[Register] Registration submission failed:', err);
             // Error is handled by context
         }
     };
@@ -99,9 +103,9 @@ const Register = () => {
                             </div>
                         </div>
 
-                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Registration Submitted!</h2>
-                        <p className="text-gray-500 text-sm mb-2">
-                            We've received your request for
+                        <h2 className="text-3xl font-extrabold text-gray-900 mb-2">Registration Successful!</h2>
+                        <p className="text-gray-600 text-lg mb-2">
+                            Your account request has been submitted.
                         </p>
                         <p className="font-semibold text-indigo-600 mb-6 text-sm break-all">
                             {registeredEmail}
@@ -145,7 +149,7 @@ const Register = () => {
                                 </div>
                                 <div className="pt-1 flex-1">
                                     <p className="text-sm font-semibold text-gray-800">Email notification</p>
-                                    <p className="text-xs text-gray-400">You'll get an email once approved</p>
+                                    <p className="text-xs text-gray-400">You'll get an email once we approve your account</p>
                                 </div>
                             </div>
                         </div>

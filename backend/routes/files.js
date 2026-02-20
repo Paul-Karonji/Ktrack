@@ -15,6 +15,9 @@ router.get('/stats', FileController.getFileStats);
 // Get download URL for a specific file
 router.get('/:fileId/download', FileController.getDownloadUrl);
 
+// Toggle deliverable status
+router.patch('/:fileId/deliverable', FileController.toggleDeliverable);
+
 // Delete a file
 router.delete('/:fileId', FileController.deleteFile);
 

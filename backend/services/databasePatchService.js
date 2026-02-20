@@ -31,6 +31,17 @@ const DatabasePatchService = {
                 }
             });
 
+            // Add is_deliverable column to task_files table
+            await pool.execute(`
+                ALTER TABLE task_files 
+                ADD COLUMN is_deliverable BOOLEAN DEFAULT FALSE AFTER file_size;
+            `).catch(err => {
+                // Ignore if column already exists (ER_DUP_FIELDNAME)
+                if (err.code !== 'ER_DUP_FIELDNAME' && err.code !== 'ER_NO_SUCH_TABLE') {
+                    console.warn('⚠️ [DatabasePatch] task_files is_deliverable patch warning:', err.message);
+                }
+            });
+
             console.log('✅ [DatabasePatch] Schema updates checked/applied.');
         } catch (error) {
             console.error('❌ [DatabasePatch] Patching failed:', error);

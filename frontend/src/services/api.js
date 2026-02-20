@@ -146,6 +146,7 @@ export const apiService = {
     }).then(res => res.data),
     getTaskFiles: (taskId) => api.get(`/tasks/${taskId}/files`).then(res => res.data),
     getDownloadUrl: (fileId) => api.get(`/files/${fileId}/download`).then(res => res.data),
+    toggleDeliverable: (fileId) => api.patch(`/files/${fileId}/deliverable`).then(res => res.data),
     deleteFile: (fileId) => api.delete(`/files/${fileId}`).then(res => res.data),
 
     // Quotes

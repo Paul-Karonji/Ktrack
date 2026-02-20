@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     Calendar, DollarSign, MessageSquare, FileText,
     CheckCircle, Clock, AlertCircle,
-    ThumbsUp, ThumbsDown, Paperclip
+    ThumbsUp, ThumbsDown, Paperclip, Download
 } from 'lucide-react';
 import ChatComponent from '../chat/ChatComponent';
 
@@ -173,6 +173,17 @@ const ClientProjectCard = ({ task, user, onQuoteResponse, onDownloadFile, index 
                         </span>
                     )}
                 </div>
+
+                {/* Deliverable Download Button */}
+                {task.status === 'completed' && task.has_file && (
+                    <button
+                        onClick={() => onDownloadFile(task.id)}
+                        className="w-full flex items-center justify-center gap-3 py-3 bg-gradient-to-r from-emerald-600 to-green-500 hover:from-emerald-700 hover:to-green-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-200 transition-all transform hover:scale-[1.02] active:scale-[0.98] group"
+                    >
+                        <Download className="group-hover:bounce-subtle" size={18} />
+                        Download Delivered Work
+                    </button>
+                )}
 
                 {/* Quote accept/reject */}
                 {hasQuote && (

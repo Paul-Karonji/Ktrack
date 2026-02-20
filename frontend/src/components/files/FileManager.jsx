@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Download, File, Image, FileText, Trash2, X, Upload as UploadIcon } from 'lucide-react';
+import { Download, File, Image, FileText, Trash2, X, Upload as UploadIcon, CheckCircle } from 'lucide-react';
 import { apiService, API_BASE_URL } from '../../services/api';
 
 const FileManager = ({ taskId, userRole, onClose }) => {
     const [files, setFiles] = useState([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
+    const [isDeliverableUpload, setIsDeliverableUpload] = useState(false);
 
     const loadFiles = useCallback(async () => {
         try {
@@ -44,6 +45,16 @@ const FileManager = ({ taskId, userRole, onClose }) => {
         }
     };
 
+    const handleToggleDeliverable = async (fileId) => {
+        try {
+            await apiService.toggleDeliverable(fileId);
+            await loadFiles();
+        } catch (error) {
+            console.error('Toggle deliverable failed:', error);
+            alert('Failed to update deliverable status: ' + error.message);
+        }
+    };
+
     const handleDelete = async (fileId) => {
         if (!window.confirm('Are you sure you want to delete this file?')) return;
 
@@ -67,9 +78,13 @@ const FileManager = ({ taskId, userRole, onClose }) => {
         }
 
         try {
+            // Include isDeliverable flag in formData
+            formData.append('isDeliverable', isDeliverableUpload);
+
             await apiService.uploadFile(taskId, formData);
             await loadFiles();
             e.target.value = ''; // Reset input
+            setIsDeliverableUpload(false); // Reset flag
         } catch (error) {
             console.error('Upload failed:', error);
             alert('Failed to upload files: ' + error.message);
@@ -122,21 +137,38 @@ const FileManager = ({ taskId, userRole, onClose }) => {
                 </div>
 
                 {/* Upload Section */}
-                <div className="p-4 bg-gray-50 border-b">
-                    <label className="flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors cursor-pointer">
-                        <UploadIcon size={20} />
-                        <span className="font-semibold">
-                            {uploading ? 'Uploading...' : 'Upload New Files'}
-                        </span>
-                        <input
-                            type="file"
-                            multiple
-                            onChange={handleUpload}
-                            disabled={uploading}
-                            className="hidden"
-                            accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip"
-                        />
-                    </label>
+                <div className="p-4 bg-gray-50 border-b flex flex-col gap-3">
+                    <div className="flex items-center gap-4">
+                        <label className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors cursor-pointer">
+                            <UploadIcon size={20} />
+                            <span className="font-semibold">
+                                {uploading ? 'Uploading...' : 'Upload New Files'}
+                            </span>
+                            <input
+                                type="file"
+                                multiple
+                                onChange={handleUpload}
+                                disabled={uploading}
+                                className="hidden"
+                                accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip"
+                            />
+                        </label>
+                    </div>
+
+                    {userRole === 'admin' && (
+                        <div className="flex items-center gap-2 px-2">
+                            <input
+                                type="checkbox"
+                                id="isDeliverable"
+                                checked={isDeliverableUpload}
+                                onChange={(e) => setIsDeliverableUpload(e.target.checked)}
+                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                            />
+                            <label htmlFor="isDeliverable" className="text-sm font-medium text-gray-700 cursor-pointer">
+                                Mark as Final Deliverable(s)
+                            </label>
+                        </div>
+                    )}
                 </div>
 
                 {/* Files List */}
@@ -180,6 +212,26 @@ const FileManager = ({ taskId, userRole, onClose }) => {
                                                     }`}>
                                                     {file.uploader_role === 'admin' ? '👨‍💼' : '👤'} {file.uploader_name}
                                                 </span>
+                                            )}
+                                            {file.is_deliverable ? (
+                                                <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-bold flex items-center gap-1 ring-1 ring-emerald-200">
+                                                    <CheckCircle size={10} /> Final Deliverable
+                                                </span>
+                                            ) : userRole === 'admin' && (
+                                                <button
+                                                    onClick={() => handleToggleDeliverable(file.id)}
+                                                    className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full hover:bg-indigo-50 hover:text-indigo-600 transition-colors border border-dashed border-gray-300"
+                                                >
+                                                    Mark as Final
+                                                </button>
+                                            )}
+                                            {file.is_deliverable && userRole === 'admin' && (
+                                                <button
+                                                    onClick={() => handleToggleDeliverable(file.id)}
+                                                    className="text-[10px] px-2 py-0.5 bg-red-50 text-red-600 rounded-full hover:bg-red-100 transition-colors border border-dashed border-red-200"
+                                                >
+                                                    Unmark Final
+                                                </button>
                                             )}
                                         </div>
                                     </div>

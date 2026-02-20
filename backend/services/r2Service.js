@@ -15,19 +15,16 @@ const s3Client = new S3Client({
         secretAccessKey: R2_SECRET_ACCESS_KEY,
     },
 });
-
 const R2Service = {
-    // Upload file to R2 (with Local Fallback)
-    async uploadFile(file, taskId, userId) {
+    // Base upload logic (R2 with Local Fallback)
+    async uploadToStorage(file, taskId) {
         const fileExtension = file.originalname.split('.').pop();
-        const storedFilename = `${taskId}-${Date.now()}.${fileExtension}`;
+        const storedFilename = `${taskId || 'chat'}-${Date.now()}.${fileExtension}`;
         const fileContent = file.buffer;
         let storageType = 'r2';
 
         try {
             console.log('[R2Service] Attempting R2 Upload...');
-
-            // Create a timeout signal (5 seconds)
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -43,12 +40,6 @@ const R2Service = {
             console.log('[R2Service] R2 Upload Successful');
         } catch (error) {
             console.error('[R2Service] R2 Upload Failed:', error.message);
-            if (error.name === 'AbortError') {
-                console.log('[R2Service] Upload timed out - switching to local storage');
-            }
-            console.log('[R2Service] Falling back to LOCAL storage...');
-
-            // Fallback to local storage
             storageType = 'local';
             const fs = require('fs');
             const path = require('path');
@@ -62,6 +53,17 @@ const R2Service = {
             console.log('[R2Service] Local Upload Successful');
         }
 
+        return {
+            storedFilename,
+            storageType,
+            fileUrl: storageType === 'local' ? `local:${storedFilename}` : storedFilename
+        };
+    },
+
+    // Upload file and record in task_files (Legacy/Official Task Files)
+    async uploadFile(file, taskId, userId) {
+        const { storedFilename, storageType, fileUrl } = await this.uploadToStorage(file, taskId);
+
         try {
             // Save metadata to database
             const [result] = await pool.execute(
@@ -72,8 +74,7 @@ const R2Service = {
                     taskId,
                     file.originalname,
                     storedFilename,
-                    // Store prefix to distinguish storage type, or just filename if we check both
-                    storageType === 'local' ? `local:${storedFilename}` : storedFilename,
+                    fileUrl,
                     file.mimetype,
                     file.size,
                     userId
@@ -88,7 +89,7 @@ const R2Service = {
                 taskId,
                 originalFilename: file.originalname,
                 storedFilename,
-                storageType, // Helper for frontend/debug
+                storageType,
                 fileType: file.mimetype,
                 fileSize: file.size
             };
@@ -96,6 +97,26 @@ const R2Service = {
             console.error('[R2Service] Database Error:', dbError);
             throw dbError;
         }
+    },
+
+    // Get file stream (R2 or Local)
+    async getFileStream(filePath) {
+        if (filePath.startsWith('local:')) {
+            const filename = filePath.replace('local:', '');
+            const fs = require('fs');
+            const path = require('path');
+            const fullPath = path.join(__dirname, '../uploads', filename);
+            if (!fs.existsSync(fullPath)) throw new Error('Local file not found');
+            return fs.createReadStream(fullPath);
+        }
+
+        const command = new GetObjectCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: filePath,
+        });
+
+        const response = await s3Client.send(command);
+        return response.Body;
     },
 
     // Get signed download URL

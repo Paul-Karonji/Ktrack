@@ -110,3 +110,6 @@ sessions/
 
 # Migration backups
 /backend/migrations/*.backup.sql
+
+# GitHub Workflows
+.github/

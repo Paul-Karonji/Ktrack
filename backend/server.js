@@ -137,6 +137,9 @@ app.use((err, req, res, next) => {
 // making the app inherently CSRF-safe. Cookie-based CSRF breaks cross-origin SPA deployments.
 app.use(cookieParser());
 
+// Static files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Health check endpoint
 app.get('/health', (_req, res) => {
   res.json({

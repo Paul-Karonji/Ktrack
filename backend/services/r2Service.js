@@ -131,11 +131,8 @@ const R2Service = {
         // Check if local file
         if (filePath.startsWith('local:')) {
             const filename = filePath.replace('local:', '');
-            // Return a direct URL to the backend static file route
-            // Should be /uploads/filename
-            // Assuming BACKEND_URL is available or relative path
             return {
-                url: `${process.env.API_URL || 'http://localhost:3001'}/uploads/${filename}`,
+                url: `/uploads/${filename}`,
                 filename: file.original_filename,
                 isLocal: true
             };

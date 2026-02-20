@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Download, File, Image, FileText, Trash2, X, Upload as UploadIcon } from 'lucide-react';
-import { apiService } from '../../services/api';
+import { apiService, API_BASE_URL } from '../../services/api';
 
 const FileManager = ({ taskId, userRole, onClose }) => {
     const [files, setFiles] = useState([]);
@@ -26,9 +26,13 @@ const FileManager = ({ taskId, userRole, onClose }) => {
     const handleDownload = async (fileId, filename) => {
         try {
             const { url } = await apiService.getDownloadUrl(fileId);
+
+            // If the URL is relative (starts with /api), prepend API_BASE_URL
+            const downloadUrl = url.startsWith('http') ? url : `${API_BASE_URL.replace('/api', '')}${url}`;
+
             // Create a temporary link and click it
             const link = document.createElement('a');
-            link.href = url;
+            link.href = downloadUrl;
             link.download = filename;
             link.target = '_blank';
             document.body.appendChild(link);

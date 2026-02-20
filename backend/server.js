@@ -22,6 +22,7 @@ const messageRoutes = require('./routes/messages');
 const analyticsRoutes = require('./routes/analytics');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const requestIdMiddleware = require('./middleware/requestId');
+const DatabasePatchService = require('./services/databasePatchService');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -38,7 +39,10 @@ app.use((req, res, next) => {
 });
 
 // Test database connection on startup
-testConnection();
+testConnection().then(() => {
+  // Run schema patches
+  DatabasePatchService.applyPatches();
+});
 
 // Request ID Middleware (for tracking and debugging)
 app.use(requestIdMiddleware);

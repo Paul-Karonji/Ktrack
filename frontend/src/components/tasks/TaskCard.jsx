@@ -3,7 +3,7 @@ import { Calendar, DollarSign, Edit, Trash2, FileText, CheckCircle } from 'lucid
 import { PriorityBadge, StatusBadge } from '../common/Badges';
 import { formatDate, formatCurrency } from '../../utils/formatters';
 
-const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onDownloadFile, user }) => {
+const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onDownloadFile, onDeliverWork, user }) => {
     return (
         <div className="bg-white rounded-xl shadow-md p-4 space-y-3 border border-gray-100 hover:shadow-lg transition-shadow">
             {/* Client & Task Name */}
@@ -76,6 +76,15 @@ const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayme
                     >
                         <FileText size={16} />
                         Files
+                    </button>
+                )}
+                {onDeliverWork && user?.role === 'admin' && (task.status === 'in_progress' || task.status === 'review') && (
+                    <button
+                        onClick={() => onDeliverWork(task.id)}
+                        className="flex-1 px-3 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-sm"
+                    >
+                        <CheckCircle size={16} />
+                        Deliver
                     </button>
                 )}
                 {onDelete && user?.role === 'admin' && (

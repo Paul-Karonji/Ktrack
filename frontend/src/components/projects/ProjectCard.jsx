@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Calendar, DollarSign, User, Edit, Trash2, FileText, CheckCircle, Clock, MessageSquare } from 'lucide-react';
 import ChatComponent from '../chat/ChatComponent';
 
-const ProjectCard = ({ task, isOnline, hideAmounts, user, onEdit, onDelete, onTogglePayment, onDownloadFile }) => {
+const ProjectCard = ({ task, isOnline, hideAmounts, user, onEdit, onDelete, onTogglePayment, onDownloadFile, onDeliverWork }) => {
     const [showChat, setShowChat] = useState(false);
 
     const priorityColors = {
@@ -151,6 +151,15 @@ const ProjectCard = ({ task, isOnline, hideAmounts, user, onEdit, onDelete, onTo
                             title="View Files"
                         >
                             <FileText size={15} />
+                        </button>
+                    )}
+                    {onDeliverWork && user?.role === 'admin' && (task.status === 'in_progress' || task.status === 'review') && (
+                        <button
+                            onClick={() => onDeliverWork(task.id)}
+                            className="flex-1 px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                            <CheckCircle size={15} />
+                            Deliver
                         </button>
                     )}
                     {onDelete && user?.role === 'admin' && (

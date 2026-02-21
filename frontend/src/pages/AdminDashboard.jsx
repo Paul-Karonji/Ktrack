@@ -23,9 +23,11 @@ const AdminDashboard = ({
     onAddTask,
     onDownloadFile,
     onUploadFile,
+    onDeliverWork,
     onQuoteResponse,
     onSendQuote,
     onDuplicate,
+    // ...
     // Form props
     showForm,
     setShowForm,
@@ -268,6 +270,7 @@ const AdminDashboard = ({
                             onTogglePayment={onTogglePayment}
                             onAddTask={onAddTask}
                             onDownloadFile={onDownloadFile}
+                            onDeliverWork={onDeliverWork}
                             onUploadFile={onUploadFile}
                             onQuoteResponse={onQuoteResponse}
                             onSendQuote={onSendQuote}

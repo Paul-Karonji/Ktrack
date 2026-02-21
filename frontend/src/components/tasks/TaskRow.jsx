@@ -4,7 +4,7 @@ import { formatDate, formatCurrency } from '../../utils/formatters';
 import { PriorityBadge, StatusBadge } from '../common/Badges';
 import ChatComponent from '../chat/ChatComponent';
 
-const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onDownloadFile, onUploadFile, onQuoteResponse, onSendQuote, onDuplicate, user }) => {
+const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onDownloadFile, onUploadFile, onDeliverWork, onQuoteResponse, onSendQuote, onDuplicate, user }) => {
     const [showChat, setShowChat] = useState(false);
     const fileRef = React.useRef(null);
 
@@ -181,6 +181,17 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
                                 className="text-xs bg-indigo-600 text-white px-3 py-1 rounded-full font-bold hover:bg-indigo-700"
                             >
                                 Send Quote
+                            </button>
+                        </div>
+                    )}
+
+                    {user?.role === 'admin' && (task.status === 'in_progress' || task.status === 'review') && (
+                        <div className="mt-2">
+                            <button
+                                onClick={() => onDeliverWork(task.id)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-all shadow-sm"
+                            >
+                                <CheckCircle size={14} /> Deliver Results
                             </button>
                         </div>
                     )}

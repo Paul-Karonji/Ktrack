@@ -50,6 +50,7 @@ const Projects = () => {
 
     // File manager modal state
     const [showFileManager, setShowFileManager] = useState(false);
+    const [fileManagerMode, setFileManagerMode] = useState('manage'); // 'manage' or 'deliver'
     const [selectedTaskId, setSelectedTaskId] = useState(null);
 
     // Load tasks on mount
@@ -246,6 +247,13 @@ const Projects = () => {
 
     const handleDownloadFile = (taskId) => {
         setSelectedTaskId(taskId);
+        setFileManagerMode('manage');
+        setShowFileManager(true);
+    };
+
+    const handleDeliverWork = (taskId) => {
+        setSelectedTaskId(taskId);
+        setFileManagerMode('deliver');
         setShowFileManager(true);
     };
 
@@ -451,6 +459,7 @@ const Projects = () => {
                                     onDelete={handleDelete}
                                     onTogglePayment={handleTogglePayment}
                                     onDownloadFile={handleDownloadFile}
+                                    onDeliverWork={handleDeliverWork}
                                 />
                             ) : (
                                 <TaskTable
@@ -463,6 +472,7 @@ const Projects = () => {
                                     onTogglePayment={handleTogglePayment}
                                     onAddTask={handleAddTask}
                                     onDownloadFile={handleDownloadFile}
+                                    onDeliverWork={handleDeliverWork}
                                     onUploadFile={handleUploadFile}
                                     onQuoteResponse={handleQuoteResponse}
                                     onSendQuote={handleSendQuote}
@@ -479,6 +489,7 @@ const Projects = () => {
                 <FileManager
                     taskId={selectedTaskId}
                     userRole={user?.role}
+                    defaultDeliverable={fileManagerMode === 'deliver'}
                     onClose={() => {
                         setShowFileManager(false);
                         setSelectedTaskId(null);

@@ -158,6 +158,14 @@ const deleteUser = async (req, res) => {
         });
     } catch (error) {
         console.error('Delete user error:', error);
+
+        // Handle foreign key constraint errors more gracefully
+        if (error.code === 'ER_ROW_IS_REFERENCED_2' || error.code === 'ER_ROW_IS_REFERENCED') {
+            return res.status(400).json({
+                error: 'Cannot delete user because they have associated records (tasks, messages, etc.). Please delete those first or suspend the account instead.'
+            });
+        }
+
         res.status(500).json({ error: 'Failed to delete user' });
     }
 };

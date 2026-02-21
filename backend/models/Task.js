@@ -102,55 +102,47 @@ class Task {
   }
 
   static async update(id, taskData) {
-    const existingTask = await this.findById(id);
-    if (!existingTask) return null;
+    const fields = [];
+    const params = [];
 
-    let {
-      clientName = existingTask.client_name,
-      taskName = existingTask.task_name,
-      taskDescription = existingTask.task_description,
-      dateCommissioned = existingTask.date_commissioned,
-      dateDelivered = existingTask.date_delivered,
-      expectedAmount = existingTask.expected_amount,
-      isPaid = existingTask.is_paid,
-      priority = existingTask.priority,
-      status = existingTask.status,
-      notes = existingTask.notes,
-      quoteStatus = existingTask.quote_status,
-      quotedAmount = existingTask.quoted_amount,
-      quantity = existingTask.quantity,
-    } = taskData;
+    // Map camelCase (frontend/Joi) to snake_case (DB)
+    const mapping = {
+      clientName: 'client_name',
+      taskName: 'task_name',
+      taskDescription: 'task_description',
+      dateCommissioned: 'date_commissioned',
+      dateDelivered: 'date_delivered',
+      expectedAmount: 'expected_amount',
+      isPaid: 'is_paid',
+      priority: 'priority',
+      status: 'status',
+      notes: 'notes',
+      quoteStatus: 'quote_status',
+      quotedAmount: 'quoted_amount',
+      quantity: 'quantity',
+      clientId: 'client_id',
+      guestClientId: 'guest_client_id'
+    };
 
-    // Fix: Convert empty strings to null for date fields
-    if (dateCommissioned === '') dateCommissioned = null;
-    if (dateDelivered === '') dateDelivered = null;
+    for (const [key, value] of Object.entries(taskData)) {
+      const dbField = mapping[key] || key;
+      fields.push(`${dbField} = ?`);
+
+      // Handle date fields empty string -> null
+      if ((key === 'dateCommissioned' || key === 'dateDelivered') && value === '') {
+        params.push(null);
+      } else {
+        params.push(value);
+      }
+    }
+
+    if (fields.length === 0) return this.findById(id);
+
+    params.push(id);
 
     await pool.execute(
-      `UPDATE tasks 
-       SET client_name = ?, task_name = ?, task_description = ?, date_commissioned = ?, 
-           date_delivered = ?, expected_amount = ?, is_paid = ?, 
-           priority = ?, status = ?, notes = ?, 
-           quote_status = ?,
-           quoted_amount = ?,
-           quantity = ?,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [
-        clientName,
-        taskName,
-        taskDescription,
-        dateCommissioned,
-        dateDelivered,
-        expectedAmount,
-        isPaid,
-        priority,
-        status,
-        notes,
-        quoteStatus,
-        quotedAmount,
-        quantity,
-        id
-      ]
+      `UPDATE tasks SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      params
     );
 
     return this.findById(id);

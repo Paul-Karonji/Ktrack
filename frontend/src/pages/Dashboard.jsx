@@ -24,6 +24,7 @@ const Dashboard = () => {
     const [editingTask, setEditingTask] = useState(null);
     const [hideAmounts, setHideAmounts] = useState(false);
     const [showFileManager, setShowFileManager] = useState(false);
+    const [fileManagerMode, setFileManagerMode] = useState('manage'); // 'manage' or 'deliver'
     const [selectedTaskId, setSelectedTaskId] = useState(null);
     const fileInputRef = React.useRef(null);
 
@@ -191,6 +192,14 @@ const Dashboard = () => {
     // Handle file management
     const handleDownloadFile = async (taskId) => {
         setSelectedTaskId(taskId);
+        setFileManagerMode('manage');
+        setShowFileManager(true);
+    };
+
+    // Handle deliver work
+    const handleDeliverWork = async (taskId) => {
+        setSelectedTaskId(taskId);
+        setFileManagerMode('deliver');
         setShowFileManager(true);
     };
 
@@ -301,6 +310,7 @@ const Dashboard = () => {
                             onTogglePayment={handleTogglePayment}
                             onAddTask={handleAddTask}
                             onDownloadFile={handleDownloadFile}
+                            onDeliverWork={handleDeliverWork}
                             onQuoteResponse={handleQuoteResponse}
                             onSendQuote={handleSendQuote}
                             onDuplicate={handleDuplicate}
@@ -348,6 +358,7 @@ const Dashboard = () => {
                 <FileManager
                     taskId={selectedTaskId}
                     userRole={user?.role}
+                    defaultDeliverable={fileManagerMode === 'deliver'}
                     onClose={() => {
                         setShowFileManager(false);
                         setSelectedTaskId(null);

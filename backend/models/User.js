@@ -183,11 +183,6 @@ class User {
     return this.findById(userId);
   }
 
-  // Delete user
-  static async delete(userId) {
-    await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
-  }
-
   // Get user stats
   static async getStats() {
     const [stats] = await pool.execute(`

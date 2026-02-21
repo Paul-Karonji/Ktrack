@@ -21,17 +21,23 @@ const taskSchema = Joi.object({
 const validateTask = (req, res, next) => {
   const fs = require('fs');
   try {
-    fs.appendFileSync('debug_validation.log', `[${new Date().toISOString()}] Entering validateTask. Body keys: ${Object.keys(req.body)}\nBody: ${JSON.stringify(req.body)}\n\n`);
+    fs.appendFileSync('debug_validation.log', `[${new Date().toISOString()}] Entering validateTask. Method: ${req.method}. Body keys: ${Object.keys(req.body)}\n`);
   } catch (e) { }
 
-  const { error, value } = taskSchema.validate(req.body);
+  // Create a version of the schema that makes specific fields optional for partial updates
+  let schemaToUse = taskSchema;
+  if (req.method === 'PUT' || req.method === 'PATCH') {
+    schemaToUse = taskSchema.fork(['taskName', 'taskDescription'], (schema) => schema.optional());
+  }
+
+  const { error, value } = schemaToUse.validate(req.body);
 
   if (error) {
     try {
       fs.appendFileSync('debug_validation.log', `[${new Date().toISOString()}] Validation FAILED: ${JSON.stringify(error.details)}\n\n`);
     } catch (e) { }
     console.error('Validation FAILED:', JSON.stringify(error.details, null, 2));
-    // ...
+
     return res.status(400).json({
       success: false,
       message: 'Validation error',

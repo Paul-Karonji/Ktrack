@@ -170,6 +170,9 @@ export const apiService = {
     deleteUser: (id) => api.delete(`/users/${id}`).then(res => res.data),
     updateUser: (id, data) => api.put(`/users/${id}`, data).then(res => res.data),
     getUserStats: () => api.get('/users/stats').then(res => res.data),
+    searchGuests: (q) => api.get('/users/guests/search', { params: { q } }).then(res => res.data),
+    getMatches: (userId) => api.get(`/users/${userId}/matches`).then(res => res.data),
+    mergeGuest: (userId, guestId) => api.post(`/users/${userId}/merge/${guestId}`).then(res => res.data),
 
     // Guest Clients
     getGuestClients: () => api.get('/guest-clients').then(res => res.data),
@@ -198,6 +201,5 @@ export const apiService = {
     }
 };
 
+export { api };
 export default apiService;
-
-

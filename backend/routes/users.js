@@ -16,4 +16,9 @@ router.put('/:id/unsuspend', userController.unsuspendUser);
 router.put('/:id', userController.updateUser);
 router.delete('/:id', userController.deleteUser);
 
+// Guest merging routes
+router.get('/guests/search', userController.searchGuests);
+router.get('/:id/matches', userController.findPotentialGuestMatches);
+router.post('/:id/merge/:guestId', userController.mergeGuestIntoUser);
+
 module.exports = router;

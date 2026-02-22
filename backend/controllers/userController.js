@@ -218,17 +218,18 @@ module.exports = {
     // Merge guest into user (admin only)
     mergeGuestIntoUser: async (req, res) => {
         try {
-            const { userId, guestId } = req.params;
+            const { id, guestId } = req.params;
 
             // Verify user
-            const user = await User.findById(userId);
+            const user = await User.findById(id);
             if (!user) {
                 return res.status(404).json({ error: 'User not found' });
             }
 
-            if (user.status !== 'pending') {
-                return res.status(400).json({ error: 'Can only merge into pending users' });
-            }
+            /* Removed status check to allow merging for already approved users */
+            // if (user.status !== 'pending') {
+            //     return res.status(400).json({ error: 'Can only merge into pending users' });
+            // }
 
             // Verify guest
             const GuestClient = require('../models/GuestClient');
@@ -243,18 +244,23 @@ module.exports = {
 
             // Transfer tasks
             const Task = require('../models/Task');
-            const taskCount = await Task.transferGuestTasks(guestId, userId);
+            const taskCount = await Task.transferGuestTasks(guestId, id);
 
             // Mark guest as merged
-            await GuestClient.markAsUpgraded(guestId, userId);
+            await GuestClient.markAsUpgraded(guestId, id);
 
-            // Auto-approve user
-            await User.approve(userId, req.user.id);
+            // Auto-approve user if they were pending
+            if (user.status === 'pending') {
+                await User.approve(id, req.user.id);
+            }
+
+            // Invalidate analytics (count of guests/users changes)
+            invalidateCache('/analytics');
 
             res.json({
                 success: true,
                 message: `Merged ${taskCount} tasks and approved user`,
-                userId,
+                userId: id,
                 taskCount
             });
 
@@ -266,26 +272,47 @@ module.exports = {
 
     // Find potential guest matches (admin only)
     findPotentialGuestMatches: async (req, res) => {
+        const requestId = req.id || 'N/A';
         try {
-            const { userId } = req.params;
+            const { id } = req.params;
+            console.log(`[${requestId}] [UserMatch] Finding matches for user ID: ${id}`);
 
-            const user = await User.findById(userId);
+            const user = await User.findById(id);
             if (!user) {
+                console.log(`[${requestId}] [UserMatch] User not found: ${id}`);
                 return res.status(404).json({ error: 'User not found' });
             }
 
             const GuestClient = require('../models/GuestClient');
             const matches = await GuestClient.findPotentialMatches(
-                user.full_name || user.name, // Use full_name if available
+                user.full_name,
                 user.email,
-                user.phone
+                user.phone_number
             );
 
+            console.log(`[${requestId}] [UserMatch] Found ${matches.length} matches for ${user.full_name}`);
             res.json({ success: true, matches });
-
         } catch (error) {
-            console.error('Error finding matches:', error);
-            res.status(500).json({ error: 'Failed to find matches' });
+            console.error(`[${requestId}] [UserMatch] Error finding matches:`, error);
+            res.status(500).json({ error: 'Failed to find matches: ' + error.message });
+        }
+    },
+
+    // Manual search for guests (admin only)
+    searchGuests: async (req, res) => {
+        try {
+            const { q } = req.query;
+            if (!q) {
+                return res.json({ success: true, guests: [] });
+            }
+
+            const GuestClient = require('../models/GuestClient');
+            const guests = await GuestClient.search(q);
+
+            res.json({ success: true, guests });
+        } catch (error) {
+            console.error('Error searching guests:', error);
+            res.status(500).json({ error: 'Failed to search guests' });
         }
     }
 };

@@ -31,6 +31,15 @@ const register = async (req, res) => {
             return res.status(400).json({ error: 'Email already registered' });
         }
 
+        // Check for existing guest record with same email
+        const GuestClient = require('../models/GuestClient');
+        const existingGuest = await GuestClient.findPotentialMatches(fullName, email, phoneNumber);
+        const hasGuestMatch = existingGuest && existingGuest.length > 0;
+
+        if (hasGuestMatch) {
+            console.log(`[${requestId}] [Auth] Potential guest match found for registration: ${email}`);
+        }
+
         // Create user
         const user = await User.create({
             email,
@@ -42,6 +51,10 @@ const register = async (req, res) => {
         });
 
         console.log(`[${requestId}] [Auth] ✅ User registered successfully: ${user.id} (${email})`);
+
+        if (hasGuestMatch) {
+            console.log(`[${requestId}] [Auth] ✅ User ${user.id} flagged as potential guest merge.`);
+        }
 
         // Notify Admin
         const EmailService = require('../services/emailService');

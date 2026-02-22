@@ -13,10 +13,21 @@ class User {
 
   // Find user by ID
   static async findById(id) {
-    const [rows] = await pool.execute(
-      'SELECT id, email, role, full_name, phone_number, course, status, created_at FROM users WHERE id = ?',
-      [id]
-    );
+    const [rows] = await pool.execute(`
+      SELECT u.id, u.email, u.role, u.full_name, u.phone_number, u.course, u.status, u.created_at,
+             (SELECT COUNT(*) FROM guest_clients gc 
+              WHERE gc.upgraded_to_user_id IS NULL 
+                AND (
+                  gc.email COLLATE utf8mb4_unicode_ci = u.email OR 
+                  gc.phone COLLATE utf8mb4_unicode_ci = u.phone_number OR 
+                  gc.name COLLATE utf8mb4_unicode_ci = u.full_name OR 
+                  (LENGTH(gc.name) > 2 AND u.full_name LIKE CONCAT('%', gc.name COLLATE utf8mb4_unicode_ci, '%')) OR
+                  (LENGTH(u.full_name) > 2 AND gc.name COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', u.full_name, '%'))
+                )
+             ) as potential_guest_matches
+      FROM users u 
+      WHERE u.id = ?
+    `, [id]);
     return rows[0];
   }
 
@@ -52,7 +63,21 @@ class User {
 
   // Get all users (admin only)
   static async findAll(filters = {}) {
-    let query = 'SELECT id, email, role, full_name, phone_number, course, status, created_at FROM users WHERE 1=1';
+    let query = `
+      SELECT u.id, u.email, u.role, u.full_name, u.phone_number, u.course, u.status, u.created_at,
+             (SELECT COUNT(*) FROM guest_clients gc 
+              WHERE gc.upgraded_to_user_id IS NULL 
+                AND (
+                  gc.email COLLATE utf8mb4_unicode_ci = u.email OR 
+                  gc.phone COLLATE utf8mb4_unicode_ci = u.phone_number OR 
+                  gc.name COLLATE utf8mb4_unicode_ci = u.full_name OR 
+                  (LENGTH(gc.name) > 2 AND u.full_name LIKE CONCAT('%', gc.name COLLATE utf8mb4_unicode_ci, '%')) OR
+                  (LENGTH(u.full_name) > 2 AND gc.name COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', u.full_name, '%'))
+                )
+             ) as potential_guest_matches
+      FROM users u 
+      WHERE 1=1
+    `;
     const params = [];
 
     if (filters.status) {

@@ -27,17 +27,6 @@ const DatabasePatchService = require('./services/databasePatchService');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// GLOBAL DEBUG LOGGER - FIRST MIDDLEWARE
-app.use((req, res, next) => {
-  const fs = require('fs');
-  const log = `[${new Date().toISOString()}] ${req.method} ${req.url}\nHeaders: ${JSON.stringify(req.headers)}\n\n`;
-  try {
-    fs.appendFileSync('debug_global_top.log', log);
-  } catch (e) { }
-  console.log(`[DEBUG TOP] Received ${req.method} ${req.url}`);
-  next();
-});
-
 // Test database connection on startup
 testConnection().then(() => {
   // Run schema patches
@@ -105,19 +94,6 @@ const apiLimiter = rateLimit({
     logger.security('Rate Limit Exceeded', { ip: req.ip });
     res.status(options.statusCode).json(options.message);
   }
-});
-
-// Debug Logging Middleware (Moved to top)
-app.use((req, res, next) => {
-  const fs = require('fs');
-  const log = `[${new Date().toISOString()}] ${req.method} ${req.url}\nHeaders: ${JSON.stringify(req.headers)}\n\n`;
-  try {
-    fs.appendFileSync('debug_global.log', log);
-  } catch (e) { console.error('Logging failed', e); }
-  // logger.info(`[DEBUG] Received ${req.method} ${req.url}`); // Optional: use winston instead of console
-  console.log(`[DEBUG] Received ${req.method} ${req.url}`);
-  console.log('[DEBUG] Body:', JSON.stringify(req.body));
-  next();
 });
 
 // Body parsing middleware

@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { apiService } from '../../services/api';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigation } from '../../context/NavigationContext';
 import Sidebar from '../../components/layout/Sidebar';
-import api from '../../services/api';
+import apiService, { api } from '../../services/api';
 import {
     Users, Shield, ShieldOff, AlertCircle, Menu, Clock,
-    Check, Merge, X, Trash2, RefreshCw
+    Check, Merge, X, Trash2, RefreshCw, Sparkles
 } from 'lucide-react';
 
 // ─── Confirmation Modal ───────────────────────────────────────────────────────
@@ -67,7 +66,13 @@ const UserManagement = () => {
     const [filter, setFilter] = useState('all');
     const [confirm, setConfirm] = useState(null); // { config, action }
     const [actionLoading, setActionLoading] = useState(null); // userId being acted on
-    const [mergeModal, setMergeModal] = useState({ show: false, user: null, matches: [] });
+    const [mergeModal, setMergeModal] = useState({
+        show: false,
+        user: null,
+        matches: [],
+        searchTerm: '',
+        loading: false
+    });
     const isOnline = useOnlineStatus();
 
     const fetchUsers = useCallback(async () => {
@@ -105,18 +110,35 @@ const UserManagement = () => {
     };
 
     // ── Action triggers (show modal first) ──
-    const handleApprove = (userId) => {
-        setConfirm({
-            config: {
-                title: 'Approve User',
-                message: 'The user will receive a welcome email and can log in immediately.',
-                icon: <Check size={22} className="text-green-600" />,
-                iconBg: 'bg-green-100',
-                confirmLabel: 'Approve',
-                confirmClass: 'bg-green-600 hover:bg-green-700',
-            },
-            action: () => runAction(userId, () => apiService.approveUser(userId), 'approved'),
-        });
+    const handleApprove = (u) => {
+        if (u.potential_guest_matches > 0) {
+            setConfirm({
+                config: {
+                    title: 'Possible Guest Match Found',
+                    message: `"${u.full_name}" has ${u.potential_guest_matches} potential guest record(s). It's recommended to merge them to preserve their task history.`,
+                    icon: <Sparkles size={22} className="text-indigo-600" />,
+                    iconBg: 'bg-indigo-100',
+                    confirmLabel: 'Review Matches',
+                    confirmClass: 'bg-indigo-600 hover:bg-indigo-700',
+                },
+                action: () => {
+                    setConfirm(null);
+                    checkMatches(u);
+                },
+            });
+        } else {
+            setConfirm({
+                config: {
+                    title: 'Approve User',
+                    message: 'The user will receive a welcome email and can log in immediately.',
+                    icon: <Check size={22} className="text-green-600" />,
+                    iconBg: 'bg-green-100',
+                    confirmLabel: 'Approve',
+                    confirmClass: 'bg-green-600 hover:bg-green-700',
+                },
+                action: () => runAction(u.id, () => apiService.approveUser(u.id), 'approved'),
+            });
+        }
     };
 
     const handleReject = (userId) => {
@@ -178,11 +200,15 @@ const UserManagement = () => {
     // ── Merge modal ──
     const checkMatches = async (u) => {
         try {
-            setMergeModal({ show: true, user: u, matches: [], loading: true });
-            const response = await api.get(`/users/${u.id}/matches`);
-            setMergeModal({ show: true, user: u, matches: response.data.matches, loading: false });
+            console.log('[Debug] checkMatches for user:', u.id);
+            setMergeModal({ ...mergeModal, show: true, user: u, matches: [], loading: true, searchTerm: '', error: null });
+            const data = await apiService.getMatches(u.id);
+            console.log('[Debug] Received matches:', data.matches?.length);
+            setMergeModal(prev => ({ ...prev, show: true, user: u, matches: data.matches || [], loading: false }));
         } catch (err) {
-            setMergeModal({ show: true, user: u, matches: [], loading: false, error: 'Failed to find matches' });
+            console.error('[Debug] Match finding failed:', err);
+            const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed';
+            setMergeModal(prev => ({ ...prev, show: true, user: u, matches: [], loading: false, error: errMsg }));
         }
     };
 
@@ -199,7 +225,7 @@ const UserManagement = () => {
             action: async () => {
                 setActionLoading('merge');
                 try {
-                    await api.post(`/users/${mergeModal.user.id}/merge/${guestId}`);
+                    await apiService.mergeGuest(mergeModal.user.id, guestId);
                     setMergeModal({ show: false, user: null, matches: [] });
                     fetchUsers();
                 } catch (err) {
@@ -294,7 +320,14 @@ const UserManagement = () => {
                                                                 {u.full_name?.charAt(0)?.toUpperCase() || 'U'}
                                                             </div>
                                                             <div>
-                                                                <div className="font-semibold text-gray-900">{u.full_name}</div>
+                                                                <div className="font-semibold text-gray-900 flex items-center gap-1.5">
+                                                                    {u.full_name}
+                                                                    {u.potential_guest_matches > 0 && (
+                                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-600 text-[10px] font-bold animate-pulse">
+                                                                            <Sparkles size={10} /> Match
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                                 <div className="text-xs text-gray-400">{u.course || 'No course'}</div>
                                                             </div>
                                                         </div>
@@ -318,13 +351,26 @@ const UserManagement = () => {
                                                             <div className="flex items-center gap-1">
                                                                 {/* PENDING */}
                                                                 {u.status === 'pending' && (<>
-                                                                    <ActionBtn icon={<Check size={16} />} label="Approve" color="green" onClick={() => handleApprove(u.id)} />
-                                                                    <ActionBtn icon={<Merge size={16} />} label="Check Merge" color="indigo" onClick={() => checkMatches(u)} />
+                                                                    <ActionBtn icon={<Check size={16} />} label="Approve" showLabel color="green" onClick={() => handleApprove(u)} />
+                                                                    <ActionBtn
+                                                                        icon={<Merge size={16} />}
+                                                                        label="Merge Guest"
+                                                                        showLabel
+                                                                        color={u.potential_guest_matches > 0 ? "indigo_active" : "indigo"}
+                                                                        onClick={() => checkMatches(u)}
+                                                                    />
                                                                     <ActionBtn icon={<X size={16} />} label="Reject" color="red" onClick={() => handleReject(u.id)} />
                                                                 </>)}
 
                                                                 {/* APPROVED */}
                                                                 {u.status === 'approved' && u.role !== 'admin' && (<>
+                                                                    <ActionBtn
+                                                                        icon={<Merge size={16} />}
+                                                                        label="Merge Guest"
+                                                                        showLabel
+                                                                        color={u.potential_guest_matches > 0 ? "indigo_active" : "indigo"}
+                                                                        onClick={() => checkMatches(u)}
+                                                                    />
                                                                     <ActionBtn icon={<Shield size={16} />} label="Suspend" color="orange" onClick={() => handleSuspend(u.id)} />
                                                                     <ActionBtn icon={<Trash2 size={16} />} label="Delete" color="red" onClick={() => handleDelete(u)} />
                                                                 </>)}
@@ -355,7 +401,7 @@ const UserManagement = () => {
                 {/* Merge Modal */}
                 {mergeModal.show && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-40">
-                        <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] flex flex-col">
                             <div className="flex justify-between items-center mb-4">
                                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                                     <Merge className="text-indigo-600" /> Merge Accounts
@@ -364,44 +410,95 @@ const UserManagement = () => {
                                     <X size={22} />
                                 </button>
                             </div>
-                            <p className="text-sm text-gray-500 mb-4">Checking guest records for <strong>{mergeModal.user?.full_name}</strong>…</p>
 
-                            {mergeModal.loading ? (
-                                <div className="py-8 text-center"><LoadingSpinner /></div>
-                            ) : mergeModal.error ? (
-                                <div className="text-red-500 text-center py-4">{mergeModal.error}</div>
-                            ) : mergeModal.matches.length === 0 ? (
-                                <div className="text-center py-6 bg-gray-50 rounded-xl border border-gray-100">
-                                    <p className="text-gray-500 mb-4">No matching guest clients found.</p>
-                                    <button onClick={() => { setMergeModal({ show: false, user: null, matches: [] }); handleApprove(mergeModal.user.id); }} className="text-indigo-600 font-semibold hover:underline">
-                                        Just Approve User
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    <div className="bg-yellow-50 text-yellow-800 text-xs p-3 rounded-lg border border-yellow-200">
-                                        Merging transfers guest tasks to this user and marks the guest profile as upgraded.
+                            <div className="mb-6">
+                                <p className="text-sm text-gray-500 mb-3">Checking guest records for <strong>{mergeModal.user?.full_name}</strong>…</p>
+
+                                {/* Manual Search Input */}
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <Users className="h-4 w-4 text-gray-400" />
                                     </div>
-                                    {mergeModal.matches.map(match => (
-                                        <div key={match.id} className="flex justify-between items-center p-4 bg-gray-50 border border-gray-200 rounded-xl hover:border-indigo-300 transition-colors">
-                                            <div>
-                                                <div className="font-bold text-gray-900">{match.name}</div>
-                                                <div className="text-xs text-gray-500">{match.email || 'No Email'} · {match.phone || 'No Phone'}</div>
-                                                <div className="mt-1 inline-flex items-center gap-1">
-                                                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold">{match.task_count} Tasks</span>
-                                                    <span className="text-[10px] text-gray-400 uppercase tracking-wide border border-gray-200 px-1 rounded bg-white">{match.match_type?.replace('_', ' ')}</span>
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={() => performMerge(match.id)}
-                                                className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow hover:bg-indigo-700 transition-colors"
-                                            >
-                                                Merge
-                                            </button>
+                                    <input
+                                        type="text"
+                                        value={mergeModal.searchTerm}
+                                        placeholder="Search guests by name, email or phone..."
+                                        className="block w-full pl-10 pr-10 py-2 border border-gray-200 rounded-xl text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                        onChange={async (e) => {
+                                            const val = e.target.value;
+                                            setMergeModal(prev => ({ ...prev, searchTerm: val }));
+
+                                            if (val.length >= 1) {
+                                                setMergeModal(prev => ({ ...prev, loading: true }));
+                                                try {
+                                                    const res = await apiService.searchGuests(val);
+                                                    setMergeModal(prev => ({ ...prev, matches: res.guests, loading: false }));
+                                                } catch (err) {
+                                                    setMergeModal(prev => ({ ...prev, loading: false }));
+                                                }
+                                            } else if (val === '') {
+                                                checkMatches(mergeModal.user);
+                                            }
+                                        }}
+                                    />
+                                    {mergeModal.loading && (
+                                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                            <RefreshCw className="h-4 w-4 text-indigo-500 animate-spin" />
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
-                            )}
+                            </div>
+
+                            <div className="overflow-y-auto flex-1 pr-1 custom-scrollbar">
+                                {mergeModal.loading ? (
+                                    <div className="py-8 text-center"><LoadingSpinner /></div>
+                                ) : mergeModal.error ? (
+                                    <div className="text-red-500 text-center py-4">{mergeModal.error}</div>
+                                ) : (mergeModal.matches?.length || 0) === 0 ? (
+                                    <div className="text-center py-10 bg-gray-50 rounded-xl border border-gray-100">
+                                        <p className="text-gray-500 mb-4">No matching guest clients found.</p>
+                                        <button onClick={() => { setMergeModal({ show: false, user: null, matches: [] }); handleApprove(mergeModal.user.id); }} className="text-indigo-600 font-semibold hover:underline">
+                                            Just Approve User
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <div className="bg-yellow-50 text-yellow-800 text-xs p-3 rounded-lg border border-yellow-200">
+                                            Merging transfers all guest tasks to this user and marks the guest record as upgraded.
+                                        </div>
+                                        {mergeModal.matches.map(match => (
+                                            <div key={match.id} className="flex justify-between items-center p-4 bg-gray-50 border border-gray-200 rounded-xl hover:border-indigo-300 transition-colors">
+                                                <div className="flex-1 min-w-0 mr-4">
+                                                    <div className="font-bold text-gray-900 truncate">{match.name}</div>
+                                                    <div className="text-xs text-gray-500 truncate">{match.email || 'No Email'} · {match.phone || 'No Phone'}</div>
+
+                                                    {/* Task Context */}
+                                                    {match.task_names && (
+                                                        <div className="mt-1 text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md inline-block max-w-full truncate">
+                                                            Tasks: {match.task_names}
+                                                        </div>
+                                                    )}
+
+                                                    <div className="mt-1.5 flex items-center gap-2">
+                                                        <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold">{match.task_count} Tasks</span>
+                                                        {match.match_type && (
+                                                            <span className="text-[10px] text-gray-400 uppercase tracking-wide border border-gray-200 px-1 rounded bg-white">
+                                                                {match.match_type.replace('_', ' ')}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => performMerge(match.id)}
+                                                    className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow hover:bg-indigo-700 transition-colors whitespace-nowrap"
+                                                >
+                                                    Merge
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}
@@ -418,20 +515,22 @@ const UserManagement = () => {
 };
 
 // Small action button helper
-const ActionBtn = ({ icon, label, color, onClick }) => {
+const ActionBtn = ({ icon, label, color, onClick, showLabel = false }) => {
     const colors = {
-        green: 'text-green-600 hover:bg-green-50 hover:text-green-700',
+        green: 'text-green-600 hover:bg-green-50 hover:text-green-700 font-bold',
         red: 'text-red-500 hover:bg-red-50 hover:text-red-600',
         orange: 'text-orange-500 hover:bg-orange-50 hover:text-orange-600',
-        indigo: 'text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700',
+        indigo: 'text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 font-bold',
+        indigo_active: 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm font-bold',
     };
     return (
         <button
             title={label}
             onClick={onClick}
-            className={`p-1.5 rounded-lg transition-colors ${colors[color] || 'text-gray-500 hover:bg-gray-100'}`}
+            className={`p-1.5 rounded-lg transition-all flex items-center gap-1.5 ${colors[color] || 'text-gray-500 hover:bg-gray-100'} ${showLabel ? 'px-3' : ''}`}
         >
             {icon}
+            {showLabel && <span className="text-xs uppercase tracking-tight">{label}</span>}
         </button>
     );
 };

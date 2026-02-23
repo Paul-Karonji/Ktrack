@@ -145,8 +145,8 @@ class Task {
         const dbField = mapping[key];
         fields.push(`${dbField} = ?`);
 
-        // Handle date fields empty string -> null
-        if ((key === 'dateCommissioned' || key === 'dateDelivered') && value === '') {
+        // Handle empty strings -> null (crucial for INT/DECIMAL/DATE fields)
+        if (value === '') {
           params.push(null);
         } else {
           params.push(value);
@@ -176,7 +176,7 @@ class Task {
 
   static async togglePayment(id) {
     await pool.execute(
-      'UPDATE tasks SET is_paid = NOT is_paid, paid_at = IF(is_paid = 1, CURRENT_TIMESTAMP, NULL), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE tasks SET is_paid = NOT is_paid, paid_at = IF(is_paid = 1, NULL, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       [id]
     );
     return this.findById(id);

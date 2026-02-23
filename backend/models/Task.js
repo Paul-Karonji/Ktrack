@@ -83,12 +83,14 @@ class Task {
       quantity = 1,
       clientId = null,
       guestClientId = null,
+      completedAt = null,
+      paidAt = null
     } = taskData;
 
     const [result] = await pool.execute(
       `INSERT INTO tasks 
-       (client_name, task_name, task_description, date_commissioned, date_delivered, expected_amount, is_paid, priority, status, notes, quote_status, quoted_amount, quantity, client_id, guest_client_id) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (client_name, task_name, task_description, date_commissioned, date_delivered, expected_amount, is_paid, priority, status, notes, quote_status, quoted_amount, quantity, client_id, guest_client_id, completed_at, paid_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         clientName || null,
         taskName || 'Untitled Task',
@@ -104,7 +106,9 @@ class Task {
         (quotedAmount === '' || quotedAmount === undefined || quotedAmount === null) ? 0 : quotedAmount,
         (quantity === '' || quantity === undefined || quantity === null) ? 1 : quantity,
         clientId || null,
-        guestClientId || null
+        guestClientId || null,
+        completedAt || null,
+        paidAt || null
       ]
     );
 
@@ -131,7 +135,9 @@ class Task {
       quotedAmount: 'quoted_amount',
       quantity: 'quantity',
       clientId: 'client_id',
-      guestClientId: 'guest_client_id'
+      guestClientId: 'guest_client_id',
+      completedAt: 'completed_at',
+      paidAt: 'paid_at'
     };
 
     for (const [key, value] of Object.entries(taskData)) {
@@ -168,7 +174,7 @@ class Task {
 
   static async togglePayment(id) {
     await pool.execute(
-      'UPDATE tasks SET is_paid = NOT is_paid, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE tasks SET is_paid = NOT is_paid, paid_at = IF(is_paid = 1, CURRENT_TIMESTAMP, NULL), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       [id]
     );
     return this.findById(id);

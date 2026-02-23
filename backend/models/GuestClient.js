@@ -101,22 +101,22 @@ class GuestClient {
              COUNT(t.id) as task_count,
              GROUP_CONCAT(t.task_name SEPARATOR ', ') as task_names,
              CASE 
-               WHEN gc.email COLLATE utf8mb4_unicode_ci = ? AND gc.email IS NOT NULL THEN 'email_match'
-               WHEN gc.phone COLLATE utf8mb4_unicode_ci = ? AND gc.phone IS NOT NULL THEN 'phone_match'
-               WHEN gc.name COLLATE utf8mb4_unicode_ci = ? THEN 'exact_name'
-               WHEN (LENGTH(gc.name) > 2 AND ? COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', gc.name COLLATE utf8mb4_unicode_ci, '%')) THEN 'similar_name'
-               WHEN (LENGTH(?) > 2 AND gc.name COLLATE utf8mb4_unicode_ci LIKE ?) THEN 'similar_name'
+               WHEN gc.email = ? AND gc.email IS NOT NULL THEN 'email_match'
+               WHEN gc.phone = ? AND gc.phone IS NOT NULL THEN 'phone_match'
+               WHEN gc.name = ? THEN 'exact_name'
+               WHEN (LENGTH(gc.name) > 2 AND ? LIKE CONCAT('%', gc.name, '%')) THEN 'similar_name'
+               WHEN (LENGTH(?) > 2 AND gc.name LIKE ?) THEN 'similar_name'
                ELSE 'none'
              END as match_type
       FROM guest_clients gc
       LEFT JOIN tasks t ON t.guest_client_id = gc.id
       WHERE gc.upgraded_to_user_id IS NULL
         AND (
-          gc.name COLLATE utf8mb4_unicode_ci = ? OR
-          (LENGTH(gc.name) > 2 AND ? COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', gc.name COLLATE utf8mb4_unicode_ci, '%')) OR
-          (LENGTH(?) > 2 AND gc.name COLLATE utf8mb4_unicode_ci LIKE ?) OR
-          (gc.phone COLLATE utf8mb4_unicode_ci = ? AND gc.phone IS NOT NULL) OR
-          (gc.email COLLATE utf8mb4_unicode_ci = ? AND gc.email IS NOT NULL)
+          gc.name = ? OR
+          (LENGTH(gc.name) > 2 AND ? LIKE CONCAT('%', gc.name, '%')) OR
+          (LENGTH(?) > 2 AND gc.name LIKE ?) OR
+          (gc.phone = ? AND gc.phone IS NOT NULL) OR
+          (gc.email = ? AND gc.email IS NOT NULL)
         )
       GROUP BY gc.id
       ORDER BY 
@@ -146,9 +146,9 @@ class GuestClient {
       LEFT JOIN tasks t ON t.guest_client_id = gc.id
       WHERE gc.upgraded_to_user_id IS NULL
         AND (
-          gc.name COLLATE utf8mb4_unicode_ci LIKE ? OR 
-          gc.email COLLATE utf8mb4_unicode_ci LIKE ? OR 
-          gc.phone COLLATE utf8mb4_unicode_ci LIKE ?
+          gc.name LIKE ? OR 
+          gc.email LIKE ? OR 
+          gc.phone LIKE ?
         )
       GROUP BY gc.id
       LIMIT 10

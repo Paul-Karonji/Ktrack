@@ -116,6 +116,8 @@ export const AnalyticsProvider = ({ children }) => {
                 kpis,
                 revenue: filledRevenue,
                 clientGrowth: filledGrowth,
+                pipeline,
+                taskStatus,
 
                 // Financial Section Data - From Real DB
                 financial: {

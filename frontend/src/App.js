@@ -10,11 +10,10 @@ import Projects from './pages/Projects';
 import Files from './pages/Files';
 import Settings from './pages/Settings';
 import Analytics from './pages/Analytics';
-import UserManagement from './pages/admin/UserManagement';
+import Clients from './pages/admin/Clients';
 import PrivateRoute from './components/auth/PrivateRoute';
 import LandingPage from './pages/LandingPage';
 import WhatsAppButton from './components/common/WhatsAppButton';
-import GuestClientManagement from './pages/GuestClientManagement';
 
 const App = () => {
   return (
@@ -57,19 +56,10 @@ const App = () => {
               />
 
               <Route
-                path="/admin/users"
+                path="/admin/clients"
                 element={
                   <PrivateRoute allowedRoles={['admin']}>
-                    <UserManagement />
-                  </PrivateRoute>
-                }
-              />
-
-              <Route
-                path="/admin/guests"
-                element={
-                  <PrivateRoute allowedRoles={['admin']}>
-                    <GuestClientManagement />
+                    <Clients />
                   </PrivateRoute>
                 }
               />

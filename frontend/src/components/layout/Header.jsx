@@ -54,16 +54,6 @@ const Header = ({ isOnline, hideAmounts, onToggleAmounts, onAddTask, user, onLog
                                         </div>
                                     </div>
 
-                                    {user.role === 'admin' && (
-                                        <Link
-                                            to="/admin/users"
-                                            onClick={() => setShowMenu(false)}
-                                            className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors"
-                                        >
-                                            <Users size={16} className="text-gray-500" />
-                                            User Management
-                                        </Link>
-                                    )}
 
                                     <div className="border-t border-gray-100 my-1"></div>
 
@@ -105,8 +95,8 @@ const Header = ({ isOnline, hideAmounts, onToggleAmounts, onAddTask, user, onLog
                         onClick={onAddTask}
                         disabled={!isOnline}
                         className={`px-4 md:px-6 py-2 md:py-2.5 rounded-full font-medium flex items-center gap-2 transition-all transform hover:scale-105 text-sm md:text-base ${isOnline
-                                ? 'bg-white text-indigo-600 hover:shadow-lg'
-                                : 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                            ? 'bg-white text-indigo-600 hover:shadow-lg'
+                            : 'bg-gray-400 text-gray-600 cursor-not-allowed'
                             }`}
                     >
                         <Plus size={18} />
@@ -139,16 +129,6 @@ const Header = ({ isOnline, hideAmounts, onToggleAmounts, onAddTask, user, onLog
                                         </div>
                                     </div>
 
-                                    {user.role === 'admin' && (
-                                        <Link
-                                            to="/admin/users"
-                                            onClick={() => setShowMenu(false)}
-                                            className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors"
-                                        >
-                                            <Users size={16} className="text-gray-500" />
-                                            User Management
-                                        </Link>
-                                    )}
 
                                     <div className="border-t border-gray-100 my-1"></div>
 

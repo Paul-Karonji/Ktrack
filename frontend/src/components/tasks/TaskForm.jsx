@@ -359,19 +359,21 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
                         </p>
                     )}
                 </div>
-                <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
-                    <input
-                        type="checkbox"
-                        id="isPaid"
-                        name="isPaid"
-                        checked={formData.isPaid}
-                        onChange={onChange}
-                        className="w-5 h-5 text-indigo-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <label htmlFor="isPaid" className="text-sm font-medium text-gray-700 cursor-pointer">
-                        Mark as paid
-                    </label>
-                </div>
+                {user?.role === 'admin' && (
+                    <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
+                        <input
+                            type="checkbox"
+                            id="isPaid"
+                            name="isPaid"
+                            checked={formData.isPaid}
+                            onChange={onChange}
+                            className="w-5 h-5 text-indigo-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <label htmlFor="isPaid" className="text-sm font-medium text-gray-700 cursor-pointer">
+                            Mark as paid
+                        </label>
+                    </div>
+                )}
                 <div className="flex gap-3 pt-4">
                     <button
                         type="submit"

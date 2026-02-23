@@ -34,6 +34,12 @@ class TaskController {
         ...otherFields
       } = req.body;
 
+      // Sanitize payment fields for non-admins
+      if (req.user && req.user.role !== 'admin') {
+        otherFields.isPaid = false;
+        otherFields.is_paid = false;
+      }
+
       // If registered client is creating task (from token)
       if (req.user && req.user.role === 'client') {
         const taskData = {
@@ -230,6 +236,12 @@ class TaskController {
         });
       }
 
+      // Block non-admins from updating payment status
+      if (req.user.role !== 'admin') {
+        delete req.body.isPaid;
+        delete req.body.is_paid;
+      }
+
       // Auto-accept quote for guest clients
       if (existingTask.guest_client_id) {
         const amount = req.body.expectedAmount || req.body.quotedAmount;
@@ -318,11 +330,11 @@ class TaskController {
         });
       }
 
-      // Security Check: Ensure user owns the task or is admin
-      if (req.user.role !== 'admin' && existingTask.client_id !== req.user.id) {
+      // Security Check: Only admins can toggle payment
+      if (req.user.role !== 'admin') {
         return res.status(403).json({
           success: false,
-          message: 'Access denied. You do not own this task.'
+          message: 'Access denied. Only administrators can update payment status.'
         });
       }
 

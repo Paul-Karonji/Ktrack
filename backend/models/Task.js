@@ -49,10 +49,20 @@ class Task {
   }
 
   static async findById(id) {
-    const [rows] = await pool.execute(
-      'SELECT * FROM tasks WHERE id = ?',
-      [id]
-    );
+    const [rows] = await pool.execute(`
+      SELECT t.*, 
+      u.full_name as registered_client_name,
+      u.email as registered_client_email,
+      u.phone_number as registered_client_phone,
+      gc.name as guest_client_name,
+      gc.email as guest_client_email,
+      gc.phone as guest_client_phone,
+      COALESCE(u.full_name, gc.name, t.client_name) as display_client_name
+      FROM tasks t
+      LEFT JOIN users u ON t.client_id = u.id
+      LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id
+      WHERE t.id = ?
+    `, [id]);
     return rows[0];
   }
 

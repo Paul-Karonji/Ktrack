@@ -24,7 +24,8 @@ class User {
                   (LENGTH(gc.name) > 2 AND u.full_name LIKE CONCAT('%', gc.name COLLATE utf8mb4_unicode_ci, '%')) OR
                   (LENGTH(u.full_name) > 2 AND gc.name COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', u.full_name, '%'))
                 )
-             ) as potential_guest_matches
+             ) as potential_guest_matches,
+             (SELECT COUNT(*) FROM guest_clients gc WHERE gc.upgraded_to_user_id = u.id) as is_merged
       FROM users u 
       WHERE u.id = ?
     `, [id]);
@@ -74,7 +75,8 @@ class User {
                   (LENGTH(gc.name) > 2 AND u.full_name LIKE CONCAT('%', gc.name COLLATE utf8mb4_unicode_ci, '%')) OR
                   (LENGTH(u.full_name) > 2 AND gc.name COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', u.full_name, '%'))
                 )
-             ) as potential_guest_matches
+             ) as potential_guest_matches,
+             (SELECT COUNT(*) FROM guest_clients gc WHERE gc.upgraded_to_user_id = u.id) as is_merged
       FROM users u 
       WHERE 1=1
     `;

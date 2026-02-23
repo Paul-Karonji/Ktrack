@@ -141,14 +141,16 @@ class Task {
     };
 
     for (const [key, value] of Object.entries(taskData)) {
-      const dbField = mapping[key] || key;
-      fields.push(`${dbField} = ?`);
+      if (mapping[key]) {
+        const dbField = mapping[key];
+        fields.push(`${dbField} = ?`);
 
-      // Handle date fields empty string -> null
-      if ((key === 'dateCommissioned' || key === 'dateDelivered') && value === '') {
-        params.push(null);
-      } else {
-        params.push(value);
+        // Handle date fields empty string -> null
+        if ((key === 'dateCommissioned' || key === 'dateDelivered') && value === '') {
+          params.push(null);
+        } else {
+          params.push(value);
+        }
       }
     }
 

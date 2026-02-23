@@ -127,11 +127,15 @@ const Dashboard = () => {
                 }
             }
 
-            setShowForm(false);
-            resetForm();
+            handleCloseForm();
         } catch (err) {
             console.error(err);
         }
+    };
+
+    const handleCloseForm = () => {
+        setShowForm(false);
+        resetForm();
     };
 
     // Handle edit
@@ -328,15 +332,11 @@ const Dashboard = () => {
                     ) : (
                         <ClientDashboard
                             user={user}
-                            tasks={tasks} // Hooks likely already filter this via backend, IF backend is updated. 
-                            // If not, we should filter here:
-                            // tasks.filter(t => t.client_id === user.id) -- Assuming backend sends all.
-                            // Actually better to rely on backend security.
+                            tasks={tasks}
                             loading={loading}
-                            handleAddTask={handleSubmit} // Form submit handler
+                            onFormSubmit={handleSubmit}
                             handleEdit={handleEdit}
                             handleDelete={handleDelete}
-                            handleSendQuote={null}
                             handleQuoteResponse={handleQuoteResponse}
                             handleDuplicate={handleDuplicate}
                             onDownloadFile={handleDownloadFile}

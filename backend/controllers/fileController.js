@@ -176,7 +176,12 @@ const FileController = {
 
             // 3. Upload to R2 and save metadata
             const results = [];
-            const isDeliverable = req.body.isDeliverable === 'true' || req.body.isDeliverable === true;
+            let isDeliverable = req.body.isDeliverable === 'true' || req.body.isDeliverable === true;
+
+            // Security: Only admins can mark files as deliverables
+            if (req.user.role !== 'admin') {
+                isDeliverable = false;
+            }
 
             for (const file of req.files) {
                 const result = await R2Service.uploadFile(file, taskId, req.user.id, isDeliverable);
@@ -198,7 +203,7 @@ const FileController = {
                 // Determine notification direction
                 if (req.user.role === 'client') {
                     // Client uploaded -> Notify Admin (Email + In-App)
-                    const { subject, html } = templates.newFileAdmin(req.user.full_name, files[0].originalname + (files.length > 1 ? ` (+${files.length - 1} others)` : ''), taskId);
+                    const { subject, html } = templates.newFileAdmin(req.user.full_name, files[0].originalname + (files.length > 1 ? ` (+${files.length - 1} others)` : ''), taskId, task.task_name);
                     EmailService.notifyAdmin({ subject, html }).catch(e => console.error('Failed to notify admin of file upload:', e));
 
                     // In-App for all Admins

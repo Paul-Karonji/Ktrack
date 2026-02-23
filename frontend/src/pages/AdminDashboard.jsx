@@ -232,21 +232,23 @@ const AdminDashboard = ({
             {/* Content Areas */}
             {activeTab === 'tasks' && (
                 <div className="mt-4">
-                    {/* Task Form if acting as Admin creating/editing */}
+                    {/* Task Form — Admin Modal Layout */}
                     {showForm && (
-                        <div className="mb-6">
-                            <TaskForm
-                                formData={formData}
-                                editingTask={editingTask}
-                                isOnline={isOnline}
-                                user={user}
-                                onSubmit={handleFormSubmit}
-                                onCancel={() => {
-                                    setShowForm(false);
-                                    resetForm();
-                                }}
-                                onChange={handleInputChange}
-                            />
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
+                            <div className="w-full max-w-2xl my-8">
+                                <TaskForm
+                                    formData={formData}
+                                    editingTask={editingTask}
+                                    isOnline={isOnline}
+                                    user={user}
+                                    onSubmit={handleFormSubmit}
+                                    onCancel={() => {
+                                        setShowForm(false);
+                                        resetForm();
+                                    }}
+                                    onChange={handleInputChange}
+                                />
+                            </div>
                         </div>
                     )}
 

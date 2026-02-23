@@ -84,8 +84,8 @@ export const AnalyticsProvider = ({ children }) => {
                     paid: kpis.paidThisMonth || 0,
                     pending: kpis.outstanding || 0,
                     overdue: kpis.overdue || 0,
-                    avgDaysToPayment: 15, // TODO: Implement real calc
-                    overdueRate: 5, // TODO: Implement real calc
+                    avgDaysToPayment: financialStats.avgDaysToPayment || 0,
+                    overdueRate: financialStats.overdueRate || 0,
                     // Real data from new endpoints
                     revenueBreakdown: financialStats.revenueByClient,
                     paymentStatusByMonth: financialStats.paymentStatusByMonth,
@@ -141,9 +141,9 @@ export const AnalyticsProvider = ({ children }) => {
                     // Calculated/Placeholder until more endpoints exist
                     avgProjectsPerClient: kpis.totalClients > 0 ? ((kpis.activeTasks + kpis.completedThisPeriod) / kpis.totalClients).toFixed(1) : 0,
                     avgLifetimeValue: kpis.totalClients > 0 ? (kpis.actualRevenue / kpis.totalClients).toFixed(0) : 0,
-                    repeatClientRate: 0,
                     avgClientResponseTime: kpis.avgQuoteResponseTime || 0,
-                    retentionRate: 100,
+                    retentionRate: clientStats.retentionRate || 0,
+                    repeatClientRate: clientStats.retentionRate || 0,
                     churnRate: 0,
                     avgClientTenure: 0,
                     satisfactionScore: 0

@@ -125,7 +125,9 @@ class TaskController {
         taskDescription,
         clientId: finalClientId,
         guestClientId: finalGuestClientId,
-        clientName: finalClientName
+        clientName: finalClientName,
+        completedAt: otherFields.status === 'completed' ? new Date() : null,
+        paidAt: (otherFields.isPaid || otherFields.is_paid) ? new Date() : null
       });
 
       // Invalidate analytics cache
@@ -244,6 +246,22 @@ class TaskController {
           req.body.quoteStatus = 'approved'; // Changed from 'accepted' to match DB enum
           req.body.expectedAmount = amount;
           req.body.quotedAmount = amount; // Ensure quoted amount is also set
+        }
+      }
+
+      // Tracking timestamps for analytics
+      if (req.body.status === 'completed' && existingTask.status !== 'completed') {
+        req.body.completedAt = new Date();
+      } else if (req.body.status && req.body.status !== 'completed' && existingTask.status === 'completed') {
+        req.body.completedAt = null;
+      }
+
+      const isPaidInput = req.body.isPaid !== undefined ? req.body.isPaid : req.body.is_paid;
+      if (isPaidInput !== undefined) {
+        if (isPaidInput && !existingTask.is_paid) {
+          req.body.paidAt = new Date();
+        } else if (!isPaidInput && existingTask.is_paid) {
+          req.body.paidAt = null;
         }
       }
 

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import {
     Calendar, DollarSign, MessageSquare, FileText,
     CheckCircle, Clock, AlertCircle,
-    ThumbsUp, ThumbsDown, Paperclip, Download
+    ThumbsUp, ThumbsDown, Paperclip, Download,
+    Edit2
 } from 'lucide-react';
 import ChatComponent from '../chat/ChatComponent';
 
@@ -86,7 +87,7 @@ const DeadlineChip = ({ dateDelivered }) => {
 };
 
 // ─── Main card ────────────────────────────────────────────────────────────────
-const ClientProjectCard = ({ task, user, onQuoteResponse, onDownloadFile, index = 0 }) => {
+const ClientProjectCard = ({ task, user, onQuoteResponse, onDownloadFile, onEdit, index = 0 }) => {
     const [showChat, setShowChat] = useState(false);
 
     const status = task.status || 'not_started';
@@ -218,6 +219,15 @@ const ClientProjectCard = ({ task, user, onQuoteResponse, onDownloadFile, index 
                             </span>
                         )}
                     </button>
+                    {onEdit && (
+                        <button
+                            onClick={() => onEdit(task)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-50 text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all"
+                        >
+                            <Edit2 size={13} />
+                            Edit
+                        </button>
+                    )}
                     {(task.has_file || task.file_count > 0) && onDownloadFile && (
                         <button
                             onClick={() => onDownloadFile(task.id)}

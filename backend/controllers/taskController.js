@@ -34,36 +34,21 @@ class TaskController {
         ...otherFields
       } = req.body;
 
-      // Sanitize payment fields for non-admins
+      // Sanitize fields for non-admins
       if (req.user && req.user.role !== 'admin') {
         otherFields.isPaid = false;
         otherFields.is_paid = false;
+        otherFields.expectedAmount = 0;
+        otherFields.expected_amount = 0;
+        otherFields.quotedAmount = 0;
+        otherFields.quoted_amount = 0;
+        otherFields.quoteStatus = 'pending_quote';
+        otherFields.quote_status = 'pending_quote';
+        otherFields.status = 'not_started';
       }
 
-      // If registered client is creating task (from token)
-      if (req.user && req.user.role === 'client') {
-        const taskData = {
-          ...otherFields,
-          taskName,
-          taskDescription,
-          clientId: req.user.id,
-          clientName: req.user.full_name
-        };
-
-        const task = await Task.create(taskData);
-
-        // Invalidate analytics cache
-        invalidateCache('/analytics');
-
-        // Notifications...
-        // ... (reuse existing logic for client notifications)
-        // For simplicity, we'll keep the existing notification structure but adapted slightly
-        // Since we are rewriting the whole method block, we need to ensure we don't lose logic.
-        // But to avoid huge block replacement, let's keep it clean.
-
-        // Actually, let's just use the `taskData` construction logic from the plan
-        // and reuse the notification logic below if possible or rewrite it.
-      }
+      // Note: Removed redundant early creation block for clients to prevent double task creation.
+      // Logic is consolidated below.
 
       // Admin creating task
       let finalClientId = clientId || null;
@@ -74,7 +59,7 @@ class TaskController {
       if (req.user && req.user.role === 'client') {
         finalClientId = req.user.id;
         finalClientName = req.user.full_name;
-      } else {
+      } else if (req.user && req.user.role === 'admin') {
         // Admin logic
         const hasRegistered = !!finalClientId;
         const hasGuest = !!(finalGuestClientId || guestClientName);
@@ -87,10 +72,6 @@ class TaskController {
         }
 
         if (!hasRegistered && !hasGuest) {
-          // Allow legacy "just name" if neither ID provided? 
-          // Implementation plan says "Must specify a client".
-          // But let's check if we strictly enforce it.
-          // For now, let's follow the plan.
           if (!req.body.clientName) {
             return res.status(400).json({
               success: false,
@@ -99,7 +80,7 @@ class TaskController {
           }
         }
 
-        // Handle guest name provided without ID
+        // Handle guest name provided without ID — ONLY ADMINS CAN CREATE GUESTS
         if (guestClientName && !finalGuestClientId) {
           const GuestClient = require('../models/GuestClient');
           const existingGuest = await GuestClient.findByName(guestClientName);
@@ -112,6 +93,11 @@ class TaskController {
           }
           finalClientName = guestClientName;
         }
+      } else {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized to create tasks with this role'
+        });
       }
 
       // Auto-accept quote for guest clients if amount is provided
@@ -236,10 +222,18 @@ class TaskController {
         });
       }
 
-      // Block non-admins from updating payment status
+      // Block non-admins from updating sensitive fields
       if (req.user.role !== 'admin') {
-        delete req.body.isPaid;
-        delete req.body.is_paid;
+        const sensitiveFields = [
+          'isPaid', 'is_paid',
+          'expectedAmount', 'expected_amount',
+          'quotedAmount', 'quoted_amount',
+          'quoteStatus', 'quote_status',
+          'status',
+          'clientId', 'client_id',
+          'guestClientId', 'guest_client_id'
+        ];
+        sensitiveFields.forEach(field => delete req.body[field]);
       }
 
       // Auto-accept quote for guest clients

@@ -87,8 +87,8 @@ const timeAgo = (dateStr) => {
 // ─── Main component ───────────────────────────────────────────────────────────
 const ClientDashboard = ({
     user, tasks, loading,
-    handleAddTask, handleEdit, handleDelete,
-    handleSendQuote, handleQuoteResponse, handleDuplicate,
+    onFormSubmit, handleEdit, handleDelete,
+    handleQuoteResponse, handleDuplicate,
     onDownloadFile,
     showForm, setShowForm,
     formData, setFormData,
@@ -394,17 +394,21 @@ const ClientDashboard = ({
                     </div>
                 </div>
 
-                {/* Task Form — modal overlay so it never pushes content down */}
+                {/* Task Form — Client Drawer Layout */}
                 {showForm && (
-                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
-                        <div className="w-full max-w-2xl my-4 md:my-8">
-                            <TaskForm
-                                formData={formData} setFormData={setFormData}
-                                onSubmit={handleAddTask} onChange={handleInputChange}
-                                editingTask={editingTask} user={user}
-                                onCancel={() => { setShowForm(false); resetForm(); }}
-                                fileInputRef={fileInputRef}
-                            />
+                    <div className="fixed inset-0 z-50 overflow-hidden">
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onClick={() => { setShowForm(false); resetForm(); }} />
+                        <div className="absolute inset-y-0 right-0 max-w-full flex">
+                            <div className="w-screen max-w-md md:max-w-2xl transform transition-all animate-slide-left h-full">
+                                <TaskForm
+                                    formData={formData} setFormData={setFormData}
+                                    onSubmit={onFormSubmit}
+                                    onChange={handleInputChange}
+                                    editingTask={editingTask} user={user}
+                                    onCancel={() => { setShowForm(false); resetForm(); }}
+                                    fileInputRef={fileInputRef}
+                                />
+                            </div>
                         </div>
                     </div>
                 )}
@@ -433,6 +437,7 @@ const ClientDashboard = ({
                                     key={task.id} task={task} user={user} index={i}
                                     onQuoteResponse={handleQuoteResponse}
                                     onDownloadFile={onDownloadFile}
+                                    onEdit={handleEdit}
                                 />
                             ))}
                         </div>

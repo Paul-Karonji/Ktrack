@@ -154,7 +154,7 @@ const AdminDashboard = ({
                     value={pendingUsers.length}
                     icon={Users}
                     color="bg-orange-500"
-                    onClick={() => setActiveTab('users')}
+                    onClick={() => window.location.href = '/admin/clients'}
                 />
                 <StatCard
                     title="Clients"
@@ -209,7 +209,6 @@ const AdminDashboard = ({
             <div className="flex border-b overflow-x-auto scrollbar-none -mx-1 px-1">
                 {[
                     { key: 'tasks', label: 'Tasks' },
-                    { key: 'users', label: 'Clients', badge: pendingUsers.length },
                     { key: 'analytics', label: 'Analytics' },
                     { key: 'files', label: 'Files' },
                 ].map(tab => (
@@ -281,189 +280,7 @@ const AdminDashboard = ({
                 </div>
             )}
 
-            {activeTab === 'users' && (
-                <div className="space-y-8">
-                    {/* Pending Approvals Section */}
-                    {pendingUsers.length > 0 && (
-                        <div className="bg-white rounded-xl shadow overflow-hidden border border-orange-100">
-                            <div className="p-4 bg-orange-50 border-b border-orange-100 flex items-center gap-2">
-                                <Users className="text-orange-600" size={20} />
-                                <h3 className="font-bold text-orange-900">Pending Approvals</h3>
-                                <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{pendingUsers.length}</span>
-                            </div>
-                            {/* Mobile: card list; Desktop: table */}
-                            <div className="block md:hidden divide-y divide-orange-100">
-                                {pendingUsers.map(u => (
-                                    <div key={u.id} className="p-4 space-y-2">
-                                        <p className="font-semibold text-gray-800">{u.full_name}</p>
-                                        <p className="text-sm text-gray-500">{u.email}</p>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => handleApproveUser(u.id)} className="flex-1 text-green-600 font-bold bg-green-50 px-3 py-1.5 rounded-lg text-sm">Approve</button>
-                                            <button onClick={() => { if (window.confirm('Reject user?')) apiService.rejectUser(u.id).then(loadAdminData) }} className="flex-1 text-red-600 font-bold bg-red-50 px-3 py-1.5 rounded-lg text-sm">Reject</button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="hidden md:block overflow-x-auto">
-                                <table className="min-w-full divide-y divide-orange-100">
-                                    <thead className="bg-white">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-100">
-                                        {pendingUsers.map(u => (
-                                            <tr key={u.id}>
-                                                <td className="px-6 py-4">{u.full_name}</td>
-                                                <td className="px-6 py-4">{u.email}</td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex gap-2">
-                                                        <button onClick={() => handleApproveUser(u.id)} className="text-green-600 hover:text-green-900 font-bold bg-green-50 px-3 py-1 rounded">Approve</button>
-                                                        <button onClick={() => { if (window.confirm('Reject user?')) apiService.rejectUser(u.id).then(loadAdminData) }} className="text-red-600 hover:text-red-900 font-bold bg-red-50 px-3 py-1 rounded">Reject</button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Registered Clients */}
-                    <div className="bg-white rounded-xl shadow overflow-hidden">
-                        <div className="p-4 border-b bg-gray-50">
-                            <h3 className="font-bold text-gray-700">Registered Clients</h3>
-                        </div>
-                        {/* Mobile: card list */}
-                        <div className="block md:hidden divide-y divide-gray-100">
-                            {allUsers.filter(u => u.status === 'approved' && u.role === 'client').map(u => (
-                                <div key={u.id} className="p-4 space-y-2">
-                                    <p className="font-semibold text-gray-800">{u.full_name}</p>
-                                    <p className="text-sm text-gray-500">{u.email}</p>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => { setEditingClient({ type: 'user', data: u }); setShowClientForm(true); }}
-                                            className="p-2 text-blue-600 bg-blue-50 rounded-lg border border-blue-200">
-                                            <Edit2 size={15} />
-                                        </button>
-                                        <button onClick={() => { setFormData(prev => ({ ...prev, clientId: u.id, clientName: u.full_name })); setShowForm(true); setActiveTab('tasks'); }}
-                                            className="flex-1 flex items-center justify-center gap-1 text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 text-sm font-medium">
-                                            <Plus size={15} /> New Task
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        {/* Desktop: table */}
-                        <div className="hidden md:block overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {allUsers.filter(u => u.status === 'approved' && u.role === 'client').map(u => (
-                                        <tr key={u.id} className="hover:bg-gray-50">
-                                            <td className="px-6 py-4 font-medium">{u.full_name}</td>
-                                            <td className="px-6 py-4 text-gray-500">{u.email}</td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex gap-2">
-                                                    <button onClick={() => { setEditingClient({ type: 'user', data: u }); setShowClientForm(true); }}
-                                                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200" title="Edit Details">
-                                                        <Edit2 size={16} />
-                                                    </button>
-                                                    <button onClick={() => { setFormData(prev => ({ ...prev, clientId: u.id, clientName: u.full_name })); setShowForm(true); setActiveTab('tasks'); }}
-                                                        className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 transition-colors">
-                                                        <Plus size={16} /> New Task
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    {/* Guest Clients */}
-                    <div className="bg-white rounded-xl shadow overflow-hidden">
-                        <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                            <h3 className="font-bold text-gray-700">Guest Clients</h3>
-                            <Link to="/admin/guests" className="text-sm text-indigo-600 hover:underline">Manage</Link>
-                        </div>
-                        {guestClients.length === 0 ? (
-                            <p className="text-center text-gray-400 italic py-6 text-sm">No guest clients found</p>
-                        ) : (
-                            <>
-                                {/* Mobile: card list */}
-                                <div className="block md:hidden divide-y divide-gray-100">
-                                    {guestClients.map(g => (
-                                        <div key={g.id} className="p-4 space-y-2">
-                                            <p className="font-semibold text-gray-800">{g.name}</p>
-                                            <div className="flex flex-col text-sm text-gray-500 gap-0.5">
-                                                {g.phone && <span className="flex items-center gap-1"><Phone size={12} /> {g.phone}</span>}
-                                                {g.email && <span className="flex items-center gap-1"><Mail size={12} /> {g.email}</span>}
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button onClick={() => { setEditingClient({ type: 'guest', data: g }); setShowClientForm(true); }}
-                                                    className="p-2 text-blue-600 bg-blue-50 rounded-lg border border-blue-200">
-                                                    <Edit2 size={15} />
-                                                </button>
-                                                <button onClick={() => { setFormData(prev => ({ ...prev, guestClientId: g.id, guestClientName: g.name })); setShowForm(true); setActiveTab('tasks'); }}
-                                                    className="flex-1 flex items-center justify-center gap-1 text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 text-sm font-medium">
-                                                    <Plus size={15} /> New Task
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                                {/* Desktop: table */}
-                                <div className="hidden md:block overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                        <thead className="bg-gray-50">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white divide-y divide-gray-200">
-                                            {guestClients.map(g => (
-                                                <tr key={g.id} className="hover:bg-gray-50">
-                                                    <td className="px-6 py-4 font-medium">{g.name}</td>
-                                                    <td className="px-6 py-4 text-gray-500">
-                                                        <div className="flex flex-col text-sm">
-                                                            {g.phone && <span className="flex items-center gap-1"><Phone size={12} /> {g.phone}</span>}
-                                                            {g.email && <span className="flex items-center gap-1"><Mail size={12} /> {g.email}</span>}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex gap-2">
-                                                            <button onClick={() => { setEditingClient({ type: 'guest', data: g }); setShowClientForm(true); }}
-                                                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200" title="Edit Details">
-                                                                <Edit2 size={16} />
-                                                            </button>
-                                                            <button onClick={() => { setFormData(prev => ({ ...prev, guestClientId: g.id, guestClientName: g.name })); setShowForm(true); setActiveTab('tasks'); }}
-                                                                className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 transition-colors">
-                                                                <Plus size={16} /> New Task
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                </div>
-            )}
+            {/* Client sections removed from Dashboard as they are consolidated in the Clients page */}
 
             {activeTab === 'analytics' && (
                 <AnalyticsCharts

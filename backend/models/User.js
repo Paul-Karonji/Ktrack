@@ -69,11 +69,11 @@ class User {
              (SELECT COUNT(*) FROM guest_clients gc 
               WHERE gc.upgraded_to_user_id IS NULL 
                 AND (
-                  gc.email = u.email OR 
-                  gc.phone = u.phone_number OR 
-                  gc.name = u.full_name OR 
-                  (LENGTH(gc.name) > 2 AND u.full_name LIKE CONCAT('%', gc.name, '%')) OR
-                  (LENGTH(u.full_name) > 2 AND gc.name LIKE CONCAT('%', u.full_name, '%'))
+                  u.email COLLATE utf8mb4_0900_ai_ci = gc.email OR 
+                  u.phone_number COLLATE utf8mb4_0900_ai_ci = gc.phone OR 
+                  u.full_name COLLATE utf8mb4_0900_ai_ci = gc.name OR 
+                  (LENGTH(gc.name) > 2 AND u.full_name COLLATE utf8mb4_0900_ai_ci LIKE CONCAT('%', gc.name, '%')) OR
+                  (LENGTH(u.full_name) > 2 AND gc.name LIKE CONCAT('%', u.full_name COLLATE utf8mb4_0900_ai_ci, '%'))
                 )
              ) as potential_guest_matches,
              (SELECT COUNT(*) FROM guest_clients gc WHERE gc.upgraded_to_user_id = u.id) as is_merged

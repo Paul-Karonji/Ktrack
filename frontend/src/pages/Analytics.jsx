@@ -12,7 +12,6 @@ import TaskStatusDonut from '../components/analytics/charts/TaskStatusDonut';
 import FinancialSection from '../components/analytics/sections/FinancialSection';
 import TaskSection from '../components/analytics/sections/TaskSection';
 import ClientSection from '../components/analytics/sections/ClientSection';
-import OperationsSection from '../components/analytics/sections/OperationsSection';
 import StorageAnalytics from '../components/analytics/sections/StorageAnalytics';
 import { useAnalytics } from '../context/AnalyticsContext';
 
@@ -51,8 +50,7 @@ const Analytics = () => {
         { id: 'financial', label: 'Financial', icon: DollarSign },
         { id: 'tasks', label: 'Tasks', icon: CheckSquare },
         { id: 'clients', label: 'Clients', icon: Users },
-        { id: 'storage', label: 'Storage', icon: HardDrive },
-        { id: 'operations', label: 'Operations', icon: Activity }
+        { id: 'storage', label: 'Storage', icon: HardDrive }
     ];
 
     return (
@@ -180,12 +178,6 @@ const Analytics = () => {
                                         </>
                                     )}
 
-                                    {activeTab === 'operations' && (
-                                        <>
-                                            {console.log('⚙️ Rendering Operations Section with data:', analyticsData.operations)}
-                                            <OperationsSection data={analyticsData.operations} dateRange={dateRange} />
-                                        </>
-                                    )}
                                 </div>
                             </div>
                         </>

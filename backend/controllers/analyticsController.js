@@ -1,134 +1,209 @@
 const { pool } = require('../config/database');
 
+const getPreviousPeriod = (start, end) => {
+  const diff = end.getTime() - start.getTime();
+  const prevEnd = new Date(start.getTime() - 1);
+  const prevStart = new Date(prevEnd.getTime() - diff);
+  return { start: prevStart, end: prevEnd };
+};
+
+const calculateTrend = (current, previous) => {
+  if (!previous || previous === 0) return current > 0 ? '+100%' : '0%';
+  const change = ((current - previous) / previous) * 100;
+  return `${change > 0 ? '+' : ''}${Math.round(change)}%`;
+};
+
+// Fill in missing months/periods for time-series charts
+const fillGaps = (data, startPeriod, endPeriod, format = 'month') => {
+  const filledData = [];
+  let current = new Date(startPeriod);
+  const finish = new Date(endPeriod);
+
+  while (current <= finish ||
+    (format === 'month' && current.getMonth() === finish.getMonth() && current.getFullYear() === finish.getFullYear())) {
+    const period = format === 'day'
+      ? current.toISOString().split('T')[0]
+      : current.getFullYear() + '-' + String(current.getMonth() + 1).padStart(2, '0');
+
+    // Prevent infinite loop
+    if (filledData.length > 500) break;
+
+    // Avoid duplicate periods
+    if (filledData.some(r => r.period === period)) {
+      if (format === 'day') current.setDate(current.getDate() + 1);
+      else current.setMonth(current.getMonth() + 1);
+      continue;
+    }
+
+    const existing = data.find(item => item.period === period);
+    if (existing) {
+      filledData.push(existing);
+    } else {
+      filledData.push({ period, registered: 0, guests: 0, expected: 0, actual: 0, task_count: 0 });
+    }
+
+    if (format === 'day') {
+      current.setDate(current.getDate() + 1);
+    } else {
+      current.setMonth(current.getMonth() + 1);
+    }
+  }
+  return filledData;
+};
+
 exports.getKPIs = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     const end = endDate ? new Date(endDate) : new Date();
+    // Add 24h buffer to catch same-day payments/tasks across potential clock drift
+    const endBuffered = new Date(end.getTime() + 24 * 60 * 60 * 1000);
     const start = startDate ? new Date(startDate) : new Date(new Date().setDate(end.getDate() - 30));
+    const { start: prevStart, end: prevEnd } = getPreviousPeriod(start, end);
 
-    // Revenue metrics
-    const revenueQuery = `
-      SELECT 
-        SUM(CASE WHEN quote_status = 'approved' THEN COALESCE(NULLIF(quoted_amount, 0), expected_amount, 0) ELSE 0 END) as expected_revenue,
-        SUM(CASE WHEN is_paid = 1 AND paid_at BETWEEN ? AND ? THEN quoted_amount ELSE 0 END) as actual_revenue,
-        COUNT(CASE WHEN is_paid = 1 AND paid_at BETWEEN ? AND ? THEN 1 END) as paid_count,
-        COUNT(*) as total_tasks
-      FROM tasks
-      WHERE created_at BETWEEN ? AND ?
-    `;
+    const getStatsForPeriod = async (startPeriod, endPeriod) => {
+      // Buffer the end period for the query
+      const endBufferedQuery = new Date(new Date(endPeriod).getTime() + 24 * 60 * 60 * 1000);
 
-    // Active tasks (Current snapshot)
-    const activeTasksQuery = `
+      // Revenue metrics - Actual revenue should be based on paid_at within period
+      const revenueQuery = `
+        SELECT 
+          SUM(CASE WHEN quote_status = 'approved' THEN COALESCE(NULLIF(quoted_amount, 0), expected_amount, 0) ELSE 0 END) as expected_revenue,
+          SUM(CASE WHEN is_paid = 1 AND COALESCE(paid_at, updated_at) BETWEEN ? AND ? THEN quoted_amount ELSE 0 END) as actual_revenue,
+          COUNT(CASE WHEN is_paid = 1 AND COALESCE(paid_at, updated_at) BETWEEN ? AND ? THEN 1 END) as paid_count,
+          COUNT(*) as total_tasks
+        FROM tasks
+        WHERE (created_at BETWEEN ? AND ?) 
+           OR (is_paid = 1 AND COALESCE(paid_at, updated_at) BETWEEN ? AND ?)
+      `;
+
+      // Quote performance
+      const quoteQuery = `
+        SELECT 
+          COUNT(CASE WHEN quote_status = 'approved' THEN 1 END) * 100.0 / NULLIF(COUNT(CASE WHEN quote_status != 'pending_quote' THEN 1 END), 0) as acceptance_rate,
+          AVG(DATEDIFF(updated_at, created_at)) as avg_response_time,
+          COUNT(CASE WHEN quote_status = 'quote_sent' THEN 1 END) as pending_quotes
+        FROM tasks
+        WHERE created_at BETWEEN ? AND ?
+      `;
+
+      // Completion metrics
+      const completionQuery = `
+        SELECT 
+          COUNT(CASE WHEN status = 'completed' AND completed_at BETWEEN ? AND ? THEN 1 END) as completed_count,
+          COUNT(CASE WHEN status = 'completed' AND completed_at BETWEEN ? AND ? AND (completed_at <= date_delivered OR date_delivered IS NULL) THEN 1 END) as completed_on_time,
+          AVG(DATEDIFF(completed_at, date_commissioned)) as avg_completion_time
+        FROM tasks
+        WHERE (completed_at BETWEEN ? AND ? OR (status = 'completed' AND completed_at IS NULL AND updated_at BETWEEN ? AND ?))
+      `;
+
+      // Joined query for clients
+      const clientQuery = `
+        SELECT 
+          (SELECT COUNT(*) FROM users WHERE role = 'client' AND status = 'approved' AND created_at <= ?) + 
+          (SELECT COUNT(*) FROM guest_clients WHERE (upgraded_to_user_id IS NULL OR upgraded_at > ?) AND created_at <= ?) as total_clients
+      `;
+
+      const [[rev]] = await pool.query(revenueQuery, [
+        startPeriod, endBufferedQuery, // actual_revenue
+        startPeriod, endBufferedQuery, // paid_count
+        startPeriod, endBufferedQuery, // WHERE created_at
+        startPeriod, endBufferedQuery  // WHERE paid_at fallback
+      ]);
+      const [[q]] = await pool.query(quoteQuery, [startPeriod, endBufferedQuery]);
+      const [[comp]] = await pool.query(completionQuery, [
+        startPeriod, endBufferedQuery, // completed_count
+        startPeriod, endBufferedQuery, // completed_on_time
+        startPeriod, endBufferedQuery, // WHERE completed_at
+        startPeriod, endBufferedQuery  // WHERE updated_at fallback
+      ]);
+      const [[cli]] = await pool.query(clientQuery, [endBufferedQuery, endBufferedQuery, endBufferedQuery]);
+
+      return { rev, q, comp, cli };
+    };
+
+    // Current metrics
+    const current = await getStatsForPeriod(start, end);
+
+    // Previous metrics for trends
+    const previous = await getStatsForPeriod(prevStart, prevEnd);
+
+    // Current Snapshots (don't need trend usually)
+    const [[activeTasks]] = await pool.query(`
       SELECT 
         COUNT(*) as active_tasks,
         COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as in_progress,
         COUNT(CASE WHEN status = 'review' THEN 1 END) as pending_review
       FROM tasks
       WHERE status IN ('in_progress', 'review')
-    `;
+    `);
 
-    // Client metrics
-    const clientQuery = `
+    const [[priority]] = await pool.query(`
       SELECT 
-        (SELECT COUNT(*) FROM users WHERE role = 'client' AND status = 'approved') + 
-        (SELECT COUNT(*) FROM guest_clients WHERE upgraded_to_user_id IS NULL) as total_clients,
-        (SELECT COUNT(*) FROM users WHERE role = 'client' AND status = 'approved') as registered_clients,
-        (SELECT COUNT(*) FROM guest_clients WHERE upgraded_to_user_id IS NULL) as guest_clients
-    `;
-
-    // Quote performance
-    const quoteQuery = `
-      SELECT 
-        COUNT(CASE WHEN quote_status = 'approved' THEN 1 END) * 100.0 / NULLIF(COUNT(CASE WHEN quote_status != 'pending_quote' THEN 1 END), 0) as acceptance_rate,
-        AVG(DATEDIFF(updated_at, created_at)) as avg_response_time,
-        COUNT(CASE WHEN quote_status = 'quote_sent' THEN 1 END) as pending_quotes
+        COUNT(CASE WHEN priority = 'urgent' AND status != 'completed' THEN 1 END) as urgent,
+        COUNT(CASE WHEN priority = 'high' AND status != 'completed' THEN 1 END) as high,
+        COUNT(CASE WHEN priority = 'medium' AND status != 'completed' THEN 1 END) as medium,
+        COUNT(CASE WHEN priority = 'low' AND status != 'completed' THEN 1 END) as low
       FROM tasks
-      WHERE created_at BETWEEN ? AND ?
-    `;
+    `);
 
-    // Priority breakdown
-    const priorityQuery = `
-      SELECT 
-        priority,
-        COUNT(*) as count
-      FROM tasks
-      WHERE status != 'completed'
-      GROUP BY priority
-    `;
-
-    // Task completion details - using completed_at
-    const completionQuery = `
-      SELECT 
-        COUNT(CASE WHEN status = 'completed' AND completed_at BETWEEN ? AND ? THEN 1 END) as completed_count,
-        COUNT(CASE WHEN status = 'completed' AND completed_at BETWEEN ? AND ? AND (completed_at <= date_delivered OR date_delivered IS NULL) THEN 1 END) as completed_on_time,
-        AVG(DATEDIFF(completed_at, date_commissioned)) as avg_completion_time,
-        AVG(DATEDIFF(date_commissioned, created_at)) as avg_response_time,
-        COUNT(CASE WHEN status = 'completed' AND completed_at BETWEEN ? AND ? AND (completed_at <= date_delivered OR date_delivered IS NULL) THEN 1 END) * 100.0 / 
-          NULLIF(COUNT(CASE WHEN status = 'completed' AND completed_at BETWEEN ? AND ? THEN 1 END), 0) as on_time_rate
-      FROM tasks
-      WHERE (completed_at BETWEEN ? AND ? OR (status = 'completed' AND completed_at IS NULL))
-    `;
-
-    // Payment health
-    const paymentQuery = `
+    const [[payment]] = await pool.query(`
       SELECT 
         SUM(CASE WHEN quote_status = 'approved' AND is_paid = 0 THEN quoted_amount ELSE 0 END) as outstanding,
         SUM(CASE WHEN quote_status = 'approved' AND is_paid = 0 AND date_delivered < NOW() THEN quoted_amount ELSE 0 END) as overdue,
         SUM(CASE WHEN is_paid = 1 AND paid_at BETWEEN ? AND ? THEN quoted_amount ELSE 0 END) as paid_this_month
       FROM tasks
-    `;
+    `, [new Date(new Date().setDate(1)), new Date()]); // Paid this calendar month
 
-    const [[revenue]] = await pool.query(revenueQuery, [start, end, start, end, start, end]);
-    const [[activeTasks]] = await pool.query(activeTasksQuery);
-    const [[clients]] = await pool.query(clientQuery);
-    const [[quotes]] = await pool.query(quoteQuery, [start, end]);
-    const [priority] = await pool.query(priorityQuery);
-    const [[completion]] = await pool.query(completionQuery, [start, end, start, end, start, end, start, end, start, end, start, end]);
-    const [[payment]] = await pool.query(paymentQuery, [start, end]);
-
-    // Format priority breakdown
-    const priorityStats = { urgent: 0, high: 0, medium: 0, low: 0 };
-    priority.forEach(p => { if (priorityStats[p.priority] !== undefined) priorityStats[p.priority] = p.count; });
+    const [[clientsNow]] = await pool.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM users WHERE role = 'client' AND status = 'approved') as registered_clients,
+        (SELECT COUNT(*) FROM guest_clients WHERE upgraded_to_user_id IS NULL) as guest_clients
+    `);
 
     res.json({
-      expectedRevenue: Number(revenue.expected_revenue) || 0,
-      actualRevenue: Number(revenue.actual_revenue) || 0,
-      collectionRate: revenue.expected_revenue > 0 ? Math.round((revenue.actual_revenue / revenue.expected_revenue) * 100) : 0,
-      revenueTrend: '+0%', // Future: Compare with previous period
+      expectedRevenue: Number(current.rev.expected_revenue) || 0,
+      actualRevenue: Number(current.rev.actual_revenue) || 0,
+      collectionRate: current.rev.expected_revenue > 0 ? Math.round((current.rev.actual_revenue / current.rev.expected_revenue) * 100) : 0,
+      revenueTrend: calculateTrend(current.rev.actual_revenue, previous.rev.actual_revenue),
 
       activeTasks: activeTasks.active_tasks || 0,
       inProgress: activeTasks.in_progress || 0,
       pendingReview: activeTasks.pending_review || 0,
-      tasksTrend: '+0%',
-      priorityBreakdown: priorityStats,
+      tasksTrend: calculateTrend(activeTasks.active_tasks, previous.rev.total_tasks),
+      priorityBreakdown: {
+        urgent: priority.urgent || 0,
+        high: priority.high || 0,
+        medium: priority.medium || 0,
+        low: priority.low || 0
+      },
 
-      totalClients: clients.total_clients || 0,
-      registeredClients: clients.registered_clients || 0,
-      guestClients: clients.guest_clients || 0,
-      clientGrowth: '+0%',
+      totalClients: current.cli.total_clients || 0,
+      registeredClients: clientsNow.registered_clients || 0,
+      guestClients: clientsNow.guest_clients || 0,
+      clientGrowth: calculateTrend(current.cli.total_clients, previous.cli.total_clients),
 
-      quoteAcceptanceRate: Math.round(quotes.acceptance_rate || 0),
-      avgQuoteResponseTime: Math.round(quotes.avg_response_time || 0),
-      pendingQuotes: quotes.pending_quotes || 0,
-      quoteTrend: '+0%',
+      quoteAcceptanceRate: Math.round(current.q.acceptance_rate || 0),
+      avgQuoteResponseTime: Math.round(current.q.avg_response_time || 0),
+      pendingQuotes: current.q.pending_quotes || 0,
+      quoteTrend: calculateTrend(current.q.acceptance_rate, previous.q.acceptance_rate),
 
-      completedThisPeriod: completion.completed_count || 0,
-      completedOnTime: completion.completed_on_time || 0,
-      avgCompletionTime: Math.round(completion.avg_completion_time || 0),
-      avgResponseTime: Math.round(completion.avg_response_time || 0),
-      onTimeRate: Math.round(completion.on_time_rate || 0),
-      completionTrend: '+0%',
+      completedThisPeriod: current.comp.completed_count || 0,
+      completedOnTime: current.comp.completed_on_time || 0,
+      avgCompletionTime: Math.round(current.comp.avg_completion_time || 0),
+      onTimeRate: current.rev.total_tasks > 0 ? Math.round((current.comp.completed_on_time / current.rev.total_tasks) * 100) : 0,
+      completionTrend: calculateTrend(current.comp.completed_count, previous.comp.completed_count),
 
       outstanding: Number(payment.outstanding) || 0,
       overdue: Number(payment.overdue) || 0,
       paidThisMonth: Number(payment.paid_this_month) || 0,
-      paymentTrend: '+0%'
+      paymentTrend: calculateTrend(payment.paid_this_month, previous.rev.actual_revenue)
     });
   } catch (error) {
     console.error('Get KPIs error:', error);
     res.status(500).json({ error: 'Failed to fetch KPIs' });
   }
 };
+
 
 // Revenue Analytics
 exports.getRevenueAnalytics = async (req, res) => {
@@ -137,6 +212,7 @@ exports.getRevenueAnalytics = async (req, res) => {
     const start = startDate || new Date(new Date().setMonth(new Date().getMonth() - 6));
     const end = endDate || new Date();
 
+    const endBuffered = new Date(new Date(end).getTime() + 24 * 60 * 60 * 1000);
     const dateFormat = groupBy === 'day' ? '%Y-%m-%d' : '%Y-%m';
 
     const query = `
@@ -146,12 +222,13 @@ exports.getRevenueAnalytics = async (req, res) => {
         SUM(CASE WHEN is_paid = 1 THEN quoted_amount ELSE 0 END) as actual,
         COUNT(*) as task_count
       FROM tasks
-      WHERE created_at BETWEEN ? AND ?
+      WHERE (COALESCE(paid_at, updated_at) BETWEEN ? AND ?)
+         OR (quote_status = 'approved' AND created_at BETWEEN ? AND ?)
       GROUP BY period
       ORDER BY period
     `;
 
-    const [results] = await pool.query(query, [dateFormat, start, end]);
+    const [results] = await pool.query(query, [dateFormat, start, endBuffered, start, endBuffered]);
 
     res.json(results);
   } catch (error) {
@@ -197,8 +274,9 @@ exports.getTaskPipeline = async (req, res) => {
 exports.getClientGrowth = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    const start = startDate || new Date(new Date().setMonth(new Date().getMonth() - 6));
-    const end = endDate || new Date();
+    const end = endDate ? new Date(endDate) : new Date();
+    const endBuffered = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+    const start = startDate ? new Date(startDate) : new Date(new Date().setMonth(new Date().getMonth() - 6));
 
     const query = `
       SELECT 
@@ -206,7 +284,7 @@ exports.getClientGrowth = async (req, res) => {
         COUNT(*) as registered,
         0 as guests
       FROM users
-      WHERE role = 'client' AND created_at BETWEEN ? AND ?
+      WHERE role = 'client' AND status = 'approved' AND created_at BETWEEN ? AND ?
       GROUP BY period
       UNION ALL
       SELECT 
@@ -219,8 +297,7 @@ exports.getClientGrowth = async (req, res) => {
       ORDER BY period
     `;
 
-
-    const [results] = await pool.query(query, [start, end, start, end]);
+    const [results] = await pool.query(query, [start, endBuffered, start, endBuffered]);
 
     // Merge results by period
     const mergedResults = results.reduce((acc, curr) => {
@@ -238,7 +315,9 @@ exports.getClientGrowth = async (req, res) => {
       return acc;
     }, []);
 
-    res.json(mergedResults);
+    const finalResults = fillGaps(mergedResults, start, end, 'month');
+
+    res.json(finalResults);
   } catch (error) {
     console.error('Get client growth error:', error);
     res.status(500).json({ error: 'Failed to fetch client growth' });
@@ -248,16 +327,22 @@ exports.getClientGrowth = async (req, res) => {
 // Task Status Distribution
 exports.getTaskStatus = async (req, res) => {
   try {
+    const { startDate, endDate } = req.query;
+    const end = endDate ? new Date(endDate) : new Date();
+    const endBuffered = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+    const start = startDate ? new Date(startDate) : new Date(new Date().setDate(end.getDate() - 30));
+
     const query = `
       SELECT 
         status,
         COUNT(*) as count
       FROM tasks
+      WHERE created_at BETWEEN ? AND ? OR (is_paid = 1 AND COALESCE(paid_at, updated_at) BETWEEN ? AND ?)
       GROUP BY status
       ORDER BY FIELD(status, 'pending_quote', 'quote_sent', 'in_progress', 'review', 'completed')
     `;
 
-    const [results] = await pool.query(query);
+    const [results] = await pool.query(query, [start, endBuffered, start, endBuffered]);
 
     res.json(results);
   } catch (error) {
@@ -270,15 +355,14 @@ exports.getTaskStatus = async (req, res) => {
 exports.getFinancialStats = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    // Ensure dates are Date objects for correct MySQL formatting
-    const start = startDate ? new Date(startDate) : new Date(new Date().setMonth(new Date().getMonth() - 6));
     const end = endDate ? new Date(endDate) : new Date();
+    const endBuffered = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+    const start = startDate ? new Date(startDate) : new Date(new Date().setMonth(new Date().getMonth() - 6));
 
     // 1. Revenue Breakdown by Client
-    // Joins tasks with users AND guest_clients
     const breakdownQuery = `
       SELECT 
-        COALESCE(u.full_name, gc.name, t.client_name) as client,
+        COALESCE(u.full_name COLLATE utf8mb4_0900_ai_ci, gc.name, t.client_name) as client,
         COUNT(t.id) as projectCount,
         SUM(CASE WHEN t.quote_status = 'approved' THEN t.quoted_amount ELSE 0 END) as expected,
         SUM(CASE WHEN t.is_paid = 1 THEN t.quoted_amount ELSE 0 END) as paid,
@@ -286,9 +370,9 @@ exports.getFinancialStats = async (req, res) => {
       FROM tasks t
       LEFT JOIN users u ON t.client_id = u.id
       LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id
-      WHERE t.created_at BETWEEN ? AND ?
+      WHERE (t.created_at BETWEEN ? AND ?) OR (t.is_paid = 1 AND COALESCE(t.paid_at, t.updated_at) BETWEEN ? AND ?)
         AND (t.client_id IS NOT NULL OR t.guest_client_id IS NOT NULL)
-      GROUP BY COALESCE(u.full_name, gc.name, t.client_name)
+      GROUP BY COALESCE(u.full_name COLLATE utf8mb4_0900_ai_ci, gc.name, t.client_name)
       ORDER BY revenue DESC
       LIMIT 5
     `;
@@ -296,7 +380,7 @@ exports.getFinancialStats = async (req, res) => {
     // 2. Overdue Payments
     const overdueQuery = `
       SELECT 
-        COALESCE(u.full_name, gc.name, t.client_name) as client,
+        COALESCE(u.full_name COLLATE utf8mb4_0900_ai_ci, gc.name, t.client_name) as client,
         t.task_name as project,
         t.quoted_amount as amount,
         t.date_delivered as dueDate,
@@ -309,7 +393,7 @@ exports.getFinancialStats = async (req, res) => {
       LIMIT 5
     `;
 
-    // 3. Payment Status by Month - using paid_at
+    // 3. Payment Status by Month - using COALESCE(paid_at, updated_at)
     const paymentStatusQuery = `
       SELECT 
         DATE_FORMAT(COALESCE(paid_at, updated_at), '%b') as month,
@@ -317,14 +401,14 @@ exports.getFinancialStats = async (req, res) => {
         SUM(CASE WHEN is_paid = 0 AND quote_status = 'approved' AND (date_delivered >= NOW() OR date_delivered IS NULL) THEN quoted_amount ELSE 0 END) as pending,
         SUM(CASE WHEN is_paid = 0 AND quote_status = 'approved' AND date_delivered < NOW() THEN quoted_amount ELSE 0 END) as overdue
       FROM tasks
-      WHERE (paid_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH) OR (is_paid = 0 AND updated_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)))
+      WHERE (created_at BETWEEN ? AND ?) OR (is_paid = 1 AND COALESCE(paid_at, updated_at) BETWEEN ? AND ?)
       GROUP BY month
       ORDER BY MAX(COALESCE(paid_at, updated_at)) ASC
     `;
 
-    const [breakdown] = await pool.query(breakdownQuery, [start, end]);
+    const [breakdown] = await pool.query(breakdownQuery, [start, endBuffered, start, endBuffered]);
     const [overdue] = await pool.query(overdueQuery);
-    const [paymentStatus] = await pool.query(paymentStatusQuery);
+    const [paymentStatus] = await pool.query(paymentStatusQuery, [start, endBuffered, start, endBuffered]);
 
     // 4. Calculate real averages
     const [stats] = await pool.query(`
@@ -332,7 +416,8 @@ exports.getFinancialStats = async (req, res) => {
         AVG(DATEDIFF(paid_at, completed_at)) as avgDaysToPayment,
         (COUNT(CASE WHEN quote_status = 'approved' AND is_paid = 0 AND date_delivered < NOW() THEN 1 END) * 100.0 / NULLIF(COUNT(CASE WHEN quote_status = 'approved' AND is_paid = 0 THEN 1 END), 0)) as overdueRate
       FROM tasks
-    `);
+      WHERE created_at BETWEEN ? AND ?
+    `, [start, end]);
 
     res.json({
       revenueByClient: breakdown,
@@ -354,20 +439,21 @@ exports.getClientStats = async (req, res) => {
     const { startDate, endDate } = req.query;
     const start = startDate ? new Date(startDate) : new Date(new Date().setMonth(new Date().getMonth() - 12));
     const end = endDate ? new Date(endDate) : new Date();
+    const endBuffered = new Date(end.getTime() + 24 * 60 * 60 * 1000);
 
     // 1. Top Clients by Revenue
     const topClientsQuery = `
       SELECT 
-        COALESCE(u.full_name, gc.name, t.client_name) as name,
+        COALESCE(u.full_name COLLATE utf8mb4_0900_ai_ci, gc.name, t.client_name) as name,
         COUNT(t.id) as projectCount,
         SUM(CASE WHEN t.is_paid = 1 THEN t.quoted_amount ELSE 0 END) as revenue,
         4.8 as rating -- Placeholder
       FROM tasks t
       LEFT JOIN users u ON t.client_id = u.id
       LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id
-      WHERE t.created_at BETWEEN ? AND ?
+      WHERE (t.created_at BETWEEN ? AND ?) OR (t.is_paid = 1 AND COALESCE(t.paid_at, t.updated_at) BETWEEN ? AND ?)
         AND (t.client_id IS NOT NULL OR t.guest_client_id IS NOT NULL)
-      GROUP BY COALESCE(u.full_name, gc.name, t.client_name)
+      GROUP BY COALESCE(u.full_name COLLATE utf8mb4_0900_ai_ci, gc.name, t.client_name)
       ORDER BY revenue DESC
       LIMIT 10
     `;
@@ -384,13 +470,13 @@ exports.getClientStats = async (req, res) => {
           END as category,
           COUNT(*) as count
         FROM (
-          -- Combined project counts for users and guests
-          SELECT client_id as id, COUNT(*) as project_count 
+          -- Combined project counts for users and guests with prefixed IDs to avoid collision
+          SELECT CONCAT('u_', client_id) as id, COUNT(*) as project_count 
           FROM tasks 
           WHERE client_id IS NOT NULL
           GROUP BY client_id
           UNION ALL
-          SELECT guest_client_id as id, COUNT(*) as project_count 
+          SELECT CONCAT('g_', guest_client_id) as id, COUNT(*) as project_count 
           FROM tasks 
           WHERE guest_client_id IS NOT NULL
           GROUP BY guest_client_id
@@ -410,21 +496,21 @@ exports.getClientStats = async (req, res) => {
       console.error('Loyalty query error:', err);
     }
 
-    const [topClients] = await pool.query(topClientsQuery, [start, end]);
+    const [topClients] = await pool.query(topClientsQuery, [start, endBuffered, start, endBuffered]);
 
     // 3. Client Scatter Data
     let scatterData = [];
     try {
       const scatterQuery = `
         SELECT 
-          COALESCE(u.full_name, gc.name, t.client_name) as name,
+          COALESCE(u.full_name COLLATE utf8mb4_0900_ai_ci, gc.name, t.client_name) as name,
           COUNT(t.id) as projects,
           SUM(CASE WHEN t.is_paid = 1 THEN t.quoted_amount ELSE 0 END) as revenue,
           MAX(t.created_at) as lastActive
         FROM tasks t
         LEFT JOIN users u ON t.client_id = u.id
         LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id
-        GROUP BY COALESCE(u.full_name, gc.name, t.client_name)
+        GROUP BY COALESCE(u.full_name COLLATE utf8mb4_0900_ai_ci, gc.name, t.client_name)
         HAVING revenue > 0
         ORDER BY revenue DESC
         LIMIT 50
@@ -442,12 +528,12 @@ exports.getClientStats = async (req, res) => {
         SELECT 
           COUNT(DISTINCT CASE WHEN project_count > 1 THEN id END) * 100.0 / NULLIF(COUNT(DISTINCT id), 0) as retention_rate
         FROM (
-          SELECT client_id as id, COUNT(*) as project_count 
+          SELECT CONCAT('u_', client_id) as id, COUNT(*) as project_count 
           FROM tasks 
           WHERE client_id IS NOT NULL
           GROUP BY client_id
           UNION ALL
-          SELECT guest_client_id as id, COUNT(*) as project_count 
+          SELECT CONCAT('g_', guest_client_id) as id, COUNT(*) as project_count 
           FROM tasks 
           WHERE guest_client_id IS NOT NULL
           GROUP BY guest_client_id
@@ -465,7 +551,7 @@ exports.getClientStats = async (req, res) => {
         COALESCE(course, 'Other') as name,
         COUNT(*) as value
       FROM (
-        SELECT course FROM users WHERE role = 'client'
+        SELECT course COLLATE utf8mb4_0900_ai_ci as course FROM users WHERE role = 'client'
         UNION ALL
         SELECT course FROM guest_clients
       ) as all_clients

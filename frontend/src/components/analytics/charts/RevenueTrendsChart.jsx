@@ -49,7 +49,7 @@ const RevenueTrendsChart = ({ data }) => {
                     <YAxis
                         tick={{ fontSize: 12, fill: '#6b7280' }}
                         stroke="#9ca3af"
-                        tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                        tickFormatter={(value) => value >= 1000 ? `$${(value / 1000).toFixed(1)}k` : `$${value}`}
                     />
                     <Tooltip
                         formatter={(value) => formatCurrency(value)}

@@ -6,7 +6,6 @@ import { apiService } from '../services/api';
 import StatCard from '../components/dashboard/StatCard';
 import TaskTable from '../components/tasks/TaskTable';
 import TaskForm from '../components/tasks/TaskForm';
-import AnalyticsCharts from '../components/charts/AnalyticsCharts';
 import AdminFilesView from '../components/admin/AdminFilesView';
 
 const AdminDashboard = ({
@@ -209,7 +208,6 @@ const AdminDashboard = ({
             <div className="flex border-b overflow-x-auto scrollbar-none -mx-1 px-1">
                 {[
                     { key: 'tasks', label: 'Tasks' },
-                    { key: 'analytics', label: 'Analytics' },
                     { key: 'files', label: 'Files' },
                 ].map(tab => (
                     <button key={tab.key}
@@ -284,13 +282,6 @@ const AdminDashboard = ({
 
             {/* Client sections removed from Dashboard as they are consolidated in the Clients page */}
 
-            {activeTab === 'analytics' && (
-                <AnalyticsCharts
-                    tasks={tasks}
-                    users={allUsers.filter(u => u.role === 'client')}
-                    guests={guestClients}
-                />
-            )}
 
             {activeTab === 'files' && (
                 <AdminFilesView />

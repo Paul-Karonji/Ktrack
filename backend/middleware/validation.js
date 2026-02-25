@@ -10,7 +10,7 @@ const taskSchema = Joi.object({
   isPaid: Joi.boolean().default(false),
   quantity: Joi.number().min(1).allow('', null).default(1),
   priority: Joi.string().valid('low', 'medium', 'high', 'urgent').default('medium'),
-  status: Joi.string().valid('not_started', 'in_progress', 'review', 'completed').default('not_started'),
+  status: Joi.string().valid('not_started', 'in_progress', 'review', 'completed', 'pending_deposit', 'cancelled').default('not_started'),
   notes: Joi.string().allow('', null),
   guestClientId: Joi.alternatives().try(Joi.number(), Joi.string()).allow(null, ''),
   clientId: Joi.alternatives().try(Joi.number(), Joi.string()).allow(null, ''),

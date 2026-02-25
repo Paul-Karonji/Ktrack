@@ -138,6 +138,7 @@ export const apiService = {
     updateTask: (id, task) => api.put(`/tasks/${id}`, task).then(res => res.data),
     deleteTask: (id) => api.delete(`/tasks/${id}`).then(res => res.data),
     togglePayment: (id) => api.patch(`/tasks/${id}/toggle-payment`).then(res => res.data),
+    getPaymentHistory: () => api.get('/payments').then(res => res.data),
     // Files
     getAllFiles: (params) => api.get('/files', { params }).then(res => res.data),
     getFileStats: () => api.get('/files/stats').then(res => res.data),
@@ -150,7 +151,7 @@ export const apiService = {
     deleteFile: (fileId) => api.delete(`/files/${fileId}`).then(res => res.data),
 
     // Quotes
-    sendQuote: (taskId, amount) => api.post(`/tasks/${taskId}/quote`, { amount }).then(res => res.data),
+    sendQuote: (taskId, amount, requiresDeposit) => api.post(`/tasks/${taskId}/quote`, { amount, requiresDeposit }).then(res => res.data),
     respondToQuote: (taskId, action) => api.post(`/tasks/${taskId}/quote/respond`, { action }).then(res => res.data),
 
     // Chat

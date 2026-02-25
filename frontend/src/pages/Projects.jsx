@@ -12,6 +12,7 @@ import ViewToggle from '../components/projects/ViewToggle';
 import TaskTable from '../components/tasks/TaskTable';
 import TaskForm from '../components/tasks/TaskForm';
 import FileManager from '../components/files/FileManager';
+import SendQuoteModal from '../components/tasks/SendQuoteModal';
 import { useNavigation } from '../context/NavigationContext';
 
 const Projects = () => {
@@ -50,8 +51,10 @@ const Projects = () => {
 
     // File manager modal state
     const [showFileManager, setShowFileManager] = useState(false);
-    const [fileManagerMode, setFileManagerMode] = useState('manage'); // 'manage' or 'deliver'
+    const [fileManagerMode, setFileManagerMode] = useState('files'); // 'manage', 'deliver', or 'files'
     const [selectedTaskId, setSelectedTaskId] = useState(null);
+    const [showQuoteModal, setShowQuoteModal] = useState(false);
+    const [quoteTask, setQuoteTask] = useState(null);
 
     // Load tasks on mount
     useEffect(() => {
@@ -281,11 +284,16 @@ const Projects = () => {
         }
     };
 
-    const handleSendQuote = async (taskId) => {
-        const amount = prompt('Enter quote amount:');
-        if (!amount || isNaN(amount)) return;
+    const handleSendQuote = (task) => {
+        setQuoteTask(task);
+        setShowQuoteModal(true);
+    };
+
+    const confirmSendQuote = async (amount, requiresDeposit) => {
         try {
-            await apiService.sendQuote(taskId, parseFloat(amount));
+            await apiService.sendQuote(quoteTask.id, amount, requiresDeposit);
+            setShowQuoteModal(false);
+            setQuoteTask(null);
             await loadTasks();
         } catch (err) {
             console.error('Send quote error:', err);
@@ -479,6 +487,7 @@ const Projects = () => {
                                     onTogglePayment={handleTogglePayment}
                                     onDownloadFile={handleDownloadFile}
                                     onDeliverWork={handleDeliverWork}
+                                    onSendQuote={handleSendQuote}
                                 />
                             ) : (
                                 <TaskTable
@@ -514,6 +523,19 @@ const Projects = () => {
                         setSelectedTaskId(null);
                         loadTasks();
                     }}
+                />
+            )}
+
+            {/* Send Quote Modal */}
+            {showQuoteModal && quoteTask && (
+                <SendQuoteModal
+                    isOpen={showQuoteModal}
+                    onClose={() => {
+                        setShowQuoteModal(false);
+                        setQuoteTask(null);
+                    }}
+                    onConfirm={confirmSendQuote}
+                    task={quoteTask}
                 />
             )}
         </div>

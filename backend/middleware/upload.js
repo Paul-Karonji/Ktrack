@@ -16,7 +16,9 @@ const upload = multer({
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'application/vnd.ms-excel',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'text/plain', 'text/csv'
+            'text/plain', 'text/csv',
+            'application/zip', 'application/x-zip-compressed',
+            'application/x-rar-compressed', 'application/x-7z-compressed'
         ];
 
         // 1. Validate MIME type
@@ -25,17 +27,15 @@ const upload = multer({
         }
 
         // 2. Validate extension
-        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.csv'];
+        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.csv', '.zip', '.rar', '.7z'];
         const ext = path.extname(file.originalname).toLowerCase();
         if (!allowedExtensions.includes(ext)) {
             return cb(new Error('Invalid file extension'));
         }
 
-        // 3. Prevent double extensions (e.g., image.php.jpg)
+        // 3. Prevent dangerous double extensions (Sanitization below will handle this)
+        // We'll allow dots in filenames but sanitize them to underscores for safety
         const filename = path.basename(file.originalname, ext);
-        if (filename.includes('.')) {
-            return cb(new Error('Double file extensions not allowed'));
-        }
 
         // 4. Sanitize filename
         // Remove special characters, limit length, prevent directory traversal

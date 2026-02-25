@@ -5,9 +5,16 @@ import viteTsconfigPaths from 'vite-tsconfig-paths';
 export default defineConfig({
     plugins: [react(), viteTsconfigPaths()],
     esbuild: {
-        loader: "tsx",
+        loader: 'tsx',
         include: /src\/.*\.[tj]sx?$/,
         exclude: [],
+    },
+    optimizeDeps: {
+        esbuildOptions: {
+            loader: {
+                '.js': 'jsx',
+            },
+        },
     },
 
     server: {

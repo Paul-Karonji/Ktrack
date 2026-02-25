@@ -11,15 +11,29 @@
 - **Guest Clients** — admin-managed clients with no login required
 - **Account Merging** — seamlessly upgrade a guest client into a registered user, transferring all task history
 
-### 📊 Analytics & Insights
-- Revenue trends, task distribution, and priority breakdown charts (Recharts)
-- Client growth tracking (Registered vs. Guest) over time
-- Financial reports: expected vs. actual revenue with monthly breakdowns
+### 💳 Milestone Payment System
+- **50% Deposit Workflow** — Optional upfront deposit requirement for quotes.
+- **Paystack Integration** — Secure payments supporting Cards and Mobile Money (M-Pesa).
+- **USD to KES Conversion** — Automatic currency conversion with real-time rate transparency for clients.
+- **Transaction Audit** — Dedicated Admin Payments page for granular tracking of all deposits and final balances.
+
+### 📊 Analytics & Business Intelligence
+- **Executive KPIs** — Real-time tracking of Revenue, Quote Acceptance, Task Completion, and Client Growth with MoM trend analysis.
+- **Financial Module** — Detailed breakdown of expected vs. actual revenue, payment status (Paid/Pending/Overdue), and client-specific revenue rankings.
+- **Task Intelligence** — Status distribution, operational pipeline funnel, and performance metrics (On-time rate, Avg. completion time).
+- **Storage Analytics** — Monitoring of Cloudflare R2 utilization, file type distribution, and storage growth trends.
+- **Smart Charting** — Time-series visualization with "gap-filling" logic to ensure zero-activity periods are accurately represented.
+
+### 🛡️ Resilience & Reliability
+- **Clock Drift Mitigation** — 24-hour end-date buffering on all filters to ensure same-day data is captured regardless of server/client time differences.
+- **Data Consistency** — Standardized SQL aggregation across all reporting modules for perfectly synchronized dashboard cards and charts.
+- **Fail-Safe Startup** — Server blocks traffic until all database schema updates are verified and applied.
+- **Automated Sync** — `DatabasePatchService` automatically handles schema migrations on every deployment.
 
 ### ⚡ Task & Quote Workflow
 Full lifecycle from creation to payment:
 ```
-Pending Quote → Quote Sent → Approved / Rejected → In Progress → Review → Completed
+Pending Quote → Quote Sent → Approved → Pending Deposit (Optional) → In Progress → Review → Completed
 ```
 - Admin sends a quoted amount; client approves or rejects with one click
 - Priority levels: Low / Medium / High / Urgent
@@ -80,17 +94,8 @@ R2_BUCKET_NAME=your_bucket_name
 CORS_ORIGIN=http://localhost:3000
 ```
 
-Initialize the database:
-```bash
-# Apply the baseline schema
-mysql -u root -p < ktrack_db_dump.sql
-
-# Apply incremental migrations in order
-mysql -u root -p ktrack < migrations/002_add_task_enhancements.sql
-mysql -u root -p ktrack < migrations/004_create_task_files_table.sql
-mysql -u root -p ktrack < migrations/005_create_notifications_table.sql
-mysql -u root -p ktrack < migrations/006_create_guest_clients.sql
-mysql -u root -p ktrack < migrations/add_message_files.sql
+# The system now uses an automated migration service.
+# Just start the server to apply all latest schema updates automatically.
 ```
 
 Start the server:

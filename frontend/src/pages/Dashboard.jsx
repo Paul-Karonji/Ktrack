@@ -8,12 +8,15 @@ import ErrorMessage from '../components/common/ErrorMessage';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/layout/Sidebar';
 import FileManager from '../components/files/FileManager';
+import SendQuoteModal from '../components/tasks/SendQuoteModal';
 
 import AdminDashboard from './AdminDashboard';
 import ClientDashboard from './ClientDashboard';
 
 const Dashboard = () => {
     const { user, logout } = useAuth();
+    const [showQuoteModal, setShowQuoteModal] = useState(false);
+    const [selectedTaskForQuote, setSelectedTaskForQuote] = useState(null);
 
     // Custom hooks
     const { tasks, loading, error, loadTasks, createTask, updateTask, deleteTask, togglePayment } = useTasks();
@@ -220,12 +223,17 @@ const Dashboard = () => {
     };
 
     // Handle send quote
-    const handleSendQuote = async (taskId) => {
-        const amount = prompt('Enter quote amount:');
-        if (!amount || isNaN(amount)) return;
+    const handleSendQuote = (task) => {
+        setSelectedTaskForQuote(task);
+        setShowQuoteModal(true);
+    };
+
+    const confirmSendQuote = async (amount, requiresDeposit) => {
         try {
-            await apiService.sendQuote(taskId, parseFloat(amount));
+            await apiService.sendQuote(selectedTaskForQuote.id, amount, requiresDeposit);
             await loadTasks();
+            setShowQuoteModal(false);
+            setSelectedTaskForQuote(null);
         } catch (err) {
             console.error('Send quote error:', err);
             alert('Failed to send quote: ' + err.message);
@@ -348,6 +356,7 @@ const Dashboard = () => {
                             resetForm={resetForm}
                             handleInputChange={handleInputChange}
                             fileInputRef={fileInputRef}
+                            onPaymentSuccess={loadTasks}
                         />
                     )}
                 </div>
@@ -364,6 +373,19 @@ const Dashboard = () => {
                         setSelectedTaskId(null);
                         loadTasks();
                     }}
+                />
+            )}
+
+            {/* Send Quote Modal */}
+            {showQuoteModal && selectedTaskForQuote && (
+                <SendQuoteModal
+                    isOpen={showQuoteModal}
+                    onClose={() => {
+                        setShowQuoteModal(false);
+                        setSelectedTaskForQuote(null);
+                    }}
+                    onConfirm={confirmSendQuote}
+                    task={selectedTaskForQuote}
                 />
             )}
         </div>

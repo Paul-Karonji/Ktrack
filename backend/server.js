@@ -20,6 +20,7 @@ const filesRoutes = require('./routes/files');
 const notificationRoutes = require('./routes/notifications');
 const messageRoutes = require('./routes/messages');
 const analyticsRoutes = require('./routes/analytics');
+const paymentRoutes = require('./routes/payments');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const requestIdMiddleware = require('./middleware/requestId');
 const DatabasePatchService = require('./services/databasePatchService');
@@ -27,11 +28,27 @@ const DatabasePatchService = require('./services/databasePatchService');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Test database connection on startup
-testConnection().then(() => {
-  // Run schema patches
-  DatabasePatchService.applyPatches();
-});
+// Start Server after database is ready
+const startServer = async () => {
+  try {
+    console.log('🔄 Initializing system...');
+    await testConnection();
+
+    // Run schema patches and wait for completion
+    await DatabasePatchService.applyPatches();
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔗 API URL: http://localhost:${PORT}/api`);
+    });
+  } catch (err) {
+    console.error('❌ Failed to start server:', err.message);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 // Request ID Middleware (for tracking and debugging)
 app.use(requestIdMiddleware);
@@ -142,6 +159,7 @@ app.use('/api/analytics', apiLimiter, analyticsRoutes);
 app.use('/api/public', require('./routes/public')); // No rate limit for public stats
 app.use('/api/files', apiLimiter, filesRoutes);
 app.use('/api/notifications', apiLimiter, notificationRoutes);
+app.use('/api/payments', apiLimiter, paymentRoutes);
 app.use('/api/guest-clients', apiLimiter, require('./routes/guestClients')); // Guest Client Routes
 // Serve local uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -166,12 +184,7 @@ app.use(notFound);
 // Error handler
 app.use(errorHandler);
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 API URL: http://localhost:${PORT}/api`);
-});
+// Server start logic moved to top-level startServer() function
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

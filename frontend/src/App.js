@@ -11,6 +11,7 @@ import Files from './pages/Files';
 import Settings from './pages/Settings';
 import Analytics from './pages/Analytics';
 import Clients from './pages/admin/Clients';
+import Payments from './pages/admin/Payments';
 import PrivateRoute from './components/auth/PrivateRoute';
 import LandingPage from './pages/LandingPage';
 import WhatsAppButton from './components/common/WhatsAppButton';
@@ -60,6 +61,14 @@ const App = () => {
                 element={
                   <PrivateRoute allowedRoles={['admin']}>
                     <Clients />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/admin/payments"
+                element={
+                  <PrivateRoute allowedRoles={['admin']}>
+                    <Payments />
                   </PrivateRoute>
                 }
               />

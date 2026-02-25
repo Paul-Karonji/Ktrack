@@ -40,6 +40,11 @@ class Task {
     } else if (filters.guestClientId) {
       query += ' WHERE t.guest_client_id = ?';
       params.push(filters.guestClientId);
+    } else if (filters.hasAnyPayment) {
+      query += ' WHERE t.is_paid = 1 OR t.deposit_paid = 1';
+    } else if (filters.isPaid !== undefined) {
+      query += ' WHERE t.is_paid = ?';
+      params.push(filters.isPaid ? 1 : 0);
     }
 
     query += ' ORDER BY t.created_at DESC';
@@ -137,7 +142,12 @@ class Task {
       clientId: 'client_id',
       guestClientId: 'guest_client_id',
       completedAt: 'completed_at',
-      paidAt: 'paid_at'
+      paidAt: 'paid_at',
+      requiresDeposit: 'requires_deposit',
+      depositPaid: 'deposit_paid',
+      depositAmount: 'deposit_amount',
+      depositRef: 'deposit_ref',
+      depositPaidAt: 'deposit_paid_at'
     };
 
     for (const [key, value] of Object.entries(taskData)) {
@@ -180,6 +190,48 @@ class Task {
       [id]
     );
     return this.findById(id);
+  }
+
+  static async markAsPaid(id, paymentRef, paymentData = {}) {
+    const { currency = 'USD', exchangeRate = null, kesAmount = null } = paymentData;
+
+    // Fetch task to check for balance calculation
+    const task = await this.findById(id);
+    if (!task) return false;
+
+    // Record the specific transaction
+    const balanceAmount = task.deposit_paid
+      ? (parseFloat(task.quoted_amount) - parseFloat(task.deposit_amount))
+      : parseFloat(task.quoted_amount);
+
+    await pool.execute(
+      'INSERT INTO payments (task_id, amount, currency, kes_amount, exchange_rate, reference, type) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, balanceAmount, currency, kesAmount, exchangeRate, paymentRef, task.deposit_paid ? 'balance' : 'full']
+    );
+
+    const [result] = await pool.execute(
+      'UPDATE tasks SET is_paid = 1, paid_at = CURRENT_TIMESTAMP, payment_ref = ?, payment_currency = ?, payment_exchange_rate = ?, payment_kes_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [paymentRef, currency, exchangeRate, kesAmount, id]
+    );
+    return result.affectedRows > 0;
+  }
+
+  static async markDepositAsPaid(id, paymentRef, paymentData = {}) {
+    const { currency = 'USD', exchangeRate = null, kesAmount = null } = paymentData;
+
+    const task = await this.findById(id);
+    if (!task) return false;
+
+    await pool.execute(
+      'INSERT INTO payments (task_id, amount, currency, kes_amount, exchange_rate, reference, type) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, task.deposit_amount, currency, kesAmount, exchangeRate, paymentRef, 'deposit']
+    );
+
+    const [result] = await pool.execute(
+      'UPDATE tasks SET deposit_paid = 1, deposit_paid_at = CURRENT_TIMESTAMP, deposit_ref = ?, payment_currency = ?, payment_exchange_rate = ?, payment_kes_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [paymentRef, currency, exchangeRate, kesAmount, id]
+    );
+    return result.affectedRows > 0;
   }
 
   static async transferGuestTasks(guestClientId, userId) {

@@ -118,21 +118,28 @@ const QuickStartContent = () => (
             <StepCard
                 number="4"
                 title="Approve the Quote"
-                description="Review the quoted amount and click 'Approve' to start the work, or use chat to discuss."
+                description="Review the quoted amount and click 'Approve'. For most tasks, work begins once the 50% deposit is paid."
                 color="indigo"
             />
 
             <StepCard
                 number="5"
+                title="Pay Locally in KSh"
+                description="Use M-Pesa or Card to pay your deposit or balance. We handle currency conversion automatically!"
+                color="blue"
+            />
+
+            <StepCard
+                number="6"
                 title="Track Progress"
                 description="Monitor your task status as it moves from 'In Progress' to 'Review' to 'Completed'."
                 color="orange"
             />
 
             <StepCard
-                number="6"
+                number="7"
                 title="Download Deliverables"
-                description="Once completed, download your final files using the download button."
+                description="Once completed and final balance is paid, download your final files using the download button."
                 color="green"
             />
         </div>
@@ -221,21 +228,17 @@ const QuotesContent = () => (
 
             <ProcessStep
                 step="3"
-                title="Your Decision"
-                description="You have two options:"
-                status="decision"
-            >
-                <div className="mt-3 space-y-2 ml-4">
-                    <div className="bg-green-50 border border-green-200 rounded p-3">
-                        <p className="text-green-800 font-medium">✅ Approve Quote</p>
-                        <p className="text-green-700 text-sm">Work begins, status changes to "In Progress"</p>
-                    </div>
-                    <div className="bg-red-50 border border-red-200 rounded p-3">
-                        <p className="text-red-800 font-medium">❌ Reject Quote</p>
-                        <p className="text-red-700 text-sm">Task is cancelled. You can chat to discuss or create a new task</p>
-                    </div>
-                </div>
-            </ProcessStep>
+                title="Deposit Payment"
+                description="Once approved, tasks requiring a deposit will enter 'Pending Deposit' status. Pay the 50% deposit via Paystack (M-Pesa/Card) to move the task to 'In Progress'."
+                status="deposit"
+            />
+
+            <ProcessStep
+                step="4"
+                title="Final Balance"
+                description="After work is completed and reviewed, pay the remaining 50% balance to finalize the project."
+                status="balance"
+            />
         </div>
 
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6">
@@ -325,7 +328,7 @@ const FilesContent = () => (
 
             <InfoSection title="File Specifications">
                 <ul className="list-disc list-inside space-y-2 text-gray-600">
-                    <li><strong>Supported formats:</strong> PDF, DOCX, PNG, JPG, ZIP, and more</li>
+                    <li><strong>Supported formats:</strong> PDF, DOCX, PNG, JPG, ZIP, RAR, 7Z</li>
                     <li><strong>Maximum size:</strong> 10MB per file</li>
                     <li><strong>Storage:</strong> Securely stored in the cloud</li>
                 </ul>
@@ -373,18 +376,23 @@ const FAQContent = () => (
             />
 
             <FAQItem
-                question="What do the different task statuses mean?"
-                answer="Pending Quote (waiting for price) → Quote Sent (review quote) → In Progress (work being done) → Review (check deliverables) → Completed (all done!)"
+                question="How do I pay in KES (KSh)?"
+                answer="When you click 'Pay', the USD amount is automatically converted to KSh at the current rate. You can then pay securely via M-Pesa or Card."
             />
 
             <FAQItem
-                question="My file won't upload. What should I do?"
-                answer="Check that it's under 10MB, your internet is stable, and try refreshing the page. If issues persist, share the file via chat using external links."
+                question="Is the 50% deposit mandatory?"
+                answer="For most commissions, yes. It secures the resources needed for your task. However, you can always discuss milestone options with an admin via chat."
+            />
+
+            <FAQItem
+                question="What do the different task statuses mean?"
+                answer="Pending Quote (waiting for price) → Quote Sent (review) → Pending Deposit (pay 50%) → In Progress (work) → Review (check drafts) → Completed (all done!)"
             />
 
             <FAQItem
                 question="Will I get notifications for updates?"
-                answer="Yes! Unread message badges appear on task cards. Email notifications may also be sent (check your email settings)."
+                answer="Yes! Unread message badges appear on task cards. Check your inbox for status change alerts as well."
             />
         </div>
     </div>

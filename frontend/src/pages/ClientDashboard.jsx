@@ -92,7 +92,8 @@ const ClientDashboard = ({
     onDownloadFile,
     showForm, setShowForm,
     formData, setFormData,
-    editingTask, resetForm, handleInputChange, fileInputRef
+    editingTask, resetForm, handleInputChange, fileInputRef,
+    onPaymentSuccess
 }) => {
     const [showHelp, setShowHelp] = useState(false);
     const [activeTab, setActiveTab] = useState('active');
@@ -127,9 +128,9 @@ const ClientDashboard = ({
     // ── Filtered + sorted tasks ───────────────────────────────────────────────
     const displayTasks = useMemo(() => {
         let r = [...tasks];
-        if (activeTab === 'active') r = r.filter(t => !['completed', 'cancelled'].includes(t.status));
-        if (activeTab === 'history') r = r.filter(t => ['completed', 'cancelled'].includes(t.status));
-        if (activeTab === 'quotes') r = r.filter(t => t.quote_status === 'quote_sent');
+        if (activeTab === 'active') r = r.filter(t => !['completed', 'cancelled'].includes(t.status) || !t.is_paid);
+        if (activeTab === 'history') r = r.filter(t => ['completed', 'cancelled'].includes(t.status) && t.is_paid);
+        if (activeTab === 'quotes') r = r.filter(t => t.quote_status === 'quote_sent' || (t.quote_status === 'approved' && !t.is_paid));
         if (searchTerm.trim()) {
             const q = searchTerm.toLowerCase();
             r = r.filter(t =>
@@ -438,6 +439,7 @@ const ClientDashboard = ({
                                     onQuoteResponse={handleQuoteResponse}
                                     onDownloadFile={onDownloadFile}
                                     onEdit={handleEdit}
+                                    onPaymentSuccess={onPaymentSuccess}
                                 />
                             ))}
                         </div>
@@ -452,6 +454,7 @@ const ClientDashboard = ({
                                 onQuoteResponse={handleQuoteResponse}
                                 onSendQuote={() => { }}
                                 onDuplicate={handleDuplicate}
+                                onPaymentSuccess={onPaymentSuccess}
                                 user={user}
                             />
                         </div>

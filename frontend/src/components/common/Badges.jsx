@@ -24,8 +24,10 @@ export const StatusBadge = ({ status }) => {
     const statusConfig = {
         not_started: { color: 'bg-gray-100 text-gray-700', label: 'Not Started' },
         in_progress: { color: 'bg-blue-100 text-blue-700', label: 'In Progress' },
+        pending_deposit: { color: 'bg-orange-100 text-orange-700', label: 'Awaiting Deposit' },
         review: { color: 'bg-purple-100 text-purple-700', label: 'Under Review' },
-        completed: { color: 'bg-green-100 text-green-700', label: 'Completed' }
+        completed: { color: 'bg-green-100 text-green-700', label: 'Completed' },
+        cancelled: { color: 'bg-red-100 text-red-700', label: 'Cancelled' }
     };
 
     const config = statusConfig[status] || statusConfig.not_started;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, FolderOpen, FileText, Settings, LogOut, X, BarChart3, Users } from 'lucide-react';
+import { Home, FolderOpen, FileText, Settings, LogOut, X, BarChart3, Users, CreditCard } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useNavigation } from '../../context/NavigationContext';
 
@@ -12,6 +12,7 @@ const Sidebar = ({ user, onLogout }) => {
         { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
         { id: 'projects', label: 'Projects', icon: FolderOpen, path: '/projects' },
         { id: 'clients', label: 'Clients', icon: Users, path: '/admin/clients', adminOnly: true },
+        { id: 'payments', label: 'Payments', icon: CreditCard, path: '/admin/payments', adminOnly: true },
         { id: 'files', label: 'Files', icon: FileText, path: '/files' },
         { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/analytics', adminOnly: true },
         { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },

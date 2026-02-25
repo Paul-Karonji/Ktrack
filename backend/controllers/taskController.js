@@ -288,13 +288,12 @@ class TaskController {
             }
           }
         } catch (emailError) {
-          console.error('Status update email error:', emailError);
+          // Email notification errors are non-critical for task update flow
         }
       }
 
       res.json(updatedTask);
     } catch (error) {
-      console.error('Error updating task:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to update task'
@@ -367,7 +366,7 @@ class TaskController {
 
   static async sendQuote(req, res) {
     try {
-      const { amount } = req.body;
+      const { amount, requiresDeposit } = req.body;
       const existingTask = await Task.findById(req.params.id);
 
       if (!existingTask) {
@@ -380,13 +379,15 @@ class TaskController {
       // Auto-approve for guest clients if sending a quote
       if (existingTask.guest_client_id) {
         quoteStatus = 'approved';
-        status = 'in_progress'; // Or whatever status means "Work Started" or "To Do"
+        status = requiresDeposit ? 'pending_deposit' : 'in_progress';
       }
 
       const updatedTask = await Task.update(req.params.id, {
         quotedAmount: amount,
         quoteStatus,
-        status
+        status,
+        requiresDeposit: requiresDeposit ? 1 : 0,
+        depositAmount: requiresDeposit ? (amount / 2) : 0
       });
 
       // Invalidate analytics cache
@@ -437,12 +438,14 @@ class TaskController {
 
       let updates = {};
       if (action === 'approve') {
+        const isDepositRequired = existingTask.requires_deposit === 1;
         updates = {
           quoteStatus: 'approved',
-          status: 'in_progress', // Start work or wait for payment?
+          status: isDepositRequired ? 'pending_deposit' : 'in_progress',
           expectedAmount: existingTask.quoted_amount // Finalize amount
         };
-      } else if (action === 'reject') {
+      }
+      else if (action === 'reject') {
         updates = {
           quoteStatus: 'rejected',
           status: 'cancelled'

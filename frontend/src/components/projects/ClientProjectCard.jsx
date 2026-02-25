@@ -3,9 +3,11 @@ import {
     Calendar, DollarSign, MessageSquare, FileText,
     CheckCircle, Clock, AlertCircle,
     ThumbsUp, ThumbsDown, Paperclip, Download,
-    Edit2
+    Edit2, CreditCard, ShieldCheck, Loader2
 } from 'lucide-react';
 import ChatComponent from '../chat/ChatComponent';
+import { usePaystackPayment } from 'react-paystack';
+import axios from 'axios';
 
 // ─── Status config ────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
@@ -87,13 +89,17 @@ const DeadlineChip = ({ dateDelivered }) => {
 };
 
 // ─── Main card ────────────────────────────────────────────────────────────────
-const ClientProjectCard = ({ task, user, onQuoteResponse, onDownloadFile, onEdit, index = 0 }) => {
+const ClientProjectCard = ({ task, user, onQuoteResponse, onDownloadFile, onEdit, onPaymentSuccess, index = 0 }) => {
     const [showChat, setShowChat] = useState(false);
+    const [isVerifying, setIsVerifying] = useState(false);
 
     const status = task.status || 'not_started';
     const sc = STATUS_CONFIG[status] || STATUS_CONFIG.not_started;
     const priority = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
     const hasQuote = task.quote_status === 'quote_sent';
+    const isApproved = task.quote_status === 'approved';
+    const canPay = isApproved && !task.is_paid;
+
     const pipelineStep = PIPELINE.indexOf(status);
     const arcStep = pipelineStep === -1 ? 0 : pipelineStep + 1;
 
@@ -101,6 +107,69 @@ const ClientProjectCard = ({ task, user, onQuoteResponse, onDownloadFile, onEdit
 
     const staggerDelays = ['delay-0', 'delay-50', 'delay-100', 'delay-150', 'delay-200', 'delay-250', 'delay-300', 'delay-400'];
     const delay = staggerDelays[index % staggerDelays.length];
+
+    // ─── Paystack Logic ──────────────────────────────────────────────────────────
+    const exchangeRate = parseFloat(import.meta.env.VITE_EXCHANGE_RATE_USD_KES || 135);
+
+    // Determine payment amount based on deposit status
+    let paymentUsdAmount = parseFloat(task.quoted_amount) || parseFloat(task.expected_amount);
+    let isDeposit = false;
+
+    if (task.requires_deposit && !task.deposit_paid) {
+        paymentUsdAmount = parseFloat(task.deposit_amount);
+        isDeposit = true;
+    } else if (task.deposit_paid && !task.is_paid) {
+        paymentUsdAmount = (parseFloat(task.quoted_amount) || parseFloat(task.expected_amount)) - parseFloat(task.deposit_amount);
+    }
+
+    const kesAmount = paymentUsdAmount * exchangeRate;
+
+    const paystackConfig = {
+        reference: `task_${task.id}_${new Date().getTime()}`,
+        email: user.email,
+        amount: Math.round(kesAmount * 100), // convert to cents (KES)
+        currency: 'KES',
+        channels: ['card', 'mobile_money'],
+        publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+        metadata: {
+            task_id: task.id,
+            task_name: task.task_name,
+            usd_amount: paymentUsdAmount,
+            exchange_rate: exchangeRate,
+            is_deposit: isDeposit,
+            custom_fields: [
+                { display_name: "Task ID", variable_name: "task_id", value: task.id },
+                { display_name: "USD Amount", variable_name: "usd_amount", value: paymentUsdAmount },
+                { display_name: "Exchange Rate", variable_name: "exchange_rate", value: exchangeRate },
+                { display_name: "Payment Type", variable_name: "payment_type", value: isDeposit ? 'Deposit' : 'Balance' }
+            ]
+        }
+    };
+
+    const initializePayment = usePaystackPayment(paystackConfig);
+
+    const handlePaystackSuccess = async (response) => {
+        setIsVerifying(true);
+        try {
+            const apiResponse = await axios.post('/api/payments/verify', {
+                reference: response.reference,
+                taskId: task.id
+            });
+
+            if (apiResponse.data.success) {
+                onPaymentSuccess?.(task.id);
+            }
+        } catch (error) {
+            console.error('Payment verification failed:', error);
+            alert('Payment was successful, but we encountered an issue updating your task. Please contact support.');
+        } finally {
+            setIsVerifying(false);
+        }
+    };
+
+    const handlePaystackClose = () => {
+        console.log('Payment modal closed');
+    };
 
     return (
         <div className={`
@@ -155,11 +224,11 @@ const ClientProjectCard = ({ task, user, onQuoteResponse, onDownloadFile, onEdit
                 <div className="flex flex-wrap gap-1.5">
                     <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
                         <DollarSign size={10} />
-                        {fmt(task.expected_amount)}
+                        {fmt(isApproved ? task.quoted_amount : task.expected_amount)}
                     </span>
                     <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold
-                        ${task.is_paid ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {task.is_paid ? <><CheckCircle size={10} /> Paid</> : <><Clock size={10} /> Unpaid</>}
+                        ${task.is_paid ? 'bg-green-100 text-green-700' : task.deposit_paid ? 'bg-blue-100 text-blue-700' : 'bg-orange-50 text-orange-600'}`}>
+                        {task.is_paid ? <><CheckCircle size={10} /> Paid</> : task.deposit_paid ? <><ShieldCheck size={10} /> Deposit Paid</> : <><Clock size={10} /> Unpaid</>}
                     </span>
                     {task.file_count > 0 && (
                         <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600">
@@ -174,6 +243,26 @@ const ClientProjectCard = ({ task, user, onQuoteResponse, onDownloadFile, onEdit
                         </span>
                     )}
                 </div>
+
+                {/* Pay Button / Loading State */}
+                {canPay && (
+                    <div className="space-y-2">
+                        <button
+                            onClick={() => initializePayment(handlePaystackSuccess, handlePaystackClose)}
+                            disabled={isVerifying}
+                            className="w-full flex items-center justify-center gap-3 py-3 bg-gradient-to-r from-teal-600 to-blue-500 hover:from-teal-700 hover:to-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-teal-100 transition-all transform hover:scale-[1.02] active:scale-[0.98] group disabled:opacity-70 disabled:cursor-not-allowed"
+                        >
+                            {isVerifying ? (
+                                <><Loader2 className="animate-spin" size={18} /> Verifying Payment...</>
+                            ) : (
+                                <><ShieldCheck className="group-hover:bounce-subtle" size={18} /> {isDeposit ? 'Pay 50% Deposit Now' : 'Pay Final Balance'}</>
+                            )}
+                        </button>
+                        <p className="text-[10px] text-gray-400 text-center italic">
+                            Secure payment in KES (Approx. KSh {Math.round(kesAmount).toLocaleString()}) equivalent to {fmt(paymentUsdAmount)}
+                        </p>
+                    </div>
+                )}
 
                 {/* Deliverable Download Button */}
                 {task.status === 'completed' && task.has_file && (

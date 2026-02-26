@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { usePaystackPayment } from 'react-paystack';
 import axios from 'axios';
 import { Calendar, DollarSign, Edit, Trash2, FileText, CheckCircle, CreditCard, Loader2, ShieldCheck } from 'lucide-react';
 import { PriorityBadge, StatusBadge } from '../common/Badges';
@@ -7,68 +6,52 @@ import { formatDate, formatCurrency } from '../../utils/formatters';
 
 const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onDownloadFile, onDeliverWork, onSendQuote, onPaymentSuccess, user }) => {
     const [isVerifying, setIsVerifying] = useState(false);
+    const [isInitializing, setIsInitializing] = useState(false);
 
     // ─── Paystack Logic ──────────────────────────────────────────────────────────
-    const exchangeRate = parseFloat(import.meta.env.VITE_EXCHANGE_RATE_USD_KES || 135);
-
-    // Determine payment amount based on deposit status
-    let paymentUsdAmount = parseFloat(task.quoted_amount) || parseFloat(task.expected_amount);
-    let isDeposit = false;
-
-    if (task.requires_deposit && !task.deposit_paid) {
-        paymentUsdAmount = parseFloat(task.deposit_amount);
-        isDeposit = true;
-    } else if (task.deposit_paid && !task.is_paid) {
-        paymentUsdAmount = (parseFloat(task.quoted_amount) || parseFloat(task.expected_amount)) - parseFloat(task.deposit_amount);
-    }
-
-    const kesAmount = paymentUsdAmount * exchangeRate;
-
-    const paystackConfig = {
-        reference: `task_${task.id}_${new Date().getTime()}`,
-        email: user.email,
-        amount: Math.round(kesAmount * 100), // convert to cents (KES)
-        currency: 'KES',
-        channels: ['card', 'mobile_money'],
-        publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
-        metadata: {
-            task_id: task.id,
-            task_name: task.task_name,
-            usd_amount: paymentUsdAmount,
-            exchange_rate: exchangeRate,
-            is_deposit: isDeposit,
-            custom_fields: [
-                { display_name: "Task ID", variable_name: "task_id", value: task.id },
-                { display_name: "USD Amount", variable_name: "usd_amount", value: paymentUsdAmount },
-                { display_name: "Exchange Rate", variable_name: "exchange_rate", value: exchangeRate },
-                { display_name: "Payment Type", variable_name: "payment_type", value: isDeposit ? 'Deposit' : 'Balance' }
-            ]
-        }
-    };
-
-    const initializePayment = usePaystackPayment(paystackConfig);
-
-    const handlePaystackSuccess = async (response) => {
-        setIsVerifying(true);
+    /**
+     * F-08/F-09 fix: Call /api/payments/initialize first to get server-computed
+     * amount + nonce, then open Paystack with those values.
+     */
+    const handlePaystackOpen = async () => {
+        setIsInitializing(true);
         try {
-            const apiResponse = await axios.post('/api/payments/verify', {
-                reference: response.reference,
-                taskId: task.id
+            const phase = (task.requires_deposit && !task.deposit_paid) ? 'deposit' : 'balance';
+            const intentRes = await axios.post('/api/payments/initialize', { taskId: task.id, phase });
+            if (!intentRes.data.success) { alert('Could not start payment. Please try again.'); return; }
+
+            const { nonce, amountKes, expectedAmountKes } = intentRes.data;
+            const PaystackPop = window.PaystackPop;
+            if (!PaystackPop) { alert('Paystack not loaded. Please refresh.'); return; }
+
+            const handler = PaystackPop.setup({
+                key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+                email: user.email,
+                amount: amountKes,
+                currency: 'KES',
+                channels: ['card', 'mobile_money'],
+                metadata: { task_id: task.id, task_name: task.task_name, is_deposit: phase === 'deposit', nonce },
+                onSuccess: async (response) => {
+                    setIsVerifying(true);
+                    try {
+                        const apiResponse = await axios.post('/api/payments/verify', {
+                            reference: response.reference,
+                            taskId: task.id,
+                            nonce
+                        });
+                        if (apiResponse.data.success) onPaymentSuccess?.(task.id);
+                    } catch (error) {
+                        console.error('Payment verification failed:', error);
+                        alert('Payment was successful, but updating failed. Contact support.');
+                    } finally { setIsVerifying(false); }
+                },
+                onCancel: () => console.log('Payment cancelled')
             });
-
-            if (apiResponse.data.success) {
-                onPaymentSuccess?.(task.id);
-            }
+            handler.openIframe();
         } catch (error) {
-            console.error('Payment verification failed:', error);
-            alert('Payment was successful, but we encountered an issue updating your task. Please contact support.');
-        } finally {
-            setIsVerifying(false);
-        }
-    };
-
-    const handlePaystackClose = () => {
-        console.log('Payment modal closed');
+            console.error('Payment initialization failed:', error);
+            alert('Could not start payment. Please try again.');
+        } finally { setIsInitializing(false); }
     };
     return (
         <div className="bg-white rounded-xl shadow-md p-4 space-y-3 border border-gray-100 hover:shadow-lg transition-shadow">
@@ -190,8 +173,8 @@ const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayme
                 {user?.role === 'client' && !task.is_paid && task.quote_status === 'approved' && (
                     <div className="flex-1 flex flex-col gap-1">
                         <button
-                            onClick={() => initializePayment(handlePaystackSuccess, handlePaystackClose)}
-                            disabled={isVerifying || !isOnline}
+                            onClick={handlePaystackOpen}
+                            disabled={isVerifying || isInitializing || !isOnline}
                             className="w-full px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 text-white rounded-lg text-sm font-bold hover:from-emerald-700 hover:to-teal-600 transition-all flex items-center justify-center gap-2 shadow-sm transform active:scale-95 disabled:opacity-50"
                         >
                             {isVerifying ? (
@@ -202,7 +185,7 @@ const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayme
                             {task.requires_deposit && !task.deposit_paid ? 'Pay 50% Deposit' : 'Pay Balance'}
                         </button>
                         <p className="text-[10px] text-gray-400 text-center italic">
-                            KES (Approx. KSh {Math.round(kesAmount).toLocaleString()})
+                            KES (Approx. KSh {Math.round(expectedAmountKes || 0).toLocaleString()})
                         </p>
                     </div>
                 )}

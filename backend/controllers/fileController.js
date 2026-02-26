@@ -38,10 +38,10 @@ const FileController = {
 
             const params = [];
 
-            // Role-based filtering
+            // Role-based filtering — ID only (F-05 fix: removed mutable client_name fallback)
             if (userRole === 'client') {
-                query += ' AND (t.client_id = ? OR t.client_name = ?)';
-                params.push(userId, req.user.full_name);
+                query += ' AND t.client_id = ?';
+                params.push(userId);
             }
             // Admins see all files
 
@@ -90,9 +90,10 @@ const FileController = {
             let whereClause = '';
             const params = [];
 
+            // ID only (F-05 fix: removed mutable client_name fallback)
             if (userRole === 'client') {
-                whereClause = 'WHERE (t.client_id = ? OR t.client_name = ?)';
-                params.push(userId, req.user.full_name);
+                whereClause = 'WHERE t.client_id = ?';
+                params.push(userId);
             }
 
             // Total files and storage
@@ -165,7 +166,8 @@ const FileController = {
             console.log('[FileController] User:', { id: req.user.id, role: req.user.role, name: req.user.full_name });
 
             // Check ownership (admins can upload to any, clients only to theirs)
-            const isOwner = task.client_id === req.user.id || task.client_name === req.user.full_name;
+            // F-06 fix: removed client_name string fallback — use immutable ID only
+            const isOwner = task.client_id === req.user.id;
 
             if (req.user.role !== 'admin' && !isOwner) {
                 console.log('[FileController] Auth failed. isOwner:', isOwner);
@@ -210,7 +212,8 @@ const FileController = {
                     const admins = await User.findAdmins();
                     for (const admin of admins) {
                         Notification.create({
-                            userId: admin.id,
+                            recipientId: admin.id,
+                            recipientType: 'admin',
                             type: 'new_file',
                             message: `${req.user.full_name} uploaded ${files.length} file(s) to Task #${taskId}`
                         }).catch(e => console.error('Failed to create admin notification:', e));
@@ -225,7 +228,8 @@ const FileController = {
 
                             // In-App
                             Notification.create({
-                                userId: client.id,
+                                recipientId: client.id,
+                                recipientType: 'mentor',
                                 type: 'new_file',
                                 message: `New file(s) uploaded to Task #${taskId}: ${files[0].originalname}${files.length > 1 ? '...' : ''}`
                             }).catch(e => console.error('Failed to create client notification:', e));
@@ -241,7 +245,6 @@ const FileController = {
         }
     },
 
-    // Get file download URL
     async getDownloadUrl(req, res) {
         try {
             const { fileId } = req.params;
@@ -261,8 +264,18 @@ const FileController = {
                 return res.status(403).json({ error: 'Access denied' });
             }
 
-            const { url, filename } = await R2Service.getDownloadUrl(fileId);
-            res.json({ url, filename });
+            const result = await R2Service.getDownloadUrl(fileId);
+
+            // F-10 fix: stream local files through this auth'd controller rather than
+            // redirecting to a public /uploads URL (static middleware has been removed)
+            if (result.isLocal) {
+                const fileStream = await R2Service.getFileStream(`local:${result.localPath}`);
+                res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+                res.setHeader('Content-Type', 'application/octet-stream');
+                return fileStream.pipe(res);
+            }
+
+            res.json({ url: result.url, filename: result.filename });
         } catch (error) {
             console.error('Download URL Error:', error);
             res.status(404).json({ error: 'File not found' });

@@ -3,7 +3,7 @@ import { Edit2, Trash2, Calendar, CheckCircle, Clock, FileText, Copy, MessageSqu
 import { formatDate, formatCurrency } from '../../utils/formatters';
 import { PriorityBadge, StatusBadge } from '../common/Badges';
 import ChatComponent from '../chat/ChatComponent';
-import axios from 'axios';
+import { api } from '../../services/api';
 
 const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onDownloadFile, onUploadFile, onDeliverWork, onQuoteResponse, onSendQuote, onDuplicate, onPaymentSuccess, user }) => {
     const [isVerifying, setIsVerifying] = useState(false);
@@ -21,7 +21,7 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
         setIsInitializing(true);
         try {
             const phase = (task.requires_deposit && !task.deposit_paid) ? 'deposit' : 'balance';
-            const intentRes = await axios.post('/api/payments/initialize', { taskId: task.id, phase });
+            const intentRes = await api.post('/payments/initialize', { taskId: task.id, phase });
             if (!intentRes.data.success) {
                 alert('Could not start payment. Please try again.');
                 return;
@@ -52,7 +52,7 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
                 onSuccess: async (response) => {
                     setIsVerifying(true);
                     try {
-                        const apiResponse = await axios.post('/api/payments/verify', {
+                        const apiResponse = await api.post('/payments/verify', {
                             reference: response.reference,
                             taskId: task.id,
                             nonce  // required by updated verifyPayment

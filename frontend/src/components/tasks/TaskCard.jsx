@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import { api } from '../../services/api';
 import { Calendar, DollarSign, Edit, Trash2, FileText, CheckCircle, CreditCard, Loader2, ShieldCheck } from 'lucide-react';
 import { PriorityBadge, StatusBadge } from '../common/Badges';
 import { formatDate, formatCurrency } from '../../utils/formatters';
@@ -17,7 +17,7 @@ const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayme
         setIsInitializing(true);
         try {
             const phase = (task.requires_deposit && !task.deposit_paid) ? 'deposit' : 'balance';
-            const intentRes = await axios.post('/api/payments/initialize', { taskId: task.id, phase });
+            const intentRes = await api.post('/payments/initialize', { taskId: task.id, phase });
             if (!intentRes.data.success) { alert('Could not start payment. Please try again.'); return; }
 
             const { nonce, amountKes, expectedAmountKes } = intentRes.data;
@@ -34,7 +34,7 @@ const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayme
                 onSuccess: async (response) => {
                     setIsVerifying(true);
                     try {
-                        const apiResponse = await axios.post('/api/payments/verify', {
+                        const apiResponse = await api.post('/payments/verify', {
                             reference: response.reference,
                             taskId: task.id,
                             nonce

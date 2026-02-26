@@ -1,21 +1,37 @@
 const { pool } = require('../config/database');
 
+/**
+ * Notification model — aligned with the live DB schema:
+ * id, recipient_type ENUM('admin','mentor','project'), recipient_id,
+ * notification_type, title, message, related_project_id, is_read, created_at
+ *
+ * recipient_type mapping used in this app:
+ *   'mentor'  → registered clients (users table)
+ *   'admin'   → admin users
+ *   'project' → (unused for now)
+ */
 class Notification {
-    static async create({ userId, type, message }) {
-        // Attempt to map 'client' to a valid enum if needed, or just insert. 
-        // Note: Schema has recipient_type enum('admin','mentor','project'). 'client' will fail.
-        // For now, we will try to insert, but this method might need schema update to work for clients.
-        // Also handling title which is non-nullable.
+    /**
+     * @param {object} opts
+     * @param {number} opts.recipientId      - The user ID to notify
+     * @param {string} [opts.recipientType]  - 'mentor' (client) | 'admin'. Defaults to 'mentor'
+     * @param {string} opts.type             - notification_type e.g. 'new_task', 'status_update'
+     * @param {string} opts.message          - Body text
+     * @param {string} [opts.title]          - Title label. Defaults to 'Notification'
+     * @param {number} [opts.relatedProjectId] - optional task/project id
+     */
+    static async create({ recipientId, recipientType = 'mentor', type, message, title = 'Notification', relatedProjectId = null }) {
         try {
             const [result] = await pool.execute(
-                'INSERT INTO notifications (recipient_id, recipient_type, notification_type, title, message) VALUES (?, ?, ?, ?, ?)',
-                [userId, 'mentor', type, 'Notification', message] // Temporary hack: using 'mentor' for client, 'Notification' for title
+                `INSERT INTO notifications
+                    (recipient_id, recipient_type, notification_type, title, message, related_project_id)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [recipientId, recipientType, type, title, message, relatedProjectId]
             );
             return result.insertId;
         } catch (e) {
             console.error('Notification creation failed:', e.message);
-            // Don't crash the caller
-            return null;
+            return null; // Never crash the caller — notifications are non-critical
         }
     }
 

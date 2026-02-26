@@ -1,7 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const paymentController = require('../controllers/paymentController');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireAdmin } = require('../middleware/auth');
+
+/**
+ * @route POST /api/payments/initialize
+ * @desc  Create a server-side payment intent before opening Paystack popup.
+ *        Returns a nonce + server-computed amount to embed in Paystack metadata.
+ * @access Private (Client/Admin)
+ */
+router.post('/initialize', authenticate, (req, res) => paymentController.initializePayment(req, res));
 
 /**
  * @route POST /api/payments/verify
@@ -20,8 +28,8 @@ router.post('/webhook', (req, res) => paymentController.handleWebhook(req, res))
 /**
  * @route GET /api/payments
  * @desc Fetch all successful project payments
- * @access Private (Admin)
+ * @access Private (Admin only) — F-04 fix: added requireAdmin
  */
-router.get('/', authenticate, (req, res) => paymentController.getPayments(req, res));
+router.get('/', authenticate, requireAdmin, (req, res) => paymentController.getPayments(req, res));
 
 module.exports = router;

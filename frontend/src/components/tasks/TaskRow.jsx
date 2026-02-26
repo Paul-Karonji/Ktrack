@@ -3,75 +3,79 @@ import { Edit2, Trash2, Calendar, CheckCircle, Clock, FileText, Copy, MessageSqu
 import { formatDate, formatCurrency } from '../../utils/formatters';
 import { PriorityBadge, StatusBadge } from '../common/Badges';
 import ChatComponent from '../chat/ChatComponent';
-import { usePaystackPayment } from 'react-paystack';
 import axios from 'axios';
 
 const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onDownloadFile, onUploadFile, onDeliverWork, onQuoteResponse, onSendQuote, onDuplicate, onPaymentSuccess, user }) => {
     const [isVerifying, setIsVerifying] = useState(false);
+    const [isInitializing, setIsInitializing] = useState(false);
     const [showChat, setShowChat] = useState(false);
     const fileRef = React.useRef(null);
 
     // ─── Paystack Logic ──────────────────────────────────────────────────────────
-    const exchangeRate = parseFloat(import.meta.env.VITE_EXCHANGE_RATE_USD_KES || 135);
-
-    // Determine payment amount based on deposit status
-    let paymentUsdAmount = parseFloat(task.quoted_amount) || parseFloat(task.expected_amount);
-    let isDeposit = false;
-
-    if (task.requires_deposit && !task.deposit_paid) {
-        paymentUsdAmount = parseFloat(task.deposit_amount);
-        isDeposit = true;
-    } else if (task.deposit_paid && !task.is_paid) {
-        paymentUsdAmount = (parseFloat(task.quoted_amount) || parseFloat(task.expected_amount)) - parseFloat(task.deposit_amount);
-    }
-
-    const kesAmount = paymentUsdAmount * exchangeRate;
-
-    const paystackConfig = {
-        reference: `task_${task.id}_${new Date().getTime()}`,
-        email: user.email,
-        amount: Math.round(kesAmount * 100), // convert to cents (KES)
-        currency: 'KES',
-        channels: ['card', 'mobile_money'],
-        publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
-        metadata: {
-            task_id: task.id,
-            task_name: task.task_name,
-            usd_amount: paymentUsdAmount,
-            exchange_rate: exchangeRate,
-            is_deposit: isDeposit,
-            custom_fields: [
-                { display_name: "Task ID", variable_name: "task_id", value: task.id },
-                { display_name: "USD Amount", variable_name: "usd_amount", value: paymentUsdAmount },
-                { display_name: "Exchange Rate", variable_name: "exchange_rate", value: exchangeRate },
-                { display_name: "Payment Type", variable_name: "payment_type", value: isDeposit ? 'Deposit' : 'Balance' }
-            ]
-        }
-    };
-
-    const initializePayment = usePaystackPayment(paystackConfig);
-
-    const handlePaystackSuccess = async (response) => {
-        setIsVerifying(true);
+    /**
+     * F-08/F-09 fix: Always call /api/payments/initialize first to get a
+     * server-computed amount + nonce before opening Paystack.
+     * This prevents clients from tampering with the amount in DevTools.
+     */
+    const handlePaystackOpen = async () => {
+        setIsInitializing(true);
         try {
-            const apiResponse = await axios.post('/api/payments/verify', {
-                reference: response.reference,
-                taskId: task.id
-            });
-
-            if (apiResponse.data.success) {
-                onPaymentSuccess?.(task.id);
+            const phase = (task.requires_deposit && !task.deposit_paid) ? 'deposit' : 'balance';
+            const intentRes = await axios.post('/api/payments/initialize', { taskId: task.id, phase });
+            if (!intentRes.data.success) {
+                alert('Could not start payment. Please try again.');
+                return;
             }
-        } catch (error) {
-            console.error('Payment verification failed:', error);
-            alert('Payment was successful, but we encountered an issue updating your task. Please contact support.');
-        } finally {
-            setIsVerifying(false);
-        }
-    };
 
-    const handlePaystackClose = () => {
-        console.log('Payment modal closed');
+            const { nonce, amountKes, expectedAmountKes } = intentRes.data;
+
+            // Build Paystack config using SERVER-provided amount (tamper-proof)
+            const PaystackPop = window.PaystackPop;
+            if (!PaystackPop) { alert('Paystack not loaded. Please refresh.'); return; }
+
+            const handler = PaystackPop.setup({
+                key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+                email: user.email,
+                amount: amountKes,        // server-computed, cannot be tampered
+                currency: 'KES',
+                channels: ['card', 'mobile_money'],
+                metadata: {
+                    task_id: task.id,
+                    task_name: task.task_name,
+                    is_deposit: phase === 'deposit',
+                    nonce,                // server-issued nonce for intent lookup
+                    custom_fields: [
+                        { display_name: 'Task ID', variable_name: 'task_id', value: task.id },
+                        { display_name: 'Phase', variable_name: 'phase', value: phase }
+                    ]
+                },
+                onSuccess: async (response) => {
+                    setIsVerifying(true);
+                    try {
+                        const apiResponse = await axios.post('/api/payments/verify', {
+                            reference: response.reference,
+                            taskId: task.id,
+                            nonce  // required by updated verifyPayment
+                        });
+                        if (apiResponse.data.success) {
+                            onPaymentSuccess?.(task.id);
+                        }
+                    } catch (error) {
+                        console.error('Payment verification failed:', error);
+                        alert('Payment was successful, but we encountered an issue updating your task. Please contact support.');
+                    } finally {
+                        setIsVerifying(false);
+                    }
+                },
+                onCancel: () => console.log('Payment cancelled')
+            });
+            handler.openIframe();
+        } catch (error) {
+            console.error('Payment initialization failed:', error);
+            alert('Could not start payment. Please try again.');
+        } finally {
+            setIsInitializing(false);
+        }
     };
 
     const handleFileChange = (e) => {
@@ -225,8 +229,8 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
                                 {task.quote_status === 'approved' && !task.is_paid && (
                                     <>
                                         <button
-                                            onClick={() => initializePayment(handlePaystackSuccess, handlePaystackClose)}
-                                            disabled={isVerifying}
+                                            onClick={handlePaystackOpen}
+                                            disabled={isVerifying || isInitializing}
                                             className="flex items-center justify-center gap-2 px-4 py-1.5 bg-gradient-to-r from-teal-600 to-blue-500 hover:from-teal-700 hover:to-blue-600 text-white rounded-full text-[11px] font-bold shadow-sm transition-all transform hover:scale-105 active:scale-95 disabled:opacity-70 w-full"
                                         >
                                             {isVerifying ? (
@@ -237,7 +241,7 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
                                             {task.requires_deposit && !task.deposit_paid ? 'Pay Deposit' : 'Pay Balance'}
                                         </button>
                                         <p className="text-[10px] text-gray-400 text-center italic mt-1 pb-1">
-                                            In KES (Approx. KSh {Math.round(kesAmount).toLocaleString()})
+                                            In KES (Approx. KSh {Math.round(expectedAmountKes || 0).toLocaleString()})
                                         </p>
                                     </>
                                 )}

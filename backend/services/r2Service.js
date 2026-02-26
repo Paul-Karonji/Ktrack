@@ -129,13 +129,13 @@ const R2Service = {
         const file = rows[0];
         const filePath = file.file_path || file.stored_filename;
 
-        // Check if local file
+        // F-10 fix: do NOT return a public /uploads URL — stream through the auth'd controller instead
         if (filePath.startsWith('local:')) {
             const filename = filePath.replace('local:', '');
             return {
-                url: `/uploads/${filename}`,
                 filename: file.original_filename,
-                isLocal: true
+                isLocal: true,
+                localPath: filename   // server-side path only — never exposed as a URL
             };
         }
 

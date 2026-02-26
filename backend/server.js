@@ -134,8 +134,8 @@ app.use((err, req, res, next) => {
 // making the app inherently CSRF-safe. Cookie-based CSRF breaks cross-origin SPA deployments.
 app.use(cookieParser());
 
-// Static files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// NOTE: /uploads static middleware intentionally removed (F-10 fix).
+// All file downloads must go through FileController.getDownloadUrl which enforces auth.
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -161,8 +161,7 @@ app.use('/api/files', apiLimiter, filesRoutes);
 app.use('/api/notifications', apiLimiter, notificationRoutes);
 app.use('/api/payments', apiLimiter, paymentRoutes);
 app.use('/api/guest-clients', apiLimiter, require('./routes/guestClients')); // Guest Client Routes
-// Serve local uploads
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// (F-10 fix: second /uploads static middleware also removed)
 
 // --- Serve frontend build ONLY IF it exists (backend-only friendly) ---
 const buildDir = path.join(__dirname, '../frontend/build');

@@ -95,6 +95,27 @@ const DatabasePatchService = {
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             `).catch(err => console.warn('⚠️ [DatabasePatch] payments table patch warning:', err.message));
 
+            // 4. Create payment_intents table (F-08/F-09 fix)
+            // Stores server-side payment expectations before Paystack is opened.
+            // verifyPayment and handleWebhook validate against this record.
+            await pool.execute(`
+                CREATE TABLE IF NOT EXISTS payment_intents (
+                    id         INT PRIMARY KEY AUTO_INCREMENT,
+                    task_id    INT NOT NULL,
+                    client_id  INT NOT NULL,
+                    phase      ENUM('deposit', 'balance', 'full') NOT NULL,
+                    amount_kes INT NOT NULL,
+                    currency   VARCHAR(10) NOT NULL DEFAULT 'KES',
+                    nonce      VARCHAR(64) NOT NULL UNIQUE,
+                    reference  VARCHAR(100) NULL,
+                    status     ENUM('pending','completed','failed') NOT NULL DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP NOT NULL,
+                    FOREIGN KEY (task_id)   REFERENCES tasks(id) ON DELETE CASCADE,
+                    FOREIGN KEY (client_id) REFERENCES users(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            `).catch(err => console.warn('⚠️ [DatabasePatch] payment_intents table patch warning:', err.message));
+
             console.log('✅ [DatabasePatch] Schema updates checked/applied.');
         } catch (error) {
             console.error('❌ [DatabasePatch] Patching failed:', error);

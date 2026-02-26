@@ -77,7 +77,8 @@ class MessageController {
                     const admins = await User.findAdmins();
                     for (const admin of admins) {
                         Notification.create({
-                            userId: admin.id,
+                            recipientId: admin.id,
+                            recipientType: 'admin',
                             type: 'new_message',
                             message: `New message from ${req.user.full_name} on Task #${taskId}`
                         }).catch(e => console.error('Failed to create admin notification:', e));
@@ -93,7 +94,8 @@ class MessageController {
 
                             // In-App
                             Notification.create({
-                                userId: client.id,
+                                recipientId: client.id,
+                                recipientType: 'mentor',
                                 type: 'new_message',
                                 message: `New reply on Task #${taskId} from Admin`
                             }).catch(e => console.error('Failed to create client notification:', e));

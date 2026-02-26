@@ -162,7 +162,8 @@ class TaskController {
               EmailService.sendEmail({ to: clientUser.email, subject: clientSubject, html: clientHtml }).catch(e => console.error('Failed to notify client of assigned task:', e));
 
               Notification.create({
-                userId: finalClientId,
+                recipientId: finalClientId,
+                recipientType: 'mentor',
                 type: 'task_assigned',
                 message: `A new task has been added to your account: ${task.task_name || task.task_description?.substring(0, 50) + '...'}`
               }).catch(e => console.error('Failed to create client notification:', e));
@@ -172,7 +173,8 @@ class TaskController {
               EmailService.sendEmail({ to: clientUser.email, subject: clientSubject, html: clientHtml }).catch(e => console.error('Failed to notify client:', e));
 
               Notification.create({
-                userId: finalClientId,
+                recipientId: finalClientId,
+                recipientType: 'mentor',
                 type: 'task_received',
                 message: `We received your task: ${taskDescription.substring(0, 50)}...`
               }).catch(e => console.error('Failed to create client notification:', e));
@@ -185,7 +187,8 @@ class TaskController {
           const admins = await User.findAdmins();
           for (const admin of admins) {
             Notification.create({
-              userId: admin.id,
+              recipientId: admin.id,
+              recipientType: 'admin',
               type: 'new_task',
               message: `New task from ${finalClientName}: ${taskDescription.substring(0, 50)}...`
             }).catch(e => console.error('Failed to create admin notification:', e));
@@ -281,7 +284,8 @@ class TaskController {
 
               // In-App
               Notification.create({
-                userId: client.id,
+                recipientId: client.id,
+                recipientType: 'mentor',
                 type: 'status_update',
                 message: `Task #${updatedTask.id} status updated to: ${req.body.status}`
               }).catch(e => console.error('Failed to create notification:', e));
@@ -309,6 +313,14 @@ class TaskController {
         return res.status(404).json({
           success: false,
           message: 'Task not found'
+        });
+      }
+
+      // F-01 Fix: Require admin role OR task ownership before deletion
+      if (req.user.role !== 'admin' && existingTask.client_id !== req.user.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You do not own this task.'
         });
       }
 
@@ -403,7 +415,8 @@ class TaskController {
 
             // In-App
             Notification.create({
-              userId: client.id,
+              recipientId: client.id,
+              recipientType: 'mentor',
               type: 'quote_sent',
               message: `New quote received for Task #${updatedTask.id}: $${amount}`
             }).catch(e => console.error('Failed to create notification:', e));
@@ -429,11 +442,12 @@ class TaskController {
         return res.status(404).json({ success: false, message: 'Task not found' });
       }
 
-      // Check ownership (if not admin)
+      // F-02 Fix: Enforce ownership — the check was written but body was empty
       if (req.user.role !== 'admin' && existingTask.client_id !== req.user.id) {
-        // Assuming client_id is stored, but wait, do we store client_id?
-        // In Task.js create, we added client_id.
-        // Let's verify if Task model has client_id in findById result
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You do not own this task.'
+        });
       }
 
       let updates = {};

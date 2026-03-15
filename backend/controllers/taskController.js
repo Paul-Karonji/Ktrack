@@ -100,19 +100,20 @@ class TaskController {
         });
       }
 
-      // Auto-accept quote for guest clients if amount is provided
+      // Auto-approve price when admin sets it at creation:
+      // - Guest clients: they can't log in to accept quotes manually
+      // - Registered clients: admin has agreed on the final price, client should pay directly
       let quoteStatus = 'pending_quote';
       let expectedAmount = otherFields.expectedAmount;
-      let quotedAmount = undefined; // Initialize quotedAmount
+      let quotedAmount = undefined;
 
-      if (finalGuestClientId) {
-        // Guest clients cannot accept quotes manually, so we auto-accept if amount is present
-        // Check either expectedAmount or quotedAmount
+      const isAdminSettingPrice = req.user && req.user.role === 'admin';
+      if (finalGuestClientId || (finalClientId && isAdminSettingPrice)) {
         const amount = otherFields.expectedAmount || otherFields.quotedAmount;
-        if (amount && amount > 0) {
-          quoteStatus = 'approved'; // Changed from 'accepted' to match DB enum
-          expectedAmount = amount; // Ensure expected amount is set
-          quotedAmount = amount;   // Also set quoted amount for consistency
+        if (amount && parseFloat(amount) > 0) {
+          quoteStatus = 'approved';
+          expectedAmount = amount;
+          quotedAmount = amount;
         }
       }
 
@@ -241,14 +242,14 @@ class TaskController {
         sensitiveFields.forEach(field => delete req.body[field]);
       }
 
-      // Auto-accept quote for guest clients
-      if (existingTask.guest_client_id) {
+      // Auto-approve price when admin edits a task with a registered or guest client
+      const isAdminEdit = req.user && req.user.role === 'admin';
+      if (existingTask.guest_client_id || (existingTask.client_id && isAdminEdit)) {
         const amount = req.body.expectedAmount || req.body.quotedAmount;
-        // If updating amount, or if amount exists and we're touching the task
-        if (amount && amount > 0) {
-          req.body.quoteStatus = 'approved'; // Changed from 'accepted' to match DB enum
+        if (amount && parseFloat(amount) > 0) {
+          req.body.quoteStatus = 'approved';
           req.body.expectedAmount = amount;
-          req.body.quotedAmount = amount; // Ensure quoted amount is also set
+          req.body.quotedAmount = amount;
         }
       }
 

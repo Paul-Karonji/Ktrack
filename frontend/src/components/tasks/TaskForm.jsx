@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Upload, FileText, DollarSign, Settings, Info, X, User } from 'lucide-react';
+import { Plus, Edit2, Upload, FileText, DollarSign, Settings, X, User } from 'lucide-react';
 import api from '../../services/api';
 import { formatCurrency } from '../../utils/formatters';
 
@@ -266,13 +266,16 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
     const renderFinancials = () => (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
-                <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-indigo-900 mb-1 flex items-center gap-2">
                     <DollarSign size={20} /> Pricing & Payment
                 </h3>
+                <p className="text-xs text-indigo-600 mb-4">
+                    For registered clients, the price you enter here is the <strong>final payable amount</strong> — no separate quote step required.
+                </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Current Amount ($)</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Final Price ($)</label>
                         <div className="relative">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
                             <input
@@ -285,6 +288,7 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
                                 placeholder="0.00"
                             />
                         </div>
+                        <p className="text-xs text-gray-400 mt-1">Client can pay immediately once task is created.</p>
                     </div>
 
                     <div className="flex flex-col justify-center">
@@ -298,19 +302,19 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
                             />
                             <div className="flex flex-col">
                                 <span className="font-bold text-gray-800 text-sm">Mark as Paid</span>
-                                <span className="text-xs text-gray-500">Transaction verified by admin</span>
+                                <span className="text-xs text-gray-500">Manually confirm offline payment</span>
                             </div>
                         </label>
                     </div>
                 </div>
             </div>
 
-            <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
-                <h3 className="text-lg font-bold text-orange-900 mb-2 flex items-center gap-2">
-                    <Info size={20} /> Quote History
+            <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
+                <h3 className="text-lg font-bold text-emerald-900 mb-2 flex items-center gap-2">
+                    <DollarSign size={20} /> Price Summary
                 </h3>
-                <p className="text-sm text-orange-700 mb-4">You can update the quoted amount here or through the main table.</p>
-                <div className="text-3xl font-black text-orange-800 font-mono">
+                <p className="text-sm text-emerald-700 mb-3">This is the amount the client will see and be charged.</p>
+                <div className="text-3xl font-black text-emerald-800 font-mono">
                     {formatCurrency(formData.expectedAmount || 0)}
                 </div>
             </div>

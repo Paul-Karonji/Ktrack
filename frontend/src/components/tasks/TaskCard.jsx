@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { api } from '../../services/api';
-import { Calendar, DollarSign, Edit, Trash2, FileText, CheckCircle, CreditCard, Loader2, ShieldCheck } from 'lucide-react';
+import { Calendar, DollarSign, Edit, Trash2, FileText, CheckCircle, CreditCard, Loader2, ShieldCheck, MessageSquare } from 'lucide-react';
 import { PriorityBadge, StatusBadge } from '../common/Badges';
 import { formatDate, formatCurrency } from '../../utils/formatters';
+import ChatComponent from '../chat/ChatComponent';
 
 const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onDownloadFile, onDeliverWork, onSendQuote, onPaymentSuccess, user }) => {
     const [isVerifying, setIsVerifying] = useState(false);
     const [isInitializing, setIsInitializing] = useState(false);
+    const [showChat, setShowChat] = useState(false);
 
     // ─── Paystack Logic ──────────────────────────────────────────────────────────
     /**
@@ -124,7 +126,22 @@ const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayme
             </div>
 
             {/* Actions */}
-            <div className="flex gap-2 pt-3 border-t border-gray-100">
+            <div className="flex gap-2 pt-3 border-t border-gray-100 flex-wrap">
+                {/* Chat button — always visible */}
+                <button
+                    onClick={() => setShowChat(!showChat)}
+                    className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all
+                        ${showChat ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-50 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600'}`}
+                    title="Chat"
+                >
+                    <MessageSquare size={14} />
+                    Chat
+                    {task.unread_count > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center border border-white">
+                            {task.unread_count}
+                        </span>
+                    )}
+                </button>
                 {onEdit && (
                     <button
                         onClick={() => onEdit(task)}
@@ -190,6 +207,13 @@ const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayme
                     </div>
                 )}
             </div>
+
+            {/* Inline Chat */}
+            {showChat && (
+                <div className="border-t-2 border-indigo-100 bg-gray-50 p-3">
+                    <ChatComponent taskId={task.id} user={user} onClose={() => setShowChat(false)} />
+                </div>
+            )}
         </div>
     );
 };

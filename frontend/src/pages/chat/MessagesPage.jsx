@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigation } from '../../context/NavigationContext';
 import { apiService } from '../../services/api';
-import Sidebar from '../layout/Sidebar';
+import Sidebar from '../../components/layout/Sidebar';
 import ChatComponent from '../../components/chat/ChatComponent';
 import { MessageSquare, Menu, Users } from 'lucide-react';
 

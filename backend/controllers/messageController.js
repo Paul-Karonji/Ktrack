@@ -5,11 +5,14 @@ const EmailService = require('../services/emailService');
 const templates = require('../templates/emailTemplates');
 const Notification = require('../models/Notification');
 const r2Service = require('../services/r2Service');
+const { getIo } = require('../services/socketService');
 
 class MessageController {
     static async getMessages(req, res) {
         try {
             const taskId = req.params.taskId;
+            const limit = parseInt(req.query.limit) || 50;
+            const offset = parseInt(req.query.offset) || 0;
 
             // Security Check
             const task = await Task.findById(taskId);
@@ -19,7 +22,7 @@ class MessageController {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
-            const messages = await Message.findByTaskId(taskId);
+            const messages = await Message.findByTaskId(taskId, limit, offset);
 
             // Decorate messages with full file URL
             const decoratedMessages = messages.map(msg => {
@@ -62,6 +65,14 @@ class MessageController {
                 senderId,
                 message
             });
+
+            // Emit socket event
+            try {
+                const io = getIo();
+                io.to(`task_${taskId}`).emit('new_message', newMessage);
+            } catch (err) {
+                console.error('Socket error:', err.message);
+            }
 
             res.status(201).json(newMessage);
 
@@ -164,6 +175,14 @@ class MessageController {
                 fileType: file.mimetype
             });
 
+            // Emit socket event
+            try {
+                const io = getIo();
+                io.to(`task_${taskId}`).emit('new_message', newMessage);
+            } catch (err) {
+                console.error('Socket error:', err.message);
+            }
+
             res.status(201).json({ success: true, message: newMessage });
 
             // Send notifications (similar to text messages)
@@ -225,6 +244,123 @@ class MessageController {
         } catch (error) {
             console.error('Error downloading file:', error);
             res.status(500).json({ success: false, message: 'Failed to download file' });
+        }
+    }
+
+    // --- General Messages ---
+    
+    static async getGeneralMessages(req, res) {
+        try {
+            const clientId = parseInt(req.params.clientId);
+            const limit = parseInt(req.query.limit) || 50;
+            const offset = parseInt(req.query.offset) || 0;
+
+            if (req.user.role !== 'admin' && req.user.id !== clientId) {
+                return res.status(403).json({ success: false, message: 'Access denied' });
+            }
+
+            const messages = await Message.findByClientId(clientId, limit, offset);
+
+            const decoratedMessages = messages.map(msg => {
+                if (msg.file_url) {
+                    return {
+                        ...msg,
+                        file_url: `/api/messages/file/${msg.id}`
+                    };
+                }
+                return msg;
+            });
+
+            res.json(decoratedMessages);
+        } catch (error) {
+            console.error('Error fetching general messages:', error);
+            res.status(500).json({ success: false, message: 'Failed to fetch messages' });
+        }
+    }
+
+    static async sendGeneralMessage(req, res) {
+        try {
+            const { message } = req.body;
+            const clientId = parseInt(req.params.clientId);
+            const senderId = req.user.id;
+
+            if (!message || !message.trim()) {
+                return res.status(400).json({ success: false, message: 'Message cannot be empty' });
+            }
+
+            if (req.user.role !== 'admin' && req.user.id !== clientId) {
+                return res.status(403).json({ success: false, message: 'Access denied' });
+            }
+
+            const newMessage = await Message.create({
+                clientId,
+                senderId,
+                message
+            });
+
+            try {
+                const io = getIo();
+                io.to(`general_${clientId}`).emit('new_message', newMessage);
+            } catch (err) {
+                console.error('Socket error:', err.message);
+            }
+
+            res.status(201).json(newMessage);
+
+            // Simple notification logic
+            if (req.user.role === 'client') {
+                const { subject, html } = templates.newMessage(req.user.full_name, message, 'General Info');
+                EmailService.notifyAdmin({ subject, html }).catch(e => console.error(e));
+            } else if (req.user.role === 'admin') {
+                const client = await User.findById(clientId);
+                if (client && client.email) {
+                    const { subject, html } = templates.newMessageClient(client.full_name, message, 'General Info');
+                    EmailService.sendEmail({ to: client.email, subject, html }).catch(e => console.error(e));
+                }
+            }
+        } catch (error) {
+            console.error('Error sending general message:', error);
+            res.status(500).json({ success: false, message: 'Failed to send message' });
+        }
+    }
+
+    static async uploadGeneralFile(req, res) {
+        try {
+            const clientId = parseInt(req.params.clientId);
+            const senderId = req.user.id;
+            const file = req.file;
+
+            if (!file) {
+                return res.status(400).json({ success: false, message: 'No file provided' });
+            }
+
+            if (req.user.role !== 'admin' && req.user.id !== clientId) {
+                return res.status(403).json({ success: false, message: 'Access denied' });
+            }
+
+            const { fileUrl, storedFilename } = await r2Service.uploadToStorage(file, `general_${clientId}`);
+
+            const newMessage = await Message.create({
+                clientId,
+                senderId,
+                message: '[File]',
+                fileUrl,
+                fileName: file.originalname,
+                fileSize: file.size,
+                fileType: file.mimetype
+            });
+
+            try {
+                const io = getIo();
+                io.to(`general_${clientId}`).emit('new_message', newMessage);
+            } catch (err) {
+                console.error('Socket error:', err.message);
+            }
+
+            res.status(201).json({ success: true, message: newMessage });
+        } catch (error) {
+            console.error('Error uploading general file:', error);
+            res.status(500).json({ success: false, message: 'Failed to upload file' });
         }
     }
 }

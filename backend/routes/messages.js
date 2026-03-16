@@ -26,4 +26,14 @@ router.post('/tasks/:taskId/file', auth, upload.single('file'), MessageControlle
 // Download file from message
 router.get('/file/:messageId', auth, MessageController.downloadFile);
 
+// --- General Messages ---
+// Get general messages for a client
+router.get('/general/:clientId', auth, MessageController.getGeneralMessages);
+
+// Send general message
+router.post('/general/:clientId', auth, MessageController.sendGeneralMessage);
+
+// Upload file to general message
+router.post('/general/:clientId/file', auth, upload.single('file'), MessageController.uploadGeneralFile);
+
 module.exports = router;

@@ -3,18 +3,20 @@ const { pool } = require('../config/database');
 class Message {
     // Create new message
     static async create(messageData) {
-        const { taskId, senderId, message, fileUrl, fileName, fileSize, fileType } = messageData;
+        const { taskId, clientId, senderId, message, fileUrl, fileName, fileSize, fileType } = messageData;
 
         const [result] = await pool.execute(
-            'INSERT INTO messages (task_id, sender_id, message, file_url, file_name, file_size, file_type) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [taskId, senderId, message, fileUrl || null, fileName || null, fileSize || null, fileType || null]
+            'INSERT INTO messages (task_id, client_id, sender_id, message, file_url, file_name, file_size, file_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [taskId || null, clientId || null, senderId, message, fileUrl || null, fileName || null, fileSize || null, fileType || null]
         );
 
-        // Update last_message_at on task
-        await pool.execute(
-            'UPDATE tasks SET last_message_at = CURRENT_TIMESTAMP WHERE id = ?',
-            [taskId]
-        );
+        if (taskId) {
+            // Update last_message_at on task
+            await pool.execute(
+                'UPDATE tasks SET last_message_at = CURRENT_TIMESTAMP WHERE id = ?',
+                [taskId]
+            );
+        }
 
         return this.findById(result.insertId);
     }
@@ -31,14 +33,34 @@ class Message {
     }
 
     // Get all messages for a task
-    static async findByTaskId(taskId) {
+    static async findByTaskId(taskId, limit = 50, offset = 0) {
         const [rows] = await pool.execute(`
-      SELECT m.*, u.full_name as sender_name, u.role as sender_role
-      FROM messages m
-      JOIN users u ON m.sender_id = u.id
-      WHERE m.task_id = ?
-      ORDER BY m.created_at ASC
-    `, [taskId]);
+            SELECT * FROM (
+                SELECT m.*, u.full_name as sender_name, u.role as sender_role
+                FROM messages m
+                JOIN users u ON m.sender_id = u.id
+                WHERE m.task_id = ?
+                ORDER BY m.created_at DESC
+                LIMIT ? OFFSET ?
+            ) sub
+            ORDER BY created_at ASC
+        `, [taskId, Number(limit), Number(offset)]);
+        return rows;
+    }
+
+    // Get general messages for a client
+    static async findByClientId(clientId, limit = 50, offset = 0) {
+        const [rows] = await pool.execute(`
+            SELECT * FROM (
+                SELECT m.*, u.full_name as sender_name, u.role as sender_role
+                FROM messages m
+                JOIN users u ON m.sender_id = u.id
+                WHERE m.client_id = ? AND m.task_id IS NULL
+                ORDER BY m.created_at DESC
+                LIMIT ? OFFSET ?
+            ) sub
+            ORDER BY created_at ASC
+        `, [clientId, Number(limit), Number(offset)]);
         return rows;
     }
 

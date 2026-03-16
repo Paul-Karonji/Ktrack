@@ -155,10 +155,17 @@ export const apiService = {
     respondToQuote: (taskId, action) => api.post(`/tasks/${taskId}/quote/respond`, { action }).then(res => res.data),
 
     // Chat
-    getMessages: (taskId) => api.get(`/messages/tasks/${taskId}`).then(res => res.data),
+    // Chat
+    getMessages: (taskId, limit = 50, offset = 0) => api.get(`/messages/tasks/${taskId}`, { params: { limit, offset } }).then(res => res.data),
     sendMessage: (taskId, message) => api.post(`/messages/tasks/${taskId}`, { message }).then(res => res.data),
     markMessagesRead: (taskId) => api.put(`/messages/tasks/${taskId}/read`).then(res => res.data),
     uploadMessageFile: (taskId, formData) => api.post(`/messages/tasks/${taskId}/file`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    }).then(res => res.data),
+    
+    getGeneralMessages: (clientId, limit = 50, offset = 0) => api.get(`/messages/general/${clientId}`, { params: { limit, offset } }).then(res => res.data),
+    sendGeneralMessage: (clientId, message) => api.post(`/messages/general/${clientId}`, { message }).then(res => res.data),
+    uploadGeneralMessageFile: (clientId, formData) => api.post(`/messages/general/${clientId}/file`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     }).then(res => res.data),
 

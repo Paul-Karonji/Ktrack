@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { SocketProvider } from './context/SocketContext';
 import { NavigationProvider } from './context/NavigationContext';
 import { AnalyticsProvider } from './context/AnalyticsContext';
 import Login from './components/auth/Login';
@@ -14,15 +15,17 @@ import Clients from './pages/admin/Clients';
 import Payments from './pages/admin/Payments';
 import PrivateRoute from './components/auth/PrivateRoute';
 import LandingPage from './pages/LandingPage';
+import MessagesPage from './pages/chat/MessagesPage';
 import WhatsAppButton from './components/common/WhatsAppButton';
 
 const App = () => {
   return (
     <Router>
       <AuthProvider>
-        <NavigationProvider>
-          <AnalyticsProvider>
-            <Routes>
+        <SocketProvider>
+          <NavigationProvider>
+            <AnalyticsProvider>
+              <Routes>
               {/* Public Routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
@@ -109,6 +112,15 @@ const App = () => {
                 }
               />
 
+              <Route
+                path="/messages"
+                element={
+                  <PrivateRoute>
+                    <MessagesPage />
+                  </PrivateRoute>
+                }
+              />
+
               {/* Landing Page */}
               <Route path="/" element={<LandingPage />} />
 
@@ -118,8 +130,9 @@ const App = () => {
 
             {/* Global WhatsApp Contact Button */}
             <WhatsAppButton />
-          </AnalyticsProvider>
-        </NavigationProvider>
+            </AnalyticsProvider>
+          </NavigationProvider>
+        </SocketProvider>
       </AuthProvider>
     </Router>
   );

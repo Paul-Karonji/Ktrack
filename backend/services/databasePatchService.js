@@ -21,6 +21,27 @@ const DatabasePatchService = {
                 }
             });
 
+            // Make task_id nullable in messages table (for general chat)
+            await pool.execute(`
+                ALTER TABLE messages 
+                MODIFY COLUMN task_id INT NULL;
+            `).catch(err => {
+                if (err.code !== 'ER_NO_SUCH_TABLE') {
+                    console.warn('⚠️ [DatabasePatch] messages task_id nullable patch warning:', err.message);
+                }
+            });
+
+            // Add client_id to messages table (for general chat)
+            await pool.execute(`
+                ALTER TABLE messages 
+                ADD COLUMN client_id INT AFTER task_id;
+            `).catch(err => {
+                if (err.code !== 'ER_DUP_FIELDNAME' && err.code !== 'ER_NO_SUCH_TABLE') {
+                    console.warn('⚠️ [DatabasePatch] messages client_id patch warning:', err.message);
+                }
+            });
+
+
             // Increase file_type length in task_files table
             await pool.execute(`
                 ALTER TABLE task_files 

@@ -1,5 +1,6 @@
 // backend/server.js
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -24,8 +25,10 @@ const paymentRoutes = require('./routes/payments');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const requestIdMiddleware = require('./middleware/requestId');
 const DatabasePatchService = require('./services/databasePatchService');
+const { initSocket } = require('./services/socketService');
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 
 // Start Server after database is ready
@@ -37,7 +40,10 @@ const startServer = async () => {
     // Run schema patches and wait for completion
     await DatabasePatchService.applyPatches();
 
-    app.listen(PORT, () => {
+    // Initialize Socket.io
+    initSocket(server);
+
+    server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🔗 API URL: http://localhost:${PORT}/api`);

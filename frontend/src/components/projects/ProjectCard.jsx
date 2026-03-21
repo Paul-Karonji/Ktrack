@@ -1,9 +1,39 @@
 import React, { useState } from 'react';
-import { Calendar, DollarSign, User, Edit, Trash2, FileText, CheckCircle, Clock, MessageSquare } from 'lucide-react';
+import {
+    Calendar,
+    User,
+    Edit,
+    Trash2,
+    FileText,
+    CheckCircle,
+    MessageSquare,
+    CreditCard,
+    Loader2
+} from 'lucide-react';
 import ChatComponent from '../chat/ChatComponent';
+import TaskPaymentSummary from '../payments/TaskPaymentSummary';
+import { canTaskBePaid, getPaymentActionLabel, shouldShowSendQuote } from '../../utils/paymentSummary';
+import useTaskPayment from '../../hooks/useTaskPayment';
 
-const ProjectCard = ({ task, isOnline, hideAmounts, user, onEdit, onDelete, onTogglePayment, onDownloadFile, onDeliverWork, onSendQuote }) => {
+const ProjectCard = ({
+    task,
+    isOnline,
+    hideAmounts,
+    user,
+    onEdit,
+    onDelete,
+    onTogglePayment,
+    onDownloadFile,
+    onDeliverWork,
+    onSendQuote,
+    onPaymentSuccess
+}) => {
     const [showChat, setShowChat] = useState(false);
+    const { expectedKesAmount, isInitializing, isVerifying, startPayment } = useTaskPayment({
+        task,
+        user,
+        onPaymentSuccess
+    });
 
     const priorityColors = {
         low: 'bg-green-100 text-green-700 border-green-200',
@@ -15,31 +45,25 @@ const ProjectCard = ({ task, isOnline, hideAmounts, user, onEdit, onDelete, onTo
     const statusColors = {
         not_started: 'bg-gray-100 text-gray-700',
         in_progress: 'bg-blue-100 text-blue-700',
+        pending_deposit: 'bg-orange-100 text-orange-700',
         review: 'bg-purple-100 text-purple-700',
         completed: 'bg-green-100 text-green-700',
         cancelled: 'bg-red-100 text-red-700'
     };
 
-    const isDeliverableAvailable = task.status === 'completed' && task.has_file;
+    const clientName = task.display_client_name || task.client_name;
+    const showPayButton = user?.role === 'client' && canTaskBePaid(task) && Number(task.is_paid) !== 1;
+    const payLabel = getPaymentActionLabel(task);
 
     const formatDate = (dateString) => {
         if (!dateString) return 'Not set';
         return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     };
 
-    const formatCurrency = (amount) => {
-        if (!amount) return '$0.00';
-        return `$${parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    };
-
-    const clientName = task.display_client_name || task.client_name;
-
     return (
         <div className="bg-white rounded-2xl border-2 border-gray-100 hover:border-indigo-200 hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden">
-            {/* Card Body */}
-            <div className="p-6 flex flex-col flex-1">
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
+            <div className="p-6 flex flex-col flex-1 gap-4">
+                <div className="flex items-start justify-between">
                     <h3 className="font-bold text-lg text-gray-900 line-clamp-2 flex-1 pr-2">
                         {task.task_name || 'Untitled Task'}
                     </h3>
@@ -48,22 +72,14 @@ const ProjectCard = ({ task, isOnline, hideAmounts, user, onEdit, onDelete, onTo
                     </span>
                 </div>
 
-                {/* Description */}
-                <p className="text-sm text-gray-600 mb-4 line-clamp-2 min-h-[40px]">
+                <p className="text-sm text-gray-600 line-clamp-2 min-h-[40px]">
                     {task.task_description || 'No description provided'}
                 </p>
 
-                {/* Meta Info */}
-                <div className="space-y-2 mb-4 flex-1">
+                <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-2 text-sm text-gray-500">
                         <Calendar size={14} className="text-indigo-500 flex-shrink-0" />
                         <span>Due: <span className="font-medium text-gray-700">{formatDate(task.date_delivered)}</span></span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <DollarSign size={14} className="text-emerald-500 flex-shrink-0" />
-                        <span className={`font-semibold text-emerald-700 text-base ${hideAmounts ? 'blur-sm select-none' : ''}`}>
-                            {formatCurrency(task.expected_amount)}
-                        </span>
                     </div>
                     {clientName && (
                         <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -84,38 +100,46 @@ const ProjectCard = ({ task, isOnline, hideAmounts, user, onEdit, onDelete, onTo
                     )}
                 </div>
 
-                {/* Status + Payment row */}
-                <div className="pt-3 border-t border-gray-100 flex items-center justify-between mb-3">
-                    <div className="flex flex-col gap-1">
-                        <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${statusColors[task.status || 'not_started']}`}>
-                            {(task.status || 'not_started').replace(/_/g, ' ').toUpperCase()}
-                        </span>
-                        {task.status === 'completed' && task.has_file && (
-                            <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-1">
-                                <CheckCircle size={10} /> Delivered
-                            </span>
-                        )}
-                    </div>
+                <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+                    <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${statusColors[task.status || 'not_started']}`}>
+                        {(task.status || 'not_started').replace(/_/g, ' ').toUpperCase()}
+                    </span>
                     {user?.role === 'admin' ? (
                         <button
                             onClick={() => onTogglePayment && onTogglePayment(task.id)}
                             disabled={!isOnline}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${task.is_paid
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${Number(task.is_paid) === 1
                                 ? 'bg-green-100 text-green-700 hover:bg-green-200'
                                 : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
                                 } ${!isOnline ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                            title="Click to toggle payment status"
                         >
-                            {task.is_paid ? <><CheckCircle size={12} /> Paid</> : <><Clock size={12} /> Unpaid</>}
+                            {Number(task.is_paid) === 1 ? 'Paid' : 'Pending'}
                         </button>
                     ) : (
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${task.is_paid ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                            {task.is_paid ? <><CheckCircle size={12} /> Paid</> : <><Clock size={12} /> Unpaid</>}
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${Number(task.is_paid) === 1 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                            {Number(task.is_paid) === 1 ? 'Paid' : 'Outstanding'}
                         </span>
                     )}
                 </div>
 
-                {/* Action Bar */}
+                <TaskPaymentSummary task={task} hideAmounts={hideAmounts} compact />
+
+                {showPayButton && (
+                    <div className="space-y-2">
+                        <button
+                            onClick={startPayment}
+                            disabled={isVerifying || isInitializing}
+                            className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-600 to-teal-500 text-white rounded-xl text-sm font-bold hover:from-emerald-700 hover:to-teal-600 transition-all disabled:opacity-70"
+                        >
+                            {isVerifying ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
+                            {payLabel}
+                        </button>
+                        <p className="text-[10px] text-gray-400 text-center italic">
+                            KES (Approx. KSh {Math.round(expectedKesAmount || 0).toLocaleString()})
+                        </p>
+                    </div>
+                )}
+
                 <div className="flex gap-2">
                     {onEdit && (
                         <button
@@ -127,7 +151,6 @@ const ProjectCard = ({ task, isOnline, hideAmounts, user, onEdit, onDelete, onTo
                             Edit
                         </button>
                     )}
-                    {/* Chat button */}
                     <button
                         onClick={() => setShowChat(!showChat)}
                         disabled={!isOnline}
@@ -153,10 +176,10 @@ const ProjectCard = ({ task, isOnline, hideAmounts, user, onEdit, onDelete, onTo
                             <FileText size={15} />
                         </button>
                     )}
-                    {onSendQuote && user?.role === 'admin' && task.quote_status === 'pending_quote' && (
+                    {onSendQuote && user?.role === 'admin' && shouldShowSendQuote(task) && (
                         <button
                             onClick={() => onSendQuote(task)}
-                            className="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-all shadow-sm transform active:scale-95"
+                            className="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-all shadow-sm"
                         >
                             Send Quote
                         </button>
@@ -183,14 +206,9 @@ const ProjectCard = ({ task, isOnline, hideAmounts, user, onEdit, onDelete, onTo
                 </div>
             </div>
 
-            {/* Inline Chat Panel */}
             {showChat && (
                 <div className="border-t-2 border-indigo-100 bg-gray-50 p-4">
-                    <ChatComponent
-                        taskId={task.id}
-                        user={user}
-                        onClose={() => setShowChat(false)}
-                    />
+                    <ChatComponent taskId={task.id} user={user} onClose={() => setShowChat(false)} />
                 </div>
             )}
         </div>

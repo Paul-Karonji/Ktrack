@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
     Plus, Clock, CheckCircle, HelpCircle, Search,
     LayoutDashboard, History, Wallet, Sparkles,
@@ -11,6 +11,8 @@ import TaskForm from '../components/tasks/TaskForm';
 import HelpModal from '../components/common/HelpModal';
 import ClientProjectCard from '../components/projects/ClientProjectCard';
 import { useNavigation } from '../context/NavigationContext';
+import BulkPaymentCard from '../components/payments/BulkPaymentCard';
+import useBulkPayment from '../hooks/useBulkPayment';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const getGreeting = () => {
@@ -100,6 +102,12 @@ const ClientDashboard = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [view, setView] = useState('grid');
     const [sortBy, setSortBy] = useState('date_delivered');
+    const bulkPayment = useBulkPayment({
+        user,
+        onPaymentSuccess: async () => {
+            await onPaymentSuccess?.();
+        }
+    });
 
     // Mobile sidebar toggle
     const { openSidebar } = useNavigation?.() || {};
@@ -125,12 +133,16 @@ const ClientDashboard = ({
         [tasks]
     );
 
+    useEffect(() => {
+        bulkPayment.loadSummary();
+    }, [tasks, bulkPayment.loadSummary]);
+
     // ── Filtered + sorted tasks ───────────────────────────────────────────────
     const displayTasks = useMemo(() => {
         let r = [...tasks];
         if (activeTab === 'active') r = r.filter(t => !['completed', 'cancelled'].includes(t.status) || !t.is_paid);
         if (activeTab === 'history') r = r.filter(t => ['completed', 'cancelled'].includes(t.status) && t.is_paid);
-        if (activeTab === 'quotes') r = r.filter(t => t.quote_status === 'quote_sent' || (t.quote_status === 'approved' && !t.is_paid));
+        if (activeTab === 'quotes') r = r.filter(t => t.quote_status === 'quote_sent');
         if (searchTerm.trim()) {
             const q = searchTerm.toLowerCase();
             r = r.filter(t =>
@@ -273,6 +285,15 @@ const ClientDashboard = ({
                     </div>
                 ))}
             </div>
+
+            <BulkPaymentCard
+                summary={bulkPayment.summary}
+                isLoading={bulkPayment.isLoadingSummary}
+                isInitializing={bulkPayment.isInitializing}
+                isVerifying={bulkPayment.isVerifying}
+                onRefresh={bulkPayment.loadSummary}
+                onPay={bulkPayment.startBulkPayment}
+            />
 
             {/* ── 4. Financial Summary + Activity Feed ──────────────────────── */}
             {tasks.length > 0 && (

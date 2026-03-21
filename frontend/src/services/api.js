@@ -139,6 +139,11 @@ export const apiService = {
     deleteTask: (id) => api.delete(`/tasks/${id}`).then(res => res.data),
     togglePayment: (id) => api.patch(`/tasks/${id}/toggle-payment`).then(res => res.data),
     getPaymentHistory: () => api.get('/payments').then(res => res.data),
+    getOutstandingSummary: () => api.get('/payments/outstanding-summary').then(res => res.data),
+    initializeBulkPayment: () => api.post('/payments/initialize-bulk').then(res => res.data),
+    verifyBulkPayment: (payload) => api.post('/payments/verify-bulk', payload).then(res => res.data),
+    getPaymentSettings: () => api.get('/payments/settings').then(res => res.data),
+    updatePaymentSettings: (payload) => api.put('/payments/settings', payload).then(res => res.data),
     // Files
     getAllFiles: (params) => api.get('/files', { params }).then(res => res.data),
     getFileStats: () => api.get('/files/stats').then(res => res.data),

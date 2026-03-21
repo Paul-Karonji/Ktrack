@@ -26,6 +26,7 @@ const { errorHandler, notFound } = require('./middleware/errorHandler');
 const requestIdMiddleware = require('./middleware/requestId');
 const DatabasePatchService = require('./services/databasePatchService');
 const { initSocket } = require('./services/socketService');
+const paymentReminderService = require('./services/paymentReminderService');
 
 const app = express();
 const server = http.createServer(app);
@@ -39,6 +40,8 @@ const startServer = async () => {
 
     // Run schema patches and wait for completion
     await DatabasePatchService.applyPatches();
+
+    paymentReminderService.start();
 
     // Initialize Socket.io
     initSocket(server);
@@ -194,10 +197,12 @@ app.use(errorHandler);
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully');
+  paymentReminderService.stop();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   console.log('SIGINT received, shutting down gracefully');
+  paymentReminderService.stop();
   process.exit(0);
 });

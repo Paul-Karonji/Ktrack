@@ -4,11 +4,9 @@ import { useNavigation } from '../../context/NavigationContext';
 import Sidebar from '../../components/layout/Sidebar';
 import apiService from '../../services/api';
 import {
-    CreditCard, Search, Calendar, User, FileText,
-    TrendingUp, ExternalLink, Filter, Menu, ArrowRight,
-    SearchX, Loader2, DollarSign
+    CreditCard, Search, Menu,
+    SearchX, Loader2, TrendingUp, BellRing, Save
 } from 'lucide-react';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const Payments = () => {
     const { user, logout } = useAuth();
@@ -17,16 +15,27 @@ const Payments = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [stats, setStats] = useState({ totalUsd: 0, totalKes: 0, count: 0 });
+    const [settings, setSettings] = useState({
+        depositRemindersEnabled: true,
+        depositReminderIntervalHours: 24,
+        balanceRemindersEnabled: true,
+        balanceReminderIntervalDays: 7
+    });
+    const [savingSettings, setSavingSettings] = useState(false);
 
     const fetchPayments = useCallback(async () => {
         try {
             setLoading(true);
-            const response = await apiService.getPaymentHistory();
-            if (response.success) {
-                setPayments(response.data);
+            const [paymentsResponse, settingsResponse] = await Promise.all([
+                apiService.getPaymentHistory(),
+                apiService.getPaymentSettings()
+            ]);
+
+            if (paymentsResponse.success) {
+                setPayments(paymentsResponse.data);
 
                 // Calculate quick stats
-                const totals = response.data.reduce((acc, p) => {
+                const totals = paymentsResponse.data.reduce((acc, p) => {
                     acc.totalUsd += parseFloat(p.amount || 0);
                     acc.totalKes += parseFloat(p.kes_amount || 0);
                     return acc;
@@ -35,7 +44,16 @@ const Payments = () => {
                 setStats({
                     totalUsd: totals.totalUsd,
                     totalKes: totals.totalKes,
-                    count: response.data.length
+                    count: paymentsResponse.data.length
+                });
+            }
+
+            if (settingsResponse.success) {
+                setSettings({
+                    depositRemindersEnabled: Boolean(settingsResponse.data.deposit_reminders_enabled),
+                    depositReminderIntervalHours: settingsResponse.data.deposit_reminder_interval_hours,
+                    balanceRemindersEnabled: Boolean(settingsResponse.data.balance_reminders_enabled),
+                    balanceReminderIntervalDays: settingsResponse.data.balance_reminder_interval_days
                 });
             }
         } catch (error) {
@@ -50,9 +68,10 @@ const Payments = () => {
     }, [fetchPayments]);
 
     const filteredPayments = payments.filter(p =>
-        p.task_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.display_client_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (p.reference && p.reference.toLowerCase().includes(searchTerm.toLowerCase()))
+        (p.task_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.display_client_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.reference && p.reference.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (p.gateway_reference && p.gateway_reference.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     const formatDate = (dateStr) => {
@@ -75,6 +94,29 @@ const Payments = () => {
         style: 'currency',
         currency: 'KES'
     }).format(amount);
+
+    const handleSettingsChange = (event) => {
+        const { name, type, checked, value } = event.target;
+        setSettings((current) => ({
+            ...current,
+            [name]: type === 'checkbox' ? checked : Number(value)
+        }));
+    };
+
+    const saveSettings = async () => {
+        try {
+            setSavingSettings(true);
+            const response = await apiService.updatePaymentSettings(settings);
+            if (response.success) {
+                await fetchPayments();
+            }
+        } catch (error) {
+            console.error('Failed to save payment settings:', error);
+            alert(error.response?.data?.message || 'Failed to save reminder settings.');
+        } finally {
+            setSavingSettings(false);
+        }
+    };
 
     return (
         <div className="flex min-h-screen bg-gray-50">
@@ -108,6 +150,80 @@ const Payments = () => {
                                 <p className="text-[10px] uppercase font-black text-gray-400 tracking-widest">KES equivalent</p>
                                 <p className="text-lg font-bold">KSh {Math.round(stats.totalKes).toLocaleString()}</p>
                             </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 mb-6">
+                        <div className="flex items-center justify-between gap-4 mb-4">
+                            <div>
+                                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    <BellRing size={18} className="text-indigo-600" />
+                                    Balance Reminder Settings
+                                </h2>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Deposit reminders use hours. Balance reminders use days.
+                                </p>
+                            </div>
+                            <button
+                                onClick={saveSettings}
+                                disabled={savingSettings}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                                {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                Save
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <label className="rounded-2xl border border-gray-100 p-4 bg-gray-50 space-y-3">
+                                <div className="flex items-center justify-between gap-4">
+                                    <span className="font-bold text-gray-800">Deposit Reminders</span>
+                                    <input
+                                        type="checkbox"
+                                        name="depositRemindersEnabled"
+                                        checked={settings.depositRemindersEnabled}
+                                        onChange={handleSettingsChange}
+                                        className="h-5 w-5 text-indigo-600 rounded"
+                                    />
+                                </div>
+                                <div>
+                                    <p className="text-xs uppercase tracking-[0.18em] font-black text-gray-400 mb-2">Hours</p>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="168"
+                                        name="depositReminderIntervalHours"
+                                        value={settings.depositReminderIntervalHours}
+                                        onChange={handleSettingsChange}
+                                        className="w-full rounded-xl border border-gray-200 px-3 py-2 font-semibold"
+                                    />
+                                </div>
+                            </label>
+
+                            <label className="rounded-2xl border border-gray-100 p-4 bg-gray-50 space-y-3">
+                                <div className="flex items-center justify-between gap-4">
+                                    <span className="font-bold text-gray-800">Balance Reminders</span>
+                                    <input
+                                        type="checkbox"
+                                        name="balanceRemindersEnabled"
+                                        checked={settings.balanceRemindersEnabled}
+                                        onChange={handleSettingsChange}
+                                        className="h-5 w-5 text-indigo-600 rounded"
+                                    />
+                                </div>
+                                <div>
+                                    <p className="text-xs uppercase tracking-[0.18em] font-black text-gray-400 mb-2">Days</p>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="90"
+                                        name="balanceReminderIntervalDays"
+                                        value={settings.balanceReminderIntervalDays}
+                                        onChange={handleSettingsChange}
+                                        className="w-full rounded-xl border border-gray-200 px-3 py-2 font-semibold"
+                                    />
+                                </div>
+                            </label>
                         </div>
                     </div>
 
@@ -162,10 +278,13 @@ const Payments = () => {
                                         {filteredPayments.map((p) => (
                                             <tr key={p.id} className="hover:bg-indigo-50/30 transition-colors group">
                                                 <td className="p-5">
-                                                    <div className="flex flex-col">
-                                                        <div className="text-sm font-bold text-gray-900">{formatDate(p.created_at)}</div>
+                                                        <div className="flex flex-col">
+                                                            <div className="text-sm font-bold text-gray-900">{formatDate(p.created_at)}</div>
+                                                            <div className="text-[10px] font-mono text-gray-400 uppercase tracking-tighter">
+                                                            ENTRY: {p.reference || 'N/A'}
+                                                        </div>
                                                         <div className="text-[10px] font-mono text-gray-400 uppercase tracking-tighter">
-                                                            REF: {p.reference || 'N/A'}
+                                                            GATEWAY: {p.gateway_reference || p.reference || 'N/A'}
                                                         </div>
                                                     </div>
                                                 </td>

@@ -93,7 +93,7 @@ const SendQuoteModal = ({ task, onConfirm, onClose }) => {
                     <div className="mt-6 flex gap-3 text-gray-400 bg-gray-50 p-4 rounded-xl border border-gray-100">
                         <Info size={16} className="shrink-0 mt-0.5" />
                         <p className="text-[10px] italic leading-tight">
-                            The client will be notified immediately and must approve the quote before{requiresDeposit ? ' partial ' : ' '}payment is accepted.
+                            Use this only for client-submitted tasks. The client will be notified immediately and must approve the quote before{requiresDeposit ? ' partial ' : ' '}payment is accepted.
                         </p>
                     </div>
 

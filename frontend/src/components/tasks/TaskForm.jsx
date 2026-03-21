@@ -270,7 +270,7 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
                     <DollarSign size={20} /> Pricing & Payment
                 </h3>
                 <p className="text-xs text-indigo-600 mb-4">
-                    For registered clients, the price you enter here is the <strong>final payable amount</strong> — no separate quote step required.
+                    Admin-created tasks use direct pricing. Client-created tasks still follow the quote workflow.
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -291,7 +291,20 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
                         <p className="text-xs text-gray-400 mt-1">Client can pay immediately once task is created.</p>
                     </div>
 
-                    <div className="flex flex-col justify-center">
+                    <div className="flex flex-col justify-center gap-3">
+                        <label className="flex items-center gap-3 p-4 bg-white rounded-xl border-2 border-gray-100 cursor-pointer hover:border-indigo-200 transition-colors">
+                            <input
+                                type="checkbox"
+                                name="requiresDeposit"
+                                checked={Boolean(formData.requiresDeposit)}
+                                onChange={onChange}
+                                className="w-6 h-6 text-indigo-600 rounded focus:ring-indigo-500"
+                            />
+                            <div className="flex flex-col">
+                                <span className="font-bold text-gray-800 text-sm">Require Deposit First</span>
+                                <span className="text-xs text-gray-500">Use a deposit before work starts on direct-price tasks</span>
+                            </div>
+                        </label>
                         <label className="flex items-center gap-3 p-4 bg-white rounded-xl border-2 border-gray-100 cursor-pointer hover:border-indigo-200 transition-colors">
                             <input
                                 type="checkbox"
@@ -317,6 +330,11 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
                 <div className="text-3xl font-black text-emerald-800 font-mono">
                     {formatCurrency(formData.expectedAmount || 0)}
                 </div>
+                {Boolean(formData.requiresDeposit) && Number(formData.expectedAmount || 0) > 0 && (
+                    <p className="text-sm text-emerald-700 mt-2">
+                        Deposit due first: {formatCurrency(Number(formData.expectedAmount || 0) / 2)}
+                    </p>
+                )}
             </div>
         </div>
     );

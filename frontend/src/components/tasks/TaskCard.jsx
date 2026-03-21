@@ -1,90 +1,60 @@
 import React, { useState } from 'react';
-import { api } from '../../services/api';
-import { Calendar, DollarSign, Edit, Trash2, FileText, CheckCircle, CreditCard, Loader2, ShieldCheck, MessageSquare } from 'lucide-react';
+import {
+    Calendar,
+    Edit,
+    Trash2,
+    FileText,
+    CheckCircle,
+    CreditCard,
+    Loader2,
+    MessageSquare
+} from 'lucide-react';
 import { PriorityBadge, StatusBadge } from '../common/Badges';
-import { formatDate, formatCurrency } from '../../utils/formatters';
+import { formatDate } from '../../utils/formatters';
 import ChatComponent from '../chat/ChatComponent';
+import TaskPaymentSummary from '../payments/TaskPaymentSummary';
+import { canTaskBePaid, getPaymentActionLabel, shouldShowQuoteActions, shouldShowSendQuote } from '../../utils/paymentSummary';
+import useTaskPayment from '../../hooks/useTaskPayment';
 
-const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onDownloadFile, onDeliverWork, onSendQuote, onPaymentSuccess, user }) => {
-    const [isVerifying, setIsVerifying] = useState(false);
-    const [isInitializing, setIsInitializing] = useState(false);
+const TaskCard = ({
+    task,
+    isOnline,
+    hideAmounts,
+    onEdit,
+    onDelete,
+    onDownloadFile,
+    onDeliverWork,
+    onSendQuote,
+    onQuoteResponse,
+    onPaymentSuccess,
+    user
+}) => {
     const [showChat, setShowChat] = useState(false);
+    const { expectedKesAmount, isInitializing, isVerifying, startPayment } = useTaskPayment({
+        task,
+        user,
+        onPaymentSuccess
+    });
 
-    // ─── Paystack Logic ──────────────────────────────────────────────────────────
-    /**
-     * F-08/F-09 fix: Call /api/payments/initialize first to get server-computed
-     * amount + nonce, then open Paystack with those values.
-     */
-    const handlePaystackOpen = async () => {
-        setIsInitializing(true);
-        try {
-            const phase = (task.requires_deposit && !task.deposit_paid) ? 'deposit' : 'balance';
-            const intentRes = await api.post('/payments/initialize', { taskId: task.id, phase });
-            if (!intentRes.data.success) { alert('Could not start payment. Please try again.'); return; }
+    const showPayButton = user?.role === 'client' && canTaskBePaid(task) && Number(task.is_paid) !== 1;
+    const actionLabel = getPaymentActionLabel(task);
 
-            const { nonce, amountKes, expectedAmountKes } = intentRes.data;
-            const PaystackPop = window.PaystackPop;
-            if (!PaystackPop) { alert('Paystack not loaded. Please refresh.'); return; }
-
-            const handler = PaystackPop.setup({
-                key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
-                email: user.email,
-                amount: amountKes,
-                currency: 'KES',
-                channels: ['card', 'mobile_money'],
-                metadata: { task_id: task.id, task_name: task.task_name, is_deposit: phase === 'deposit', nonce },
-                onSuccess: async (response) => {
-                    setIsVerifying(true);
-                    try {
-                        const apiResponse = await api.post('/payments/verify', {
-                            reference: response.reference,
-                            taskId: task.id,
-                            nonce
-                        });
-                        if (apiResponse.data.success) onPaymentSuccess?.(task.id);
-                    } catch (error) {
-                        console.error('Payment verification failed:', error);
-                        alert('Payment was successful, but updating failed. Contact support.');
-                    } finally { setIsVerifying(false); }
-                },
-                onCancel: () => console.log('Payment cancelled')
-            });
-            handler.openIframe();
-        } catch (error) {
-            console.error('Payment initialization failed:', error);
-            alert('Could not start payment. Please try again.');
-        } finally { setIsInitializing(false); }
-    };
     return (
-        <div className="bg-white rounded-xl shadow-md p-4 space-y-3 border border-gray-100 hover:shadow-lg transition-shadow">
-            {/* Client & Task Name */}
+        <div className="bg-white rounded-xl shadow-md p-4 space-y-4 border border-gray-100 hover:shadow-lg transition-shadow">
             <div>
                 <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Client</p>
-                <p className="font-semibold text-gray-900 text-lg">{task.client_name}</p>
+                <p className="font-semibold text-gray-900 text-lg">{task.display_client_name || task.client_name}</p>
                 {task.task_name && (
                     <p className="text-sm font-medium text-indigo-600 mt-1">{task.task_name}</p>
                 )}
                 <p className="text-sm text-gray-600 mt-2 line-clamp-2">{task.task_description}</p>
             </div>
 
-            {/* Priority & Status Badges */}
             <div className="flex flex-wrap gap-2">
                 <PriorityBadge priority={task.priority} />
                 <StatusBadge status={task.status} />
-                {task.is_paid ? (
-                    <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 flex items-center gap-1">
-                        <CheckCircle size={12} />
-                        Paid
-                    </span>
-                ) : task.deposit_paid ? (
-                    <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 flex items-center gap-1">
-                        <ShieldCheck size={12} />
-                        Deposit Paid
-                    </span>
-                ) : null}
             </div>
 
-            {/* Timeline */}
             <div className="grid grid-cols-2 gap-3 text-sm pt-2 border-t border-gray-100">
                 <div>
                     <p className="text-xs text-gray-500 flex items-center gap-1">
@@ -102,32 +72,9 @@ const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayme
                 </div>
             </div>
 
-            {/* Amount */}
-            <div className="pt-2 border-t border-gray-100">
-                <div className="flex justify-between items-end">
-                    <div>
-                        <p className="text-xs text-gray-500 flex items-center gap-1">
-                            <DollarSign size={12} />
-                            {task.deposit_paid && !task.is_paid ? 'Remaining Balance' : 'Project Total'}
-                        </p>
-                        <p className="text-xl font-bold text-indigo-600">
-                            {hideAmounts ? '****' : formatCurrency(task.deposit_paid && !task.is_paid ? (task.quoted_amount - task.deposit_amount) : (task.quoted_amount || task.expected_amount))}
-                        </p>
-                    </div>
-                    {task.deposit_paid && !task.is_paid && (
-                        <div className="text-right">
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">Total Project</p>
-                            <p className="text-sm font-medium text-gray-500 line-through decoration-gray-300">
-                                {formatCurrency(task.quoted_amount)}
-                            </p>
-                        </div>
-                    )}
-                </div>
-            </div>
+            <TaskPaymentSummary task={task} hideAmounts={hideAmounts} compact />
 
-            {/* Actions */}
             <div className="flex gap-2 pt-3 border-t border-gray-100 flex-wrap">
-                {/* Chat button — always visible */}
                 <button
                     onClick={() => setShowChat(!showChat)}
                     className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all
@@ -142,6 +89,7 @@ const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayme
                         </span>
                     )}
                 </button>
+
                 {onEdit && (
                     <button
                         onClick={() => onEdit(task)}
@@ -152,6 +100,7 @@ const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayme
                         Edit
                     </button>
                 )}
+
                 {onDownloadFile && (
                     <button
                         onClick={() => onDownloadFile(task.id)}
@@ -161,6 +110,7 @@ const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayme
                         Files
                     </button>
                 )}
+
                 {onDeliverWork && user?.role === 'admin' && (task.status === 'in_progress' || task.status === 'review') && (
                     <button
                         onClick={() => onDeliverWork(task.id)}
@@ -170,6 +120,7 @@ const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayme
                         Deliver
                     </button>
                 )}
+
                 {onDelete && user?.role === 'admin' && (
                     <button
                         onClick={() => onDelete(task.id)}
@@ -179,7 +130,8 @@ const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayme
                         <Trash2 size={16} />
                     </button>
                 )}
-                {user?.role === 'admin' && task.quote_status === 'pending_quote' && (
+
+                {user?.role === 'admin' && shouldShowSendQuote(task) && (
                     <button
                         onClick={() => onSendQuote(task)}
                         className="flex-1 px-3 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-all shadow-sm transform active:scale-95"
@@ -187,28 +139,41 @@ const TaskCard = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayme
                         Send Quote
                     </button>
                 )}
-                {user?.role === 'client' && !task.is_paid && task.quote_status === 'approved' && (
+
+                {user?.role === 'client' && shouldShowQuoteActions(task) && (
+                    <div className="flex w-full gap-2">
+                        <button
+                            onClick={() => onQuoteResponse?.(task.id, 'approve')}
+                            className="flex-1 px-3 py-2.5 bg-green-100 text-green-700 rounded-lg text-sm font-bold hover:bg-green-200"
+                        >
+                            Accept Quote
+                        </button>
+                        <button
+                            onClick={() => onQuoteResponse?.(task.id, 'reject')}
+                            className="flex-1 px-3 py-2.5 bg-red-100 text-red-700 rounded-lg text-sm font-bold hover:bg-red-200"
+                        >
+                            Reject
+                        </button>
+                    </div>
+                )}
+
+                {showPayButton && (
                     <div className="flex-1 flex flex-col gap-1">
                         <button
-                            onClick={handlePaystackOpen}
+                            onClick={startPayment}
                             disabled={isVerifying || isInitializing || !isOnline}
                             className="w-full px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 text-white rounded-lg text-sm font-bold hover:from-emerald-700 hover:to-teal-600 transition-all flex items-center justify-center gap-2 shadow-sm transform active:scale-95 disabled:opacity-50"
                         >
-                            {isVerifying ? (
-                                <Loader2 size={16} className="animate-spin" />
-                            ) : (
-                                <CreditCard size={16} />
-                            )}
-                            {task.requires_deposit && !task.deposit_paid ? 'Pay 50% Deposit' : 'Pay Balance'}
+                            {isVerifying ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
+                            {actionLabel}
                         </button>
                         <p className="text-[10px] text-gray-400 text-center italic">
-                            KES (Approx. KSh {Math.round(expectedAmountKes || 0).toLocaleString()})
+                            KES (Approx. KSh {Math.round(expectedKesAmount || 0).toLocaleString()})
                         </p>
                     </div>
                 )}
             </div>
 
-            {/* Inline Chat */}
             {showChat && (
                 <div className="border-t-2 border-indigo-100 bg-gray-50 p-3">
                     <ChatComponent taskId={task.id} user={user} onClose={() => setShowChat(false)} />

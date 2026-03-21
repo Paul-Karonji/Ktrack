@@ -253,25 +253,75 @@ const templates = {
 
     // Sent to CLIENT when admin creates/assigns a task to them
     taskAssigned: (userName, task) => {
+        const projectTotal = Number(task.project_total || task.quoted_amount || task.expected_amount || 0);
+        const depositRequired = Number(task.requires_deposit) === 1;
+        const depositAmount = Number(task.deposit_amount || 0);
         const title = 'A New Task Has Been Added for You';
         const content = `
             <p style="color: #374151; font-size: 16px;">Hi <strong>${userName}</strong>,</p>
             <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">
-                Your account manager has added a new task to your dashboard. Here are the details:
+                Your account manager has added a new task to your dashboard.
             </p>
             <div style="background-color: #f9fafb; border-radius: 8px; padding: 20px; margin-bottom: 24px; border-left: 4px solid #4f46e5;">
                 <h3 style="margin: 0 0 8px 0; color: #111827; font-size: 16px;">${task.task_name || 'New Task'}</h3>
                 <p style="margin: 0 0 12px 0; color: #4b5563; font-size: 14px; line-height: 1.6;">${task.task_description || ''}</p>
-                ${task.expected_amount ? `<p style="margin: 0; color: #6b7280; font-size: 13px;">Expected amount: <strong>$${task.expected_amount}</strong></p>` : ''}
+                ${projectTotal > 0 ? `<p style="margin: 0 0 6px 0; color: #6b7280; font-size: 13px;">Project total: <strong>$${projectTotal.toFixed(2)}</strong></p>` : ''}
+                ${depositRequired && depositAmount > 0 ? `<p style="margin: 0; color: #6b7280; font-size: 13px;">Deposit due before work starts: <strong>$${depositAmount.toFixed(2)}</strong></p>` : ''}
             </div>
             <p style="color: #374151; font-size: 15px; margin-bottom: 24px;">
-                Log in to your dashboard to view the full details, ask questions, or track the progress.
+                ${projectTotal > 0
+                    ? (depositRequired
+                        ? 'The price is already set, so you can log in and pay the deposit immediately.'
+                        : 'The price is already set, so you can log in and pay immediately.')
+                    : 'Log in to your dashboard to view the full details, ask questions, or track the progress.'}
             </p>
             <div style="text-align: center;">
                 <a href="${CLIENT_URL}/dashboard" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600;">View My Dashboard</a>
             </div>
         `;
         return { subject: `📋 New Task Added: ${task.task_name || 'New Task'}`, html: baseTemplate(content, title) };
+    },
+
+    paymentReminderSummary: (userName, tasks, totalDue) => {
+        const title = 'Outstanding Payment Reminder';
+        const rows = tasks.map((task) => `
+            <tr>
+                <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+                    <div style="font-weight: 700; color: #111827;">${task.task_name || `Task #${task.id}`}</div>
+                    <div style="font-size: 12px; color: #6b7280;">${task.payment_state_label}</div>
+                </td>
+                <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 700; color: #4f46e5;">
+                    $${Number(task.current_due_amount || 0).toFixed(2)}
+                </td>
+            </tr>
+        `).join('');
+
+        const content = `
+            <p style="color: #374151; font-size: 16px;">Hi <strong>${userName}</strong>,</p>
+            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">
+                This is a K-Track reminder that you still have an outstanding amount to clear on your account.
+            </p>
+            <div style="background-color: #f9fafb; border-radius: 8px; padding: 20px; margin-bottom: 24px; border-left: 4px solid #4f46e5;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    ${rows}
+                </table>
+            </div>
+            <div style="background-color: #eef2ff; border-radius: 8px; padding: 18px; margin-bottom: 24px; text-align: center;">
+                <div style="color: #6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;">Total Due Now</div>
+                <div style="color: #312e81; font-size: 28px; font-weight: 800;">$${Number(totalDue || 0).toFixed(2)}</div>
+            </div>
+            <p style="color: #374151; font-size: 15px; margin-bottom: 24px;">
+                Log in to your dashboard to clear the balance for one task or use the total due button to settle everything in one payment.
+            </p>
+            <div style="text-align: center;">
+                <a href="${CLIENT_URL}/dashboard" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600;">Open My Dashboard</a>
+            </div>
+        `;
+
+        return {
+            subject: `K-Track Payment Reminder: $${Number(totalDue || 0).toFixed(2)} Due`,
+            html: baseTemplate(content, title)
+        };
     },
 
     // Sent to CLIENT when admin rejects their registration

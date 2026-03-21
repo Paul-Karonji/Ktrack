@@ -8,6 +8,7 @@ const taskSchema = Joi.object({
   dateDelivered: Joi.date().iso().allow(null, ''),
   expectedAmount: Joi.number().min(0).allow('', null).optional(),
   isPaid: Joi.boolean().default(false),
+  requiresDeposit: Joi.boolean().default(false),
   quantity: Joi.number().min(1).allow('', null).default(1),
   priority: Joi.string().valid('low', 'medium', 'high', 'urgent').default('medium'),
   status: Joi.string().valid('not_started', 'in_progress', 'review', 'completed', 'pending_deposit', 'cancelled').default('not_started'),

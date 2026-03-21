@@ -14,11 +14,19 @@ import TaskForm from '../components/tasks/TaskForm';
 import FileManager from '../components/files/FileManager';
 import SendQuoteModal from '../components/tasks/SendQuoteModal';
 import { useNavigation } from '../context/NavigationContext';
+import BulkPaymentCard from '../components/payments/BulkPaymentCard';
+import useBulkPayment from '../hooks/useBulkPayment';
 
 const Projects = () => {
     const { user, logout } = useAuth();
     const { openSidebar } = useNavigation();
     const isOnline = useOnlineStatus();
+    const bulkPayment = useBulkPayment({
+        user,
+        onPaymentSuccess: async () => {
+            await loadTasks();
+        }
+    });
 
     // Use the same useTasks hook as Dashboard for live mutations
     const { tasks, loading, loadTasks, createTask, updateTask, deleteTask, togglePayment } = useTasks();
@@ -42,6 +50,7 @@ const Projects = () => {
         dateDelivered: '',
         expectedAmount: '',
         isPaid: false,
+        requiresDeposit: false,
         priority: 'medium',
         status: 'not_started',
         notes: '',
@@ -60,6 +69,12 @@ const Projects = () => {
     useEffect(() => {
         loadTasks();
     }, [loadTasks]);
+
+    useEffect(() => {
+        if (user?.role === 'client') {
+            bulkPayment.loadSummary();
+        }
+    }, [user?.role, tasks, bulkPayment.loadSummary]);
 
     // Apply filters and sorting whenever tasks/filters/search/sort change
     useEffect(() => {
@@ -134,6 +149,7 @@ const Projects = () => {
             dateDelivered: '',
             expectedAmount: '',
             isPaid: false,
+            requiresDeposit: false,
             priority: 'medium',
             status: 'not_started',
             notes: '',
@@ -174,6 +190,7 @@ const Projects = () => {
             dateDelivered: task.date_delivered ? task.date_delivered.split('T')[0] : '',
             expectedAmount: task.expected_amount.toString(),
             isPaid: task.is_paid,
+            requiresDeposit: Boolean(task.requires_deposit),
             priority: task.priority || 'medium',
             status: task.status || 'not_started',
             notes: task.notes || '',
@@ -310,6 +327,7 @@ const Projects = () => {
             dateDelivered: '',
             expectedAmount: task.expected_amount,
             isPaid: false,
+            requiresDeposit: Boolean(task.requires_deposit),
             priority: task.priority || 'medium',
             status: 'not_started',
             notes: task.notes || '',
@@ -324,6 +342,13 @@ const Projects = () => {
     const handleClearFilters = () => {
         setFilters({});
         setSearchTerm('');
+    };
+
+    const handlePaymentSuccess = async () => {
+        await loadTasks();
+        if (user?.role === 'client') {
+            await bulkPayment.loadSummary();
+        }
     };
 
     return (
@@ -413,6 +438,17 @@ const Projects = () => {
                     {/* Analytics */}
                     <ProjectAnalytics tasks={filteredTasks} />
 
+                    {user?.role === 'client' && (
+                        <BulkPaymentCard
+                            summary={bulkPayment.summary}
+                            isLoading={bulkPayment.isLoadingSummary}
+                            isInitializing={bulkPayment.isInitializing}
+                            isVerifying={bulkPayment.isVerifying}
+                            onRefresh={bulkPayment.loadSummary}
+                            onPay={bulkPayment.startBulkPayment}
+                        />
+                    )}
+
                     {/* Search & Sort */}
                     <div className="flex flex-col md:flex-row gap-4">
                         <div className="flex-1 relative">
@@ -488,6 +524,7 @@ const Projects = () => {
                                     onDownloadFile={handleDownloadFile}
                                     onDeliverWork={handleDeliverWork}
                                     onSendQuote={handleSendQuote}
+                                    onPaymentSuccess={handlePaymentSuccess}
                                 />
                             ) : (
                                 <TaskTable
@@ -505,6 +542,7 @@ const Projects = () => {
                                     onQuoteResponse={handleQuoteResponse}
                                     onSendQuote={handleSendQuote}
                                     onDuplicate={handleDuplicate}
+                                    onPaymentSuccess={handlePaymentSuccess}
                                 />
                             )}
                         </div>

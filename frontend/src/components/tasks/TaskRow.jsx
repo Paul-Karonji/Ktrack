@@ -1,91 +1,58 @@
 import React, { useState } from 'react';
-import { Edit2, Trash2, Calendar, CheckCircle, Clock, FileText, Copy, MessageSquare, Upload, CreditCard, Loader2, ShieldCheck } from 'lucide-react';
+import {
+    Edit2,
+    Trash2,
+    Calendar,
+    CheckCircle,
+    Clock,
+    FileText,
+    Copy,
+    MessageSquare,
+    Upload,
+    CreditCard,
+    Loader2
+} from 'lucide-react';
 import { formatDate, formatCurrency } from '../../utils/formatters';
 import { PriorityBadge, StatusBadge } from '../common/Badges';
 import ChatComponent from '../chat/ChatComponent';
-import { api } from '../../services/api';
+import TaskPaymentSummary from '../payments/TaskPaymentSummary';
+import { canTaskBePaid, getPaymentActionLabel, shouldShowQuoteActions, shouldShowSendQuote } from '../../utils/paymentSummary';
+import useTaskPayment from '../../hooks/useTaskPayment';
 
-const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onDownloadFile, onUploadFile, onDeliverWork, onQuoteResponse, onSendQuote, onDuplicate, onPaymentSuccess, user }) => {
-    const [isVerifying, setIsVerifying] = useState(false);
-    const [isInitializing, setIsInitializing] = useState(false);
+const TaskRow = ({
+    task,
+    isOnline,
+    hideAmounts,
+    onEdit,
+    onDelete,
+    onTogglePayment,
+    onDownloadFile,
+    onUploadFile,
+    onDeliverWork,
+    onQuoteResponse,
+    onSendQuote,
+    onDuplicate,
+    onPaymentSuccess,
+    user
+}) => {
     const [showChat, setShowChat] = useState(false);
     const fileRef = React.useRef(null);
+    const { expectedKesAmount, isInitializing, isVerifying, startPayment } = useTaskPayment({
+        task,
+        user,
+        onPaymentSuccess
+    });
 
-    // ─── Paystack Logic ──────────────────────────────────────────────────────────
-    /**
-     * F-08/F-09 fix: Always call /api/payments/initialize first to get a
-     * server-computed amount + nonce before opening Paystack.
-     * This prevents clients from tampering with the amount in DevTools.
-     */
-    const handlePaystackOpen = async () => {
-        setIsInitializing(true);
-        try {
-            const phase = (task.requires_deposit && !task.deposit_paid) ? 'deposit' : 'balance';
-            const intentRes = await api.post('/payments/initialize', { taskId: task.id, phase });
-            if (!intentRes.data.success) {
-                alert('Could not start payment. Please try again.');
-                return;
-            }
-
-            const { nonce, amountKes, expectedAmountKes } = intentRes.data;
-
-            // Build Paystack config using SERVER-provided amount (tamper-proof)
-            const PaystackPop = window.PaystackPop;
-            if (!PaystackPop) { alert('Paystack not loaded. Please refresh.'); return; }
-
-            const handler = PaystackPop.setup({
-                key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
-                email: user.email,
-                amount: amountKes,        // server-computed, cannot be tampered
-                currency: 'KES',
-                channels: ['card', 'mobile_money'],
-                metadata: {
-                    task_id: task.id,
-                    task_name: task.task_name,
-                    is_deposit: phase === 'deposit',
-                    nonce,                // server-issued nonce for intent lookup
-                    custom_fields: [
-                        { display_name: 'Task ID', variable_name: 'task_id', value: task.id },
-                        { display_name: 'Phase', variable_name: 'phase', value: phase }
-                    ]
-                },
-                onSuccess: async (response) => {
-                    setIsVerifying(true);
-                    try {
-                        const apiResponse = await api.post('/payments/verify', {
-                            reference: response.reference,
-                            taskId: task.id,
-                            nonce  // required by updated verifyPayment
-                        });
-                        if (apiResponse.data.success) {
-                            onPaymentSuccess?.(task.id);
-                        }
-                    } catch (error) {
-                        console.error('Payment verification failed:', error);
-                        alert('Payment was successful, but we encountered an issue updating your task. Please contact support.');
-                    } finally {
-                        setIsVerifying(false);
-                    }
-                },
-                onCancel: () => console.log('Payment cancelled')
-            });
-            handler.openIframe();
-        } catch (error) {
-            console.error('Payment initialization failed:', error);
-            alert('Could not start payment. Please try again.');
-        } finally {
-            setIsInitializing(false);
-        }
-    };
-
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
+    const handleFileChange = (event) => {
+        const file = event.target.files[0];
         if (file) {
             onUploadFile(task.id, file);
         }
-        // Reset input
-        e.target.value = '';
+        event.target.value = '';
     };
+
+    const showPayButton = user?.role === 'client' && canTaskBePaid(task) && Number(task.is_paid) !== 1;
+    const payLabel = getPaymentActionLabel(task);
 
     return (
         <>
@@ -124,8 +91,8 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
                             <button
                                 onClick={() => fileRef.current.click()}
                                 disabled={!isOnline}
-                                className={`flex items-center gap-1 text-xs mt-1 ${task.has_file ? 'text-gray-400 hover:text-indigo-600' : 'text-gray-400 hover:text-indigo-600'} font-medium`}
-                                title={task.has_file ? "Upload New File" : "Upload File"}
+                                className="flex items-center gap-1 text-xs mt-1 text-gray-400 hover:text-indigo-600 font-medium"
+                                title={task.has_file ? 'Upload New File' : 'Upload File'}
                             >
                                 <Upload size={14} /> {task.has_file ? 'New' : 'Upload'}
                             </button>
@@ -139,15 +106,11 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
                                         Guest
                                     </span>
                                 )}
-                                {task.guest_client_phone && (
-                                    <span className="ml-2 text-gray-400">
-                                        📱 {task.guest_client_phone}
-                                    </span>
-                                )}
                             </div>
                         )}
                     </div>
                 </td>
+
                 <td className="px-6 py-5">
                     <div className="flex flex-col gap-2 text-sm text-gray-600">
                         <div className="flex items-center gap-2">
@@ -160,29 +123,31 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
                         </div>
                     </div>
                 </td>
+
                 <td className="px-6 py-5">
                     <span className={`font-bold text-base ${hideAmounts ? 'blur-sm select-none' : 'text-gray-900'}`}>
-                        {formatCurrency(task.expected_amount)}
+                        {formatCurrency(task.current_due_amount || task.project_total || task.expected_amount)}
                     </span>
-                    {task.quoted_amount && task.status === 'pending_quote' && (
-                        <div className="text-sm text-orange-600 font-bold mt-1">
-                            Quote: {formatCurrency(task.quoted_amount)}
+                    {task.current_due_phase && (
+                        <div className="text-xs text-gray-500 mt-1 uppercase tracking-wide font-bold">
+                            {task.current_due_phase}
                         </div>
                     )}
                 </td>
+
                 <td className="px-6 py-4">
-                    <PriorityBadge priority={task.priority} />
+                    <div className="flex flex-col gap-2">
+                        <PriorityBadge priority={task.priority} />
+                        <StatusBadge status={task.status} />
+                    </div>
                 </td>
-                <td className="px-6 py-4">
-                    <StatusBadge status={task.status} />
-                </td>
-                <td className="px-6 py-4">
-                    {user?.role === 'client' && task.quote_status === 'quote_sent' ? (
-                        <div className="flex flex-col gap-2">
-                            <div className="text-xs font-bold text-indigo-600 mb-1">
-                                Quote: {formatCurrency(task.quoted_amount)}
-                            </div>
-                            <div className="flex justify-center gap-2">
+
+                <td className="px-6 py-4 min-w-[340px]">
+                    <div className="space-y-3">
+                        <TaskPaymentSummary task={task} hideAmounts={hideAmounts} compact />
+
+                        {user?.role === 'client' && shouldShowQuoteActions(task) && (
+                            <div className="flex gap-2">
                                 <button
                                     onClick={() => onQuoteResponse(task.id, 'approve')}
                                     disabled={!isOnline}
@@ -198,164 +163,110 @@ const TaskRow = ({ task, isOnline, hideAmounts, onEdit, onDelete, onTogglePaymen
                                     Reject
                                 </button>
                             </div>
-                        </div>
-                    ) : (
-                        user?.role === 'client' ? (
-                            <div className="flex flex-col items-center gap-2">
-                                {/* Client View: Static Badge (No Click) */}
-                                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold ${task.is_paid
-                                    ? 'bg-green-100 text-green-700'
-                                    : task.deposit_paid
-                                        ? 'bg-blue-100 text-blue-700'
-                                        : 'bg-orange-100 text-orange-700'
-                                    }`}>
-                                    {task.is_paid ? (
-                                        <>
-                                            <CheckCircle size={14} />
-                                            Paid
-                                        </>
-                                    ) : task.deposit_paid ? (
-                                        <>
-                                            <ShieldCheck size={14} className="text-blue-500" />
-                                            Deposit Paid
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Clock size={14} />
-                                            Unpaid
-                                        </>
-                                    )}
-                                </div>
-                                {task.quote_status === 'approved' && !task.is_paid && (
-                                    <>
-                                        <button
-                                            onClick={handlePaystackOpen}
-                                            disabled={isVerifying || isInitializing}
-                                            className="flex items-center justify-center gap-2 px-4 py-1.5 bg-gradient-to-r from-teal-600 to-blue-500 hover:from-teal-700 hover:to-blue-600 text-white rounded-full text-[11px] font-bold shadow-sm transition-all transform hover:scale-105 active:scale-95 disabled:opacity-70 w-full"
-                                        >
-                                            {isVerifying ? (
-                                                <Loader2 size={14} className="animate-spin" />
-                                            ) : (
-                                                <CreditCard size={14} />
-                                            )}
-                                            {task.requires_deposit && !task.deposit_paid ? 'Pay Deposit' : 'Pay Balance'}
-                                        </button>
-                                        <p className="text-[10px] text-gray-400 text-center italic mt-1 pb-1">
-                                            In KES (Approx. KSh {Math.round(expectedAmountKes || 0).toLocaleString()})
-                                        </p>
-                                    </>
-                                )}
-                            </div>
-                        ) : (
-                            // Admin View: Toggle Button
-                            <button
-                                onClick={() => onTogglePayment(task.id)}
-                                disabled={!isOnline}
-                                className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all transform hover:scale-105 ${task.is_paid
-                                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                    : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                                    } ${!isOnline ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                title="Click to toggle payment status"
-                            >
-                                {task.is_paid ? (
-                                    <>
-                                        <CheckCircle size={14} />
-                                        Paid
-                                    </>
-                                ) : (
-                                    <>
-                                        <Clock size={14} />
-                                        Pending
-                                    </>
-                                )}
-                            </button>
-                        )
-                    )}
+                        )}
 
-                    {user?.role === 'admin' && task.quote_status === 'pending_quote' && (
-                        <div className="mt-2">
+                        {showPayButton && (
+                            <div>
+                                <button
+                                    onClick={startPayment}
+                                    disabled={isVerifying || isInitializing}
+                                    className="flex items-center justify-center gap-2 px-4 py-1.5 bg-gradient-to-r from-teal-600 to-blue-500 hover:from-teal-700 hover:to-blue-600 text-white rounded-full text-[11px] font-bold shadow-sm transition-all disabled:opacity-70 w-full"
+                                >
+                                    {isVerifying ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
+                                    {payLabel}
+                                </button>
+                                <p className="text-[10px] text-gray-400 text-center italic mt-1 pb-1">
+                                    In KES (Approx. KSh {Math.round(expectedKesAmount || 0).toLocaleString()})
+                                </p>
+                            </div>
+                        )}
+
+                        {user?.role === 'admin' && shouldShowSendQuote(task) && (
                             <button
                                 onClick={() => onSendQuote(task)}
                                 className="text-xs bg-indigo-600 text-white px-3 py-1 rounded-full font-bold hover:bg-indigo-700"
                             >
                                 Send Quote
                             </button>
-                        </div>
-                    )}
+                        )}
 
-                    {user?.role === 'admin' && (task.status === 'in_progress' || task.status === 'review') && (
-                        <div className="mt-2">
+                        {user?.role === 'admin' && (task.status === 'in_progress' || task.status === 'review') && (
                             <button
                                 onClick={() => onDeliverWork(task.id)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-all shadow-sm"
                             >
                                 <CheckCircle size={14} /> Deliver Results
                             </button>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </td>
+
                 <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-2 flex-wrap">
                         <button
                             onClick={() => onDuplicate(task)}
-                            disabled={!isOnline}
-                            className={`p-2 rounded-lg transition-all ${isOnline
-                                ? 'text-blue-600 hover:bg-blue-100'
-                                : 'text-gray-400 cursor-not-allowed'
-                                }`}
-                            title="Duplicate Task"
+                            className="px-3 py-2 bg-gray-50 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"
+                            title="Duplicate"
                         >
-                            <Copy size={18} />
+                            <Copy size={15} />
                         </button>
                         <button
                             onClick={() => setShowChat(!showChat)}
-                            disabled={!isOnline}
-                            className={`relative p-2 rounded-lg transition-all ${isOnline
-                                ? 'text-indigo-600 hover:bg-indigo-100'
-                                : 'text-gray-400 cursor-not-allowed'
-                                } ${showChat ? 'bg-indigo-100' : ''}`}
+                            className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${showChat
+                                ? 'bg-indigo-100 text-indigo-700'
+                                : 'bg-gray-50 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600'
+                                }`}
                             title="Chat"
                         >
-                            <MessageSquare size={18} />
+                            <MessageSquare size={15} />
                             {task.unread_count > 0 && (
                                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center border-2 border-white">
                                     {task.unread_count}
                                 </span>
                             )}
                         </button>
-                        <button
-                            onClick={() => onEdit(task)}
-                            disabled={!isOnline}
-                            className={`p-2 rounded-lg transition-all ${isOnline
-                                ? 'text-blue-600 hover:bg-blue-100'
-                                : 'text-gray-400 cursor-not-allowed'
-                                }`}
-                        >
-                            <Edit2 size={18} />
-                        </button>
-                        <button
-                            onClick={() => onDelete(task.id)}
-                            disabled={!isOnline}
-                            className={`p-2 rounded-lg transition-all ${isOnline
-                                ? 'text-red-600 hover:bg-red-100'
-                                : 'text-gray-400 cursor-not-allowed'
-                                }`}
-                        >
-                            <Trash2 size={18} />
-                        </button>
+                        {onEdit && (
+                            <button
+                                onClick={() => onEdit(task)}
+                                disabled={!isOnline}
+                                className="px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-sm font-medium hover:bg-indigo-100 transition-colors disabled:opacity-50"
+                            >
+                                <Edit2 size={15} />
+                            </button>
+                        )}
+                        {user?.role === 'admin' && (
+                            <button
+                                onClick={() => onTogglePayment(task.id)}
+                                disabled={!isOnline}
+                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${Number(task.is_paid) === 1
+                                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                    : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                                    } disabled:opacity-50`}
+                            >
+                                {Number(task.is_paid) === 1 ? 'Paid' : 'Pending'}
+                            </button>
+                        )}
+                        {onDelete && user?.role === 'admin' && (
+                            <button
+                                onClick={() => onDelete(task.id)}
+                                disabled={!isOnline}
+                                className="px-3 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
+                                title="Delete"
+                            >
+                                <Trash2 size={15} />
+                            </button>
+                        )}
                     </div>
                 </td>
-            </tr >
+            </tr>
+
             {showChat && (
                 <tr>
-                    <td colSpan="7" className="px-0 py-0 border-b bg-gray-50">
-                        <div className="p-4">
-                            <ChatComponent taskId={task.id} user={user} onClose={() => setShowChat(false)} />
-                        </div>
+                    <td colSpan={6} className="bg-gray-50 p-4">
+                        <ChatComponent taskId={task.id} user={user} onClose={() => setShowChat(false)} />
                     </td>
                 </tr>
-            )
-            }
+            )}
         </>
     );
 };

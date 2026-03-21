@@ -1,26 +1,67 @@
+const crypto = require('crypto');
+const { v4: uuidv4 } = require('uuid');
 const paystackService = require('../services/paystackService');
 const Task = require('../models/Task');
+const PaymentSettings = require('../models/PaymentSettings');
 const logger = require('../utils/logger');
 const { pool } = require('../config/database');
-const crypto = require('crypto');
 const EmailService = require('../services/emailService');
+const {
+    roundMoney,
+    derivePaymentState,
+    syncTaskDueTracking
+} = require('../services/taskPaymentStateService');
 
-/**
- * PaymentController
- * Handles frontend payment verification and server-to-server webhooks.
- */
 class PaymentController {
+    getExchangeRate() {
+        return parseFloat(process.env.EXCHANGE_RATE_USD_KES || 135);
+    }
 
-    /**
-     * @route POST /api/payments/initialize
-     * @desc  Create a server-side payment intent before opening Paystack.
-     *        Returns a nonce + server-computed amount the frontend must embed
-     *        in Paystack metadata. This prevents amount/task tampering (F-08 / F-09).
-     * @access Private (Client / Admin)
-     */
+    toPaystackKesAmounts(amountUsd) {
+        const exchangeRate = this.getExchangeRate();
+        const expectedAmountUsd = roundMoney(amountUsd);
+        const expectedAmountKes = expectedAmountUsd * exchangeRate;
+        const amountKes = Math.round(expectedAmountKes * 100);
+
+        return {
+            exchangeRate,
+            expectedAmountUsd,
+            expectedAmountKes,
+            amountKes
+        };
+    }
+
+    getTaskPaymentSnapshot(task) {
+        const derived = derivePaymentState(task);
+        return {
+            ...task,
+            ...derived
+        };
+    }
+
+    async getEligibleClientTasks(clientId, executor = pool) {
+        const tasks = await Task.findClientTasks(clientId, executor, clientId);
+        return tasks.filter((task) => Number(task.can_pay_now) === 1 && Number(task.current_due_amount) > 0);
+    }
+
+    buildBulkItems(tasks) {
+        return tasks
+            .sort((left, right) => left.id - right.id)
+            .map((task, index) => {
+                const { expectedAmountUsd, amountKes } = this.toPaystackKesAmounts(task.current_due_amount);
+                return {
+                    taskId: task.id,
+                    phase: task.current_due_phase,
+                    amountUsd: expectedAmountUsd,
+                    amountKes,
+                    sortOrder: index + 1
+                };
+            });
+    }
+
     async initializePayment(req, res) {
         try {
-            const { taskId, phase } = req.body; // phase: 'deposit' | 'balance' | 'full'
+            const { taskId, phase } = req.body;
 
             if (!taskId || !phase) {
                 return res.status(400).json({ success: false, message: 'taskId and phase are required' });
@@ -31,60 +72,61 @@ class PaymentController {
                 return res.status(400).json({ success: false, message: `phase must be one of: ${validPhases.join(', ')}` });
             }
 
-            const task = await Task.findById(taskId);
-            if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
+            const task = await Task.findById(taskId, pool, req.user.id);
+            if (!task) {
+                return res.status(404).json({ success: false, message: 'Task not found' });
+            }
+
             if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
                 return res.status(403).json({ success: false, message: 'Access denied. You do not own this task.' });
             }
 
-            // Pick the correct USD amount from the task based on phase
-            const expectedAmount = phase === 'deposit' ? task.deposit_amount : task.expected_amount;
-            if (!expectedAmount || parseFloat(expectedAmount) <= 0) {
-                return res.status(400).json({ success: false, message: 'Task has no valid amount set for this payment phase.' });
+            if (Number(task.can_pay_now) !== 1 || !task.current_due_phase) {
+                return res.status(400).json({ success: false, message: 'This task is not currently payable.' });
             }
 
-            // F-12 fix: convert USD amount → KES kobo
-            // DB stores amounts in USD. Paystack charges in KES (smallest unit = kobo/cents).
-            // Formula: USD × exchange_rate × 100
-            const exchangeRate = parseFloat(process.env.EXCHANGE_RATE_USD_KES || 135);
-            const expectedAmountUsd = parseFloat(expectedAmount);
-            const expectedAmountKes = expectedAmountUsd * exchangeRate;       // KES (human-readable)
-            const amountKes = Math.round(expectedAmountKes * 100);            // KES kobo (Paystack `amount` field)
+            if (task.current_due_phase !== phase) {
+                return res.status(400).json({
+                    success: false,
+                    message: `This task is currently expecting a ${task.current_due_phase} payment.`
+                });
+            }
 
-            const nonce = crypto.randomBytes(32).toString('hex');
-            const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 60 min window
+            const { nonce, expiresAt, ...amounts } = this.createIntentAmounts(task.current_due_amount);
 
             await pool.execute(
                 `INSERT INTO payment_intents (task_id, client_id, phase, amount_kes, currency, nonce, expires_at)
                  VALUES (?, ?, ?, ?, 'KES', ?, ?)`,
-                [taskId, req.user.id, phase, amountKes, nonce, expiresAt]
+                [taskId, req.user.id, phase, amounts.amountKes, nonce, expiresAt]
             );
 
-            logger.info(`Payment intent created: task=${taskId}, phase=${phase}, usd=${expectedAmountUsd}, kes=${expectedAmountKes}, kobo=${amountKes}, user=${req.user.id}`);
+            logger.info(`Payment intent created: task=${taskId}, phase=${phase}, usd=${amounts.expectedAmountUsd}, user=${req.user.id}`);
 
             return res.status(201).json({
                 success: true,
                 nonce,
-                expectedAmountUsd,        // original USD amount (e.g. 50.00)
-                expectedAmountKes,        // human-readable KES (e.g. 6750.00) — use for display
-                amountKes,                // KES kobo (e.g. 675000) — pass directly to Paystack's `amount` field
-                exchangeRate,
+                expectedAmountUsd: amounts.expectedAmountUsd,
+                expectedAmountKes: amounts.expectedAmountKes,
+                amountKes: amounts.amountKes,
+                exchangeRate: amounts.exchangeRate,
                 phase,
                 taskId
             });
         } catch (error) {
-            logger.error('Initialize Payment Error:', error.message);
+            logger.error(`Initialize Payment Error: ${error.message}`);
             res.status(500).json({ success: false, message: 'Failed to initialize payment' });
         }
     }
 
-    /**
-     * @route POST /api/payments/verify
-     * @desc  Verify a Paystack transaction after frontend completion.
-     *        F-08 fix: validates amount against the server-stored intent.
-     *        F-03 fix (retained): validates task ownership + metadata task_id.
-     * @access Private (Client / Admin)
-     */
+    createIntentAmounts(amountUsd) {
+        const amounts = this.toPaystackKesAmounts(amountUsd);
+        return {
+            ...amounts,
+            nonce: crypto.randomBytes(32).toString('hex'),
+            expiresAt: new Date(Date.now() + 60 * 60 * 1000)
+        };
+    }
+
     async verifyPayment(req, res) {
         try {
             const { reference, taskId, nonce } = req.body;
@@ -93,9 +135,9 @@ class PaymentController {
                 return res.status(400).json({ success: false, message: 'reference, taskId, and nonce are required' });
             }
 
-            // 1. Load and validate the payment intent
             const [[intent]] = await pool.execute(
-                `SELECT * FROM payment_intents
+                `SELECT *
+                 FROM payment_intents
                  WHERE nonce = ? AND task_id = ? AND status = 'pending' AND expires_at > NOW()`,
                 [nonce, taskId]
             );
@@ -105,59 +147,29 @@ class PaymentController {
                 return res.status(400).json({ success: false, message: 'Invalid or expired payment session. Please start the payment again.' });
             }
 
-            // 2. Ownership — intent.client_id must match caller (or caller is admin)
             if (req.user.role !== 'admin' && intent.client_id !== req.user.id) {
                 return res.status(403).json({ success: false, message: 'Access denied. You do not own this payment session.' });
             }
 
-            // 3. Verify with Paystack
             const data = await paystackService.verifyTransaction(reference);
 
-            // 4. Cross-check metadata.task_id (retained F-03 fix)
             const verifiedTaskId = data.metadata?.task_id?.toString();
             if (verifiedTaskId && verifiedTaskId !== taskId.toString()) {
-                logger.warn(`Metadata task_id mismatch: ref_task=${verifiedTaskId}, req_task=${taskId}, user=${req.user.id}`);
                 await pool.execute(`UPDATE payment_intents SET status = 'failed' WHERE id = ?`, [intent.id]);
-                EmailService.notifyAdmin({
-                    subject: '🚨 Payment Security Alert: Task ID Mismatch',
-                    html: `
-                        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:2px solid #ef4444;border-radius:8px;">
-                            <h2 style="color:#ef4444;">⚠️ Payment Task ID Mismatch Detected</h2>
-                            <p>A payment reference was submitted for a different task than it was issued for. This may indicate a payment replay attack.</p>
-                            <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-                                <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Reference</td><td style="padding:8px;">${reference}</td></tr>
-                                <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Task in Reference</td><td style="padding:8px;">#${verifiedTaskId}</td></tr>
-                                <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Task Claimed</td><td style="padding:8px;">#${taskId}</td></tr>
-                                <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">User ID</td><td style="padding:8px;">${req.user.id}</td></tr>
-                                <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Time</td><td style="padding:8px;">${new Date().toISOString()}</td></tr>
-                            </table>
-                            <p style="color:#6b7280;font-size:12px;">This payment has been blocked and the intent marked as failed.</p>
-                        </div>`
-                }).catch(e => logger.error('Failed to send anomaly alert email:', e.message));
+                await this.sendTaskMismatchAlert(reference, verifiedTaskId, taskId, req.user.id);
                 return res.status(400).json({ success: false, message: 'Payment reference does not match this task.' });
             }
 
-            // 5. F-08 fix: Amount validation — reject if Paystack charged less than expected
             if (data.amount < intent.amount_kes) {
-                logger.warn(`Amount mismatch: expected=${intent.amount_kes}, got=${data.amount}, task=${taskId}, user=${req.user.id}`);
                 await pool.execute(`UPDATE payment_intents SET status = 'failed' WHERE id = ?`, [intent.id]);
-                EmailService.notifyAdmin({
-                    subject: '🚨 Payment Security Alert: Amount Underpayment on Verify',
-                    html: `
-                        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:2px solid #ef4444;border-radius:8px;">
-                            <h2 style="color:#ef4444;">⚠️ Payment Amount Mismatch (Verify Endpoint)</h2>
-                            <p>A client submitted a payment with an amount lower than the required amount. This may indicate an attempted underpayment attack.</p>
-                            <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-                                <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Task ID</td><td style="padding:8px;">#${taskId}</td></tr>
-                                <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Reference</td><td style="padding:8px;">${reference}</td></tr>
-                                <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Expected (KES kobo)</td><td style="padding:8px;">${intent.amount_kes} = KES ${intent.amount_kes / 100}</td></tr>
-                                <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Received (KES kobo)</td><td style="padding:8px;">${data.amount} = KES ${data.amount / 100}</td></tr>
-                                <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">User ID</td><td style="padding:8px;">${req.user.id}</td></tr>
-                                <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Time</td><td style="padding:8px;">${new Date().toISOString()}</td></tr>
-                            </table>
-                            <p style="color:#6b7280;font-size:12px;">Payment blocked. Task NOT marked as paid.</p>
-                        </div>`
-                }).catch(e => logger.error('Failed to send anomaly alert email:', e.message));
+                await this.sendUnderpaymentAlert({
+                    context: 'Verify Endpoint',
+                    taskId,
+                    reference,
+                    expectedAmountKes: intent.amount_kes,
+                    receivedAmountKes: data.amount,
+                    userId: req.user.id
+                });
                 return res.status(400).json({
                     success: false,
                     message: 'Payment amount does not match the required amount. Please contact support.'
@@ -168,29 +180,21 @@ class PaymentController {
                 return res.status(400).json({ success: false, message: `Payment status: ${data.status}`, data });
             }
 
-            // 6. Mark intent completed and bind reference
             await pool.execute(
                 `UPDATE payment_intents SET status = 'completed', reference = ? WHERE id = ?`,
                 [reference, intent.id]
             );
 
-            await this._processTaskPayment(taskId, reference, data);
+            await this.processTaskPayment(intent.task_id, reference, data, { phase: intent.phase, gatewayReference: reference });
 
             logger.info(`Payment verified: task=${taskId}, ref=${reference}, phase=${intent.phase}`);
             return res.status(200).json({ success: true, message: 'Payment verified and updated', data });
-
         } catch (error) {
-            logger.error('Payment Verification Error:', error.message);
+            logger.error(`Payment Verification Error: ${error.message}`);
             res.status(500).json({ success: false, message: 'Internal server error during verification' });
         }
     }
 
-    /**
-     * @route POST /api/payments/webhook
-     * @desc  Handle Paystack Webhooks.
-     *        F-09 fix: requires a server-issued nonce in metadata before processing.
-     * @access Public (signature verified)
-     */
     async handleWebhook(req, res) {
         const signature = req.headers['x-paystack-signature'];
         const payload = req.body;
@@ -200,101 +204,98 @@ class PaymentController {
             return res.status(401).send('Invalid signature');
         }
 
-        // Acknowledge immediately (Paystack expects a fast 200)
         res.status(200).send('Webhook received');
 
         try {
-            const event = payload.event;
+            if (payload.event !== 'charge.success') return;
+
             const data = payload.data;
+            const reference = data.reference;
+            const nonce = data.metadata?.nonce;
 
-            if (event === 'charge.success') {
-                const reference = data.reference;
-                const nonce = data.metadata?.nonce;
+            if (!nonce) {
+                logger.warn(`Webhook: charge.success without nonce. Ref=${reference} ignored.`);
+                return;
+            }
 
-                // F-09 fix: require a server-issued nonce — no nonce = reject
-                if (!nonce) {
-                    logger.warn(`Webhook: charge.success without nonce. Ref=${reference} — ignored (possible external payment).`);
-                    EmailService.notifyAdmin({
-                        subject: '🚨 Payment Security Alert: Webhook Without Nonce',
-                        html: `
-                            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:2px solid #f59e0b;border-radius:8px;">
-                                <h2 style="color:#f59e0b;">⚠️ Webhook Received Without Security Nonce</h2>
-                                <p>A Paystack <strong>charge.success</strong> webhook arrived without a server-issued nonce in its metadata. This could be an unauthenticated or externally-crafted webhook attempting to mark a task as paid.</p>
-                                <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-                                    <tr><td style="padding:8px;background:#fffbeb;font-weight:bold;">Reference</td><td style="padding:8px;">${reference}</td></tr>
-                                    <tr><td style="padding:8px;background:#fffbeb;font-weight:bold;">Time</td><td style="padding:8px;">${new Date().toISOString()}</td></tr>
-                                </table>
-                                <p style="color:#6b7280;font-size:12px;">Webhook ignored. No tasks were modified.</p>
-                            </div>`
-                    }).catch(e => logger.error('Failed to send anomaly alert email:', e.message));
-                    return;
-                }
+            const [[singleIntent]] = await pool.execute(
+                `SELECT * FROM payment_intents WHERE nonce = ? AND status = 'pending'`,
+                [nonce]
+            );
 
-                const [[intent]] = await pool.execute(
-                    `SELECT * FROM payment_intents WHERE nonce = ? AND status = 'pending'`,
-                    [nonce]
-                );
-
-                if (!intent) {
-                    logger.warn(`Webhook: unknown nonce=${nonce}. Possible replay/forgery. Ref=${reference}`);
-                    EmailService.notifyAdmin({
-                        subject: '🚨 Payment Security Alert: Unknown Nonce on Webhook',
-                        html: `
-                            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:2px solid #ef4444;border-radius:8px;">
-                                <h2 style="color:#ef4444;">⚠️ Webhook With Forged/Unknown Nonce</h2>
-                                <p>A Paystack webhook arrived with a nonce that does not match any pending payment intent. This is a strong indicator of a <strong>replay attack or webhook forgery</strong>.</p>
-                                <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-                                    <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Reference</td><td style="padding:8px;">${reference}</td></tr>
-                                    <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Unknown Nonce</td><td style="padding:8px;">${nonce}</td></tr>
-                                    <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Time</td><td style="padding:8px;">${new Date().toISOString()}</td></tr>
-                                </table>
-                                <p style="color:#6b7280;font-size:12px;">Webhook ignored. No tasks were modified. Investigate this reference in your Paystack dashboard.</p>
-                            </div>`
-                    }).catch(e => logger.error('Failed to send anomaly alert email:', e.message));
-                    return;
-                }
-
-                // Amount check
-                if (data.amount < intent.amount_kes) {
-                    logger.warn(`Webhook amount mismatch: expected=${intent.amount_kes}, got=${data.amount}, task=${intent.task_id}`);
-                    await pool.execute(`UPDATE payment_intents SET status = 'failed' WHERE id = ?`, [intent.id]);
-                    EmailService.notifyAdmin({
-                        subject: '🚨 Payment Security Alert: Amount Underpayment on Webhook',
-                        html: `
-                            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:2px solid #ef4444;border-radius:8px;">
-                                <h2 style="color:#ef4444;">⚠️ Webhook Payment Amount Mismatch</h2>
-                                <p>Paystack confirmed a payment but the amount is less than what was required. This may indicate an underpayment attempt bypassing the verify endpoint.</p>
-                                <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-                                    <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Task ID</td><td style="padding:8px;">#${intent.task_id}</td></tr>
-                                    <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Reference</td><td style="padding:8px;">${reference}</td></tr>
-                                    <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Expected (KES kobo)</td><td style="padding:8px;">${intent.amount_kes} = KES ${intent.amount_kes / 100}</td></tr>
-                                    <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Received (KES kobo)</td><td style="padding:8px;">${data.amount} = KES ${data.amount / 100}</td></tr>
-                                    <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Time</td><td style="padding:8px;">${new Date().toISOString()}</td></tr>
-                                </table>
-                                <p style="color:#6b7280;font-size:12px;">Payment blocked. Task NOT marked as paid.</p>
-                            </div>`
-                    }).catch(e => logger.error('Failed to send anomaly alert email:', e.message));
+            if (singleIntent) {
+                if (data.amount < singleIntent.amount_kes) {
+                    await pool.execute(`UPDATE payment_intents SET status = 'failed' WHERE id = ?`, [singleIntent.id]);
+                    await this.sendUnderpaymentAlert({
+                        context: 'Webhook',
+                        taskId: singleIntent.task_id,
+                        reference,
+                        expectedAmountKes: singleIntent.amount_kes,
+                        receivedAmountKes: data.amount
+                    });
                     return;
                 }
 
                 await pool.execute(
                     `UPDATE payment_intents SET status = 'completed', reference = ? WHERE id = ?`,
-                    [reference, intent.id]
+                    [reference, singleIntent.id]
                 );
 
-                await this._processTaskPayment(intent.task_id, reference, data);
-                logger.info(`Webhook: Processed payment for Task ${intent.task_id} via nonce=${nonce}.`);
+                await this.processTaskPayment(singleIntent.task_id, reference, data, {
+                    phase: singleIntent.phase,
+                    gatewayReference: reference
+                });
+
+                logger.info(`Webhook: processed single payment for task ${singleIntent.task_id}.`);
+                return;
+            }
+
+            const [[bulkIntent]] = await pool.execute(
+                `SELECT * FROM bulk_payment_intents WHERE nonce = ? AND status = 'pending'`,
+                [nonce]
+            );
+
+            if (!bulkIntent) {
+                logger.warn(`Webhook: unknown nonce=${nonce}. Ref=${reference}`);
+                return;
+            }
+
+            if (data.amount < bulkIntent.total_amount_kes) {
+                await pool.execute(`UPDATE bulk_payment_intents SET status = 'failed' WHERE id = ?`, [bulkIntent.id]);
+                await this.sendBulkUnderpaymentAlert(reference, bulkIntent.total_amount_kes, data.amount);
+                return;
+            }
+
+            const connection = await pool.getConnection();
+            try {
+                await connection.beginTransaction();
+                await connection.execute(
+                    `UPDATE bulk_payment_intents
+                     SET status = 'completed', reference = ?
+                     WHERE id = ?`,
+                    [reference, bulkIntent.id]
+                );
+                await this.processBulkPaymentIntent(bulkIntent, reference, data, connection);
+                await connection.commit();
+                logger.info(`Webhook: processed bulk payment for client ${bulkIntent.client_id}.`);
+            } catch (error) {
+                await connection.rollback();
+                await pool.execute(
+                    `UPDATE bulk_payment_intents SET status = 'failed' WHERE id = ?`,
+                    [bulkIntent.id]
+                );
+                logger.error(`Webhook bulk processing failed: ${error.message}`);
+            } finally {
+                connection.release();
             }
         } catch (error) {
-            logger.error('Webhook Processing Error:', error.message);
+            logger.error(`Webhook Processing Error: ${error.message}`);
         }
     }
 
-    /**
-     * Internal helper to update the task based on payment milestone.
-     */
-    async _processTaskPayment(taskId, reference, data) {
-        const task = await Task.findById(taskId);
+    async processTaskPayment(taskId, reference, data, options = {}) {
+        const executor = options.executor || pool;
+        const task = await Task.findById(taskId, executor, options.viewerId || 0);
         if (!task) {
             logger.error(`Payment Process Error: Task ${taskId} not found for reference ${reference}`);
             return;
@@ -302,48 +303,312 @@ class PaymentController {
 
         const paymentData = {
             currency: data.currency,
-            exchangeRate: data.metadata?.exchange_rate,
-            kesAmount: data.currency === 'KES' ? data.amount / 100 : null
+            exchangeRate: data.metadata?.exchange_rate || this.getExchangeRate(),
+            kesAmount: data.currency === 'KES'
+                ? roundMoney((options.kesAmount !== undefined ? options.kesAmount : data.amount / 100))
+                : null
         };
 
-        const isDepositFlow = task.requires_deposit === 1 && task.deposit_paid === 0;
+        const phase = options.phase || task.current_due_phase;
 
-        if (isDepositFlow) {
-            await Task.markDepositAsPaid(taskId, reference, paymentData);
-            if (task.status === 'pending_deposit') {
-                await Task.update(taskId, { status: 'in_progress' });
+        if (phase === 'deposit') {
+            await Task.markDepositAsPaid(taskId, options.internalReference || reference, paymentData, {
+                executor,
+                gatewayReference: options.gatewayReference || reference
+            });
+
+            const refreshedTask = await Task.findById(taskId, executor, options.viewerId || 0);
+            if (refreshedTask && refreshedTask.status === 'pending_deposit') {
+                await Task.update(taskId, { status: 'in_progress' }, executor);
             }
-            logger.info(`Milestone: Deposit paid for Task ${taskId}. Status moved to in_progress.`);
         } else {
-            await Task.markAsPaid(taskId, reference, paymentData);
-            logger.info(`Milestone: Final payment paid for Task ${taskId}.`);
+            await Task.markAsPaid(taskId, options.internalReference || reference, paymentData, {
+                executor,
+                gatewayReference: options.gatewayReference || reference,
+                type: phase === 'balance' ? 'balance' : 'full'
+            });
         }
+
+        await syncTaskDueTracking(task, taskId, executor);
     }
 
-    /**
-     * @route GET /api/payments
-     * @desc  Fetch all successful project payments (admin only)
-     * @access Private (Admin) — enforced by requireAdmin in routes/payments.js
-     */
     async getPayments(req, res) {
         try {
-            const [rows] = await pool.execute(`
-                SELECT p.*,
-                t.task_name,
-                COALESCE(u.full_name, gc.name, t.client_name) as display_client_name,
-                t.status as current_task_status
-                FROM payments p
-                JOIN tasks t ON p.task_id = t.id
-                LEFT JOIN users u ON t.client_id = u.id
-                LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id
-                ORDER BY p.created_at DESC
-            `);
+            const [rows] = await pool.execute(
+                `SELECT p.*,
+                        t.task_name,
+                        COALESCE(u.full_name, gc.name, t.client_name) as display_client_name,
+                        t.status as current_task_status
+                 FROM payments p
+                 JOIN tasks t ON p.task_id = t.id
+                 LEFT JOIN users u ON t.client_id = u.id
+                 LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id
+                 ORDER BY p.created_at DESC`
+            );
 
             return res.status(200).json({ success: true, count: rows.length, data: rows });
         } catch (error) {
-            logger.error('Error fetching payments audit:', error.message);
+            logger.error(`Error fetching payments audit: ${error.message}`);
             res.status(500).json({ success: false, message: 'Failed to fetch payment history' });
         }
+    }
+
+    async getPaymentSettings(req, res) {
+        try {
+            const settings = await PaymentSettings.get();
+            return res.status(200).json({ success: true, data: settings });
+        } catch (error) {
+            logger.error(`Error fetching payment settings: ${error.message}`);
+            return res.status(500).json({ success: false, message: 'Failed to fetch payment settings' });
+        }
+    }
+
+    async updatePaymentSettings(req, res) {
+        try {
+            const {
+                depositRemindersEnabled,
+                depositReminderIntervalHours,
+                balanceRemindersEnabled,
+                balanceReminderIntervalDays
+            } = req.body;
+
+            if (!Number.isInteger(Number(depositReminderIntervalHours)) || Number(depositReminderIntervalHours) < 1 || Number(depositReminderIntervalHours) > 168) {
+                return res.status(400).json({ success: false, message: 'Deposit reminder interval must be an integer between 1 and 168 hours.' });
+            }
+
+            if (!Number.isInteger(Number(balanceReminderIntervalDays)) || Number(balanceReminderIntervalDays) < 1 || Number(balanceReminderIntervalDays) > 90) {
+                return res.status(400).json({ success: false, message: 'Balance reminder interval must be an integer between 1 and 90 days.' });
+            }
+
+            const settings = await PaymentSettings.update({
+                depositRemindersEnabled,
+                depositReminderIntervalHours,
+                balanceRemindersEnabled,
+                balanceReminderIntervalDays
+            }, req.user.id);
+
+            return res.status(200).json({ success: true, data: settings });
+        } catch (error) {
+            logger.error(`Error updating payment settings: ${error.message}`);
+            return res.status(500).json({ success: false, message: 'Failed to update payment settings' });
+        }
+    }
+
+    async getOutstandingSummary(req, res) {
+        try {
+            const tasks = await this.getEligibleClientTasks(req.user.id);
+            const totalDue = tasks.reduce((sum, task) => sum + Number(task.current_due_amount || 0), 0);
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    totalDue: roundMoney(totalDue),
+                    payableTaskCount: tasks.length,
+                    tasks: tasks.map((task) => ({
+                        id: task.id,
+                        taskName: task.task_name,
+                        currentDuePhase: task.current_due_phase,
+                        currentDueAmount: task.current_due_amount
+                    }))
+                }
+            });
+        } catch (error) {
+            logger.error(`Error fetching outstanding summary: ${error.message}`);
+            return res.status(500).json({ success: false, message: 'Failed to fetch outstanding summary' });
+        }
+    }
+
+    async initializeBulkPayment(req, res) {
+        try {
+            const tasks = await this.getEligibleClientTasks(req.user.id);
+            if (tasks.length === 0) {
+                return res.status(400).json({ success: false, message: 'There are no outstanding payments to clear.' });
+            }
+
+            const items = this.buildBulkItems(tasks);
+            const totalAmountUsd = roundMoney(items.reduce((sum, item) => sum + item.amountUsd, 0));
+            const totalAmountKes = items.reduce((sum, item) => sum + item.amountKes, 0);
+            const nonce = crypto.randomBytes(32).toString('hex');
+            const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+            const [result] = await pool.execute(
+                `INSERT INTO bulk_payment_intents
+                    (client_id, total_amount_usd, total_amount_kes, currency, nonce, expires_at)
+                 VALUES (?, ?, ?, 'KES', ?, ?)`,
+                [req.user.id, totalAmountUsd, totalAmountKes, nonce, expiresAt]
+            );
+
+            for (const item of items) {
+                await pool.execute(
+                    `INSERT INTO bulk_payment_intent_items
+                        (intent_id, task_id, phase, amount_usd, amount_kes, sort_order)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    [result.insertId, item.taskId, item.phase, item.amountUsd, item.amountKes, item.sortOrder]
+                );
+            }
+
+            const exchangeRate = this.getExchangeRate();
+
+            return res.status(201).json({
+                success: true,
+                nonce,
+                totalAmountUsd,
+                totalAmountKes,
+                totalAmountKesDisplay: roundMoney(totalAmountKes / 100),
+                exchangeRate,
+                payableTaskCount: items.length
+            });
+        } catch (error) {
+            logger.error(`Initialize Bulk Payment Error: ${error.message}`);
+            return res.status(500).json({ success: false, message: 'Failed to initialize bulk payment' });
+        }
+    }
+
+    async verifyBulkPayment(req, res) {
+        try {
+            const { reference, nonce } = req.body;
+
+            if (!reference || !nonce) {
+                return res.status(400).json({ success: false, message: 'reference and nonce are required' });
+            }
+
+            const [[intent]] = await pool.execute(
+                `SELECT *
+                 FROM bulk_payment_intents
+                 WHERE nonce = ? AND client_id = ? AND status = 'pending' AND expires_at > NOW()`,
+                [nonce, req.user.id]
+            );
+
+            if (!intent) {
+                return res.status(400).json({ success: false, message: 'Invalid or expired bulk payment session. Please start again.' });
+            }
+
+            const data = await paystackService.verifyTransaction(reference);
+            if (data.amount < intent.total_amount_kes) {
+                await pool.execute(`UPDATE bulk_payment_intents SET status = 'failed' WHERE id = ?`, [intent.id]);
+                await this.sendBulkUnderpaymentAlert(reference, intent.total_amount_kes, data.amount);
+                return res.status(400).json({
+                    success: false,
+                    message: 'Payment amount does not match the required total.'
+                });
+            }
+
+            if (data.status !== 'success') {
+                return res.status(400).json({ success: false, message: `Payment status: ${data.status}`, data });
+            }
+
+            const connection = await pool.getConnection();
+            try {
+                await connection.beginTransaction();
+                await connection.execute(
+                    `UPDATE bulk_payment_intents
+                     SET status = 'completed', reference = ?
+                     WHERE id = ?`,
+                    [reference, intent.id]
+                );
+                await this.processBulkPaymentIntent(intent, reference, data, connection);
+                await connection.commit();
+            } catch (error) {
+                await connection.rollback();
+                await pool.execute(`UPDATE bulk_payment_intents SET status = 'failed' WHERE id = ?`, [intent.id]);
+                logger.error(`Bulk payment verification error: ${error.message}`);
+                return res.status(400).json({
+                    success: false,
+                    message: 'Bulk payment could not be applied because the outstanding tasks changed. Please refresh and try again.'
+                });
+            } finally {
+                connection.release();
+            }
+
+            return res.status(200).json({ success: true, message: 'Bulk payment verified and applied.' });
+        } catch (error) {
+            logger.error(`Bulk Payment Verification Error: ${error.message}`);
+            return res.status(500).json({ success: false, message: 'Internal server error during bulk verification' });
+        }
+    }
+
+    async processBulkPaymentIntent(intent, gatewayReference, data, connection) {
+        const [items] = await connection.execute(
+            `SELECT *
+             FROM bulk_payment_intent_items
+             WHERE intent_id = ?
+             ORDER BY sort_order ASC, id ASC`,
+            [intent.id]
+        );
+
+        if (items.length === 0) {
+            throw new Error('Bulk payment intent has no items.');
+        }
+
+        for (const item of items) {
+            const task = await Task.findById(item.task_id, connection, intent.client_id);
+            if (!task || task.client_id !== intent.client_id) {
+                throw new Error(`Task ${item.task_id} is no longer payable by this client.`);
+            }
+
+            if (task.current_due_phase !== item.phase || Math.abs(Number(task.current_due_amount) - Number(item.amount_usd)) > 0.009) {
+                throw new Error(`Task ${item.task_id} payment state changed after bulk intent creation.`);
+            }
+
+            const internalReference = `${gatewayReference}:${item.task_id}:${item.phase}:${uuidv4().slice(0, 8)}`;
+            await this.processTaskPayment(item.task_id, gatewayReference, data, {
+                executor: connection,
+                viewerId: intent.client_id,
+                phase: item.phase,
+                internalReference,
+                gatewayReference,
+                kesAmount: roundMoney(item.amount_kes / 100)
+            });
+        }
+    }
+
+    async sendTaskMismatchAlert(reference, verifiedTaskId, requestedTaskId, userId) {
+        return EmailService.notifyAdmin({
+            subject: 'Payment Security Alert: Task ID Mismatch',
+            html: `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:2px solid #ef4444;border-radius:8px;">
+                    <h2 style="color:#ef4444;">Payment Task ID Mismatch Detected</h2>
+                    <p>A payment reference was submitted for a different task than it was issued for.</p>
+                    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+                        <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Reference</td><td style="padding:8px;">${reference}</td></tr>
+                        <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Task in Reference</td><td style="padding:8px;">#${verifiedTaskId}</td></tr>
+                        <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Task Claimed</td><td style="padding:8px;">#${requestedTaskId}</td></tr>
+                        <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">User ID</td><td style="padding:8px;">${userId}</td></tr>
+                    </table>
+                </div>`
+        }).catch((error) => logger.error(`Failed to send mismatch alert email: ${error.message}`));
+    }
+
+    async sendUnderpaymentAlert({ context, taskId, reference, expectedAmountKes, receivedAmountKes, userId }) {
+        return EmailService.notifyAdmin({
+            subject: `Payment Security Alert: Amount Underpayment on ${context}`,
+            html: `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:2px solid #ef4444;border-radius:8px;">
+                    <h2 style="color:#ef4444;">Payment Amount Mismatch (${context})</h2>
+                    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+                        <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Task ID</td><td style="padding:8px;">#${taskId}</td></tr>
+                        <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Reference</td><td style="padding:8px;">${reference}</td></tr>
+                        <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Expected (KES kobo)</td><td style="padding:8px;">${expectedAmountKes}</td></tr>
+                        <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Received (KES kobo)</td><td style="padding:8px;">${receivedAmountKes}</td></tr>
+                        ${userId ? `<tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">User ID</td><td style="padding:8px;">${userId}</td></tr>` : ''}
+                    </table>
+                </div>`
+        }).catch((error) => logger.error(`Failed to send underpayment alert email: ${error.message}`));
+    }
+
+    async sendBulkUnderpaymentAlert(reference, expectedAmountKes, receivedAmountKes) {
+        return EmailService.notifyAdmin({
+            subject: 'Payment Security Alert: Bulk Underpayment',
+            html: `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:2px solid #ef4444;border-radius:8px;">
+                    <h2 style="color:#ef4444;">Bulk Payment Amount Mismatch</h2>
+                    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+                        <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Reference</td><td style="padding:8px;">${reference}</td></tr>
+                        <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Expected (KES kobo)</td><td style="padding:8px;">${expectedAmountKes}</td></tr>
+                        <tr><td style="padding:8px;background:#fef2f2;font-weight:bold;">Received (KES kobo)</td><td style="padding:8px;">${receivedAmountKes}</td></tr>
+                    </table>
+                </div>`
+        }).catch((error) => logger.error(`Failed to send bulk underpayment alert email: ${error.message}`));
     }
 }
 

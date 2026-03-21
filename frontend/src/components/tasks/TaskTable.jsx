@@ -53,6 +53,7 @@ const TaskTable = ({ tasks, isOnline, hideAmounts, onEdit, onDelete, onTogglePay
                         onDownloadFile={onDownloadFile}
                         onDeliverWork={onDeliverWork}
                         onSendQuote={onSendQuote}
+                        onQuoteResponse={onQuoteResponse}
                         onPaymentSuccess={onPaymentSuccess}
                         user={user}
                     />
@@ -79,6 +80,9 @@ const TaskTable = ({ tasks, isOnline, hideAmounts, onEdit, onDelete, onTogglePay
                             </th>
                             <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
                                 Status
+                            </th>
+                            <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                Payment
                             </th>
                             <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
                                 Actions

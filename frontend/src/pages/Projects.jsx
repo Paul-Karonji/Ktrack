@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FolderOpen, Search, SlidersHorizontal, Menu, Plus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
@@ -16,6 +16,7 @@ import SendQuoteModal from '../components/tasks/SendQuoteModal';
 import { useNavigation } from '../context/NavigationContext';
 import BulkPaymentCard from '../components/payments/BulkPaymentCard';
 import useBulkPayment from '../hooks/useBulkPayment';
+import RecordOfflinePaymentModal from '../components/payments/RecordOfflinePaymentModal';
 
 const Projects = () => {
     const { user, logout } = useAuth();
@@ -29,7 +30,7 @@ const Projects = () => {
     });
 
     // Use the same useTasks hook as Dashboard for live mutations
-    const { tasks, loading, loadTasks, createTask, updateTask, deleteTask, togglePayment } = useTasks();
+    const { tasks, loading, loadTasks, createTask, updateTask, deleteTask, recordOfflinePayment } = useTasks();
 
     const [filteredTasks, setFilteredTasks] = useState([]);
     const [filters, setFilters] = useState({});
@@ -50,6 +51,7 @@ const Projects = () => {
         dateDelivered: '',
         expectedAmount: '',
         isPaid: false,
+        offlinePaymentReceivedAt: new Date().toISOString().split('T')[0],
         requiresDeposit: false,
         priority: 'medium',
         status: 'not_started',
@@ -64,6 +66,9 @@ const Projects = () => {
     const [selectedTaskId, setSelectedTaskId] = useState(null);
     const [showQuoteModal, setShowQuoteModal] = useState(false);
     const [quoteTask, setQuoteTask] = useState(null);
+    const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false);
+    const [selectedTaskForPayment, setSelectedTaskForPayment] = useState(null);
+    const [isRecordingOfflinePayment, setIsRecordingOfflinePayment] = useState(false);
 
     // Load tasks on mount
     useEffect(() => {
@@ -149,6 +154,7 @@ const Projects = () => {
             dateDelivered: '',
             expectedAmount: '',
             isPaid: false,
+            offlinePaymentReceivedAt: new Date().toISOString().split('T')[0],
             requiresDeposit: false,
             priority: 'medium',
             status: 'not_started',
@@ -190,6 +196,7 @@ const Projects = () => {
             dateDelivered: task.date_delivered ? task.date_delivered.split('T')[0] : '',
             expectedAmount: task.expected_amount.toString(),
             isPaid: task.is_paid,
+            offlinePaymentReceivedAt: task.paid_at ? task.paid_at.split('T')[0] : new Date().toISOString().split('T')[0],
             requiresDeposit: Boolean(task.requires_deposit),
             priority: task.priority || 'medium',
             status: task.status || 'not_started',
@@ -256,12 +263,28 @@ const Projects = () => {
         }
     };
 
-    const handleTogglePayment = async (taskId) => {
+    const handleTogglePayment = async (task) => {
+        if (!task || user?.role !== 'admin' || Number(task.is_paid) === 1) {
+            return;
+        }
+
+        setSelectedTaskForPayment(task);
+        setShowRecordPaymentModal(true);
+    };
+
+    const confirmRecordOfflinePayment = async (receivedAt) => {
         try {
-            await togglePayment(taskId);
+            setIsRecordingOfflinePayment(true);
+            const success = await recordOfflinePayment(selectedTaskForPayment.id, { receivedAt });
+            if (success) {
+                setShowRecordPaymentModal(false);
+                setSelectedTaskForPayment(null);
+            }
         } catch (err) {
             console.error('Toggle payment error:', err);
-            alert('Failed to update payment status');
+            alert('Failed to record payment status');
+        } finally {
+            setIsRecordingOfflinePayment(false);
         }
     };
 
@@ -327,6 +350,7 @@ const Projects = () => {
             dateDelivered: '',
             expectedAmount: task.expected_amount,
             isPaid: false,
+            offlinePaymentReceivedAt: new Date().toISOString().split('T')[0],
             requiresDeposit: Boolean(task.requires_deposit),
             priority: task.priority || 'medium',
             status: 'not_started',
@@ -576,6 +600,18 @@ const Projects = () => {
                     task={quoteTask}
                 />
             )}
+
+            <RecordOfflinePaymentModal
+                isOpen={showRecordPaymentModal}
+                task={selectedTaskForPayment}
+                isSubmitting={isRecordingOfflinePayment}
+                onClose={() => {
+                    if (isRecordingOfflinePayment) return;
+                    setShowRecordPaymentModal(false);
+                    setSelectedTaskForPayment(null);
+                }}
+                onConfirm={confirmRecordOfflinePayment}
+            />
         </div>
     );
 };

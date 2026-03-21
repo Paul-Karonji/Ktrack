@@ -311,15 +311,38 @@ const TaskForm = ({ formData, editingTask, isOnline, onSubmit, onCancel, onChang
                                 name="isPaid"
                                 checked={formData.isPaid}
                                 onChange={onChange}
+                                disabled={Boolean(editingTask?.is_paid)}
                                 className="w-6 h-6 text-indigo-600 rounded focus:ring-indigo-500"
                             />
                             <div className="flex flex-col">
-                                <span className="font-bold text-gray-800 text-sm">Mark as Paid</span>
-                                <span className="text-xs text-gray-500">Manually confirm offline payment</span>
+                                <span className="font-bold text-gray-800 text-sm">
+                                    {editingTask?.is_paid ? 'Payment Already Recorded' : 'Mark as Paid'}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                    {editingTask?.is_paid
+                                        ? 'This task already has a recorded full payment.'
+                                        : 'Manually confirm offline payment'}
+                                </span>
                             </div>
                         </label>
                     </div>
                 </div>
+
+                {Boolean(formData.isPaid) && !editingTask?.is_paid && (
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Offline Payment Date</label>
+                            <input
+                                type="date"
+                                name="offlinePaymentReceivedAt"
+                                value={formData.offlinePaymentReceivedAt || ''}
+                                onChange={onChange}
+                                className="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                            />
+                            <p className="text-xs text-gray-400 mt-1">Used for revenue analytics and payment history.</p>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">

@@ -2,7 +2,8 @@ const { pool } = require('../config/database');
 const {
   augmentTask,
   getProjectTotal,
-  getDepositAmount
+  getDepositAmount,
+  roundMoney
 } = require('../services/taskPaymentStateService');
 
 const BASE_SELECT = `
@@ -202,18 +203,110 @@ class Task {
       [id]
     );
 
-    return result.affectedRows > 0;
+    if (result.affectedRows === 0) {
+      return false;
+    }
+
+    return this.findById(id, executor);
   }
 
   static async togglePayment(id, executor = pool) {
+    return this.recordOfflinePayment(id, {}, { executor });
+  }
+
+  static async insertPaymentRecord(payment, executor = pool) {
     await executor.execute(
+      `INSERT INTO payments
+         (
+           task_id,
+           amount,
+           currency,
+           kes_amount,
+           exchange_rate,
+           reference,
+           gateway_reference,
+           type,
+           source,
+           recorded_by,
+           received_at
+         )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        payment.taskId,
+        payment.amount,
+        payment.currency || 'USD',
+        payment.kesAmount ?? null,
+        payment.exchangeRate ?? null,
+        payment.reference,
+        payment.gatewayReference || payment.reference,
+        payment.type,
+        payment.source || 'platform',
+        payment.recordedBy || null,
+        payment.receivedAt || new Date()
+      ]
+    );
+  }
+
+  static async recordOfflinePayment(id, paymentData = {}, options = {}) {
+    const executor = options.executor || pool;
+    const task = await this.findById(id, executor);
+    if (!task) return false;
+    if (Number(task.is_paid) === 1) {
+      throw new Error('This task is already fully paid.');
+    }
+
+    const totalAmount = getProjectTotal(task);
+    if (totalAmount <= 0) {
+      throw new Error('This task does not have a payable amount.');
+    }
+
+    const receivedAt = paymentData.receivedAt ? new Date(paymentData.receivedAt) : new Date();
+    const paymentReference = paymentData.reference || `offline-${id}-${Date.now()}`;
+
+    await this.insertPaymentRecord({
+      taskId: id,
+      amount: roundMoney(totalAmount),
+      currency: 'USD',
+      reference: paymentReference,
+      gatewayReference: paymentReference,
+      type: 'full',
+      source: 'offline_admin',
+      recordedBy: paymentData.recordedBy || null,
+      receivedAt
+    }, executor);
+
+    const [result] = await executor.execute(
       `UPDATE tasks
-       SET is_paid = NOT is_paid,
-           paid_at = IF(is_paid = 1, NULL, CURRENT_TIMESTAMP),
+       SET is_paid = 1,
+           paid_at = ?,
+           payment_ref = ?,
+           payment_currency = 'USD',
+           payment_exchange_rate = NULL,
+           payment_kes_amount = NULL,
+           deposit_paid = CASE
+               WHEN requires_deposit = 1 THEN 1
+               ELSE deposit_paid
+           END,
+           deposit_paid_at = CASE
+               WHEN requires_deposit = 1 AND deposit_paid = 0 THEN ?
+               ELSE deposit_paid_at
+           END,
+           deposit_ref = CASE
+               WHEN requires_deposit = 1 AND deposit_paid = 0 THEN ?
+               ELSE deposit_ref
+           END,
+           status = CASE
+               WHEN status = 'pending_deposit' THEN 'in_progress'
+               ELSE status
+           END,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [id]
+      [receivedAt, paymentReference, receivedAt, paymentReference, id]
     );
+
+    if (result.affectedRows === 0) {
+      return false;
+    }
 
     return this.findById(id, executor);
   }
@@ -222,7 +315,12 @@ class Task {
     const executor = options.executor || pool;
     const gatewayReference = options.gatewayReference || paymentRef;
     const paymentType = options.type || null;
-    const { currency = 'USD', exchangeRate = null, kesAmount = null } = paymentData;
+    const {
+      currency = 'USD',
+      exchangeRate = null,
+      kesAmount = null,
+      receivedAt = new Date()
+    } = paymentData;
 
     const task = await this.findById(id, executor);
     if (!task) return false;
@@ -233,33 +331,31 @@ class Task {
       ? Math.max(totalAmount - depositAmount, 0)
       : totalAmount;
 
-    await executor.execute(
-      `INSERT INTO payments
-         (task_id, amount, currency, kes_amount, exchange_rate, reference, gateway_reference, type)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        balanceAmount,
-        currency,
-        kesAmount,
-        exchangeRate,
-        paymentRef,
-        gatewayReference,
-        paymentType || (task.deposit_paid ? 'balance' : 'full')
-      ]
-    );
+    await this.insertPaymentRecord({
+      taskId: id,
+      amount: balanceAmount,
+      currency,
+      kesAmount,
+      exchangeRate,
+      reference: paymentRef,
+      gatewayReference,
+      type: paymentType || (task.deposit_paid ? 'balance' : 'full'),
+      source: options.source || 'platform',
+      recordedBy: options.recordedBy || null,
+      receivedAt
+    }, executor);
 
     const [result] = await executor.execute(
-      `UPDATE tasks
+        `UPDATE tasks
        SET is_paid = 1,
-           paid_at = CURRENT_TIMESTAMP,
-           payment_ref = ?,
-           payment_currency = ?,
-           payment_exchange_rate = ?,
-           payment_kes_amount = ?,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [gatewayReference, currency, exchangeRate, kesAmount, id]
+            paid_at = ?,
+            payment_ref = ?,
+            payment_currency = ?,
+            payment_exchange_rate = ?,
+            payment_kes_amount = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?`,
+      [receivedAt, gatewayReference, currency, exchangeRate, kesAmount, id]
     );
 
     return result.affectedRows > 0;
@@ -268,29 +364,41 @@ class Task {
   static async markDepositAsPaid(id, paymentRef, paymentData = {}, options = {}) {
     const executor = options.executor || pool;
     const gatewayReference = options.gatewayReference || paymentRef;
-    const { currency = 'USD', exchangeRate = null, kesAmount = null } = paymentData;
+    const {
+      currency = 'USD',
+      exchangeRate = null,
+      kesAmount = null,
+      receivedAt = new Date()
+    } = paymentData;
 
     const task = await this.findById(id, executor);
     if (!task) return false;
 
-    await executor.execute(
-      `INSERT INTO payments
-         (task_id, amount, currency, kes_amount, exchange_rate, reference, gateway_reference, type)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, getDepositAmount(task), currency, kesAmount, exchangeRate, paymentRef, gatewayReference, 'deposit']
-    );
+    await this.insertPaymentRecord({
+      taskId: id,
+      amount: getDepositAmount(task),
+      currency,
+      kesAmount,
+      exchangeRate,
+      reference: paymentRef,
+      gatewayReference,
+      type: 'deposit',
+      source: options.source || 'platform',
+      recordedBy: options.recordedBy || null,
+      receivedAt
+    }, executor);
 
     const [result] = await executor.execute(
-      `UPDATE tasks
+        `UPDATE tasks
        SET deposit_paid = 1,
-           deposit_paid_at = CURRENT_TIMESTAMP,
-           deposit_ref = ?,
-           payment_currency = ?,
-           payment_exchange_rate = ?,
-           payment_kes_amount = ?,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [gatewayReference, currency, exchangeRate, kesAmount, id]
+            deposit_paid_at = ?,
+            deposit_ref = ?,
+            payment_currency = ?,
+            payment_exchange_rate = ?,
+            payment_kes_amount = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?`,
+      [receivedAt, gatewayReference, currency, exchangeRate, kesAmount, id]
     );
 
     return result.affectedRows > 0;

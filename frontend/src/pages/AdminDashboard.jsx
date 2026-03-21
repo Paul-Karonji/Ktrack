@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, FileText, CheckCircle, Clock, Plus, Search, HardDrive, Phone, Mail, Edit2, X } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
@@ -7,6 +7,37 @@ import StatCard from '../components/dashboard/StatCard';
 import TaskTable from '../components/tasks/TaskTable';
 import TaskForm from '../components/tasks/TaskForm';
 import AdminFilesView from '../components/admin/AdminFilesView';
+
+const PRIORITY_ORDER = { urgent: 4, high: 3, medium: 2, low: 1 };
+
+const getClientName = (task) => (task.display_client_name || task.client_name || '').toLowerCase();
+
+const getDueTimestamp = (task) => {
+    if (!task?.date_delivered) return Number.MAX_SAFE_INTEGER;
+    const value = new Date(task.date_delivered).getTime();
+    return Number.isNaN(value) ? Number.MAX_SAFE_INTEGER : value;
+};
+
+const isOverdueTask = (task) => {
+    if (!task?.date_delivered) return false;
+    if (['completed', 'cancelled'].includes(task.status)) return false;
+    if (Number(task.is_paid) === 1) return false;
+    return new Date(task.date_delivered).getTime() < Date.now();
+};
+
+const getPendingQuoteWeight = (task) => {
+    if (task.quote_status === 'quote_sent') return 2;
+    if (task.quote_status === 'pending_quote') return 1;
+    return 0;
+};
+
+const getCollectedAmount = (task) => {
+    const projectTotal = Number(task.project_total || task.quoted_amount || task.expected_amount || 0);
+    const currentDue = Number(task.current_due_amount || 0);
+    if (Number(task.is_paid) === 1) return projectTotal;
+    if (Number(task.deposit_paid) === 1) return Math.max(projectTotal - currentDue, 0);
+    return 0;
+};
 
 const AdminDashboard = ({
     user,
@@ -46,20 +77,58 @@ const AdminDashboard = ({
     const [showClientForm, setShowClientForm] = useState(false);
     const [activeTab, setActiveTab] = useState('tasks'); // 'tasks', 'users', 'analytics', 'files'
     const [searchTerm, setSearchTerm] = useState('');
+    const [sortBy, setSortBy] = useState('created_newest');
 
     // Calculate file statistics
     const totalFiles = tasks.reduce((sum, t) => sum + (t.file_count || 0), 0);
     const tasksWithFiles = tasks.filter(t => t.has_file).length;
     const totalStorage = tasks.reduce((sum, t) => sum + (t.total_file_size || 0), 0);
 
-    // Filter tasks by search
-    const filteredTasks = searchTerm
-        ? tasks.filter(t =>
-            t.task_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            t.task_description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            t.client_name?.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-        : tasks;
+    const filteredTasks = useMemo(() => {
+        const normalizedSearch = searchTerm.trim().toLowerCase();
+        const searchedTasks = normalizedSearch
+            ? tasks.filter((task) =>
+                task.task_name?.toLowerCase().includes(normalizedSearch) ||
+                task.task_description?.toLowerCase().includes(normalizedSearch) ||
+                task.display_client_name?.toLowerCase().includes(normalizedSearch) ||
+                task.client_name?.toLowerCase().includes(normalizedSearch)
+            )
+            : tasks;
+
+        return [...searchedTasks].sort((left, right) => {
+            switch (sortBy) {
+                case 'due_soonest':
+                    return getDueTimestamp(left) - getDueTimestamp(right);
+                case 'overdue_first': {
+                    const leftRank = isOverdueTask(left) ? 1 : 0;
+                    const rightRank = isOverdueTask(right) ? 1 : 0;
+                    if (leftRank !== rightRank) return rightRank - leftRank;
+                    return getDueTimestamp(left) - getDueTimestamp(right);
+                }
+                case 'highest_due':
+                    return Number(right.current_due_amount || 0) - Number(left.current_due_amount || 0);
+                case 'deposit_due_first': {
+                    const leftRank = left.current_due_phase === 'deposit' ? 1 : 0;
+                    const rightRank = right.current_due_phase === 'deposit' ? 1 : 0;
+                    if (leftRank !== rightRank) return rightRank - leftRank;
+                    return getDueTimestamp(left) - getDueTimestamp(right);
+                }
+                case 'pending_quote_first': {
+                    const leftRank = getPendingQuoteWeight(left);
+                    const rightRank = getPendingQuoteWeight(right);
+                    if (leftRank !== rightRank) return rightRank - leftRank;
+                    return getDueTimestamp(left) - getDueTimestamp(right);
+                }
+                case 'priority_highest':
+                    return (PRIORITY_ORDER[right.priority] || 0) - (PRIORITY_ORDER[left.priority] || 0);
+                case 'client_az':
+                    return getClientName(left).localeCompare(getClientName(right));
+                case 'created_newest':
+                default:
+                    return new Date(right.created_at || 0).getTime() - new Date(left.created_at || 0).getTime();
+            }
+        });
+    }, [searchTerm, sortBy, tasks]);
 
     // Load extra admin data
     useEffect(() => {
@@ -169,7 +238,7 @@ const AdminDashboard = ({
                 />
                 <StatCard
                     title="Revenue"
-                    value={formatCurrency(tasks.reduce((sum, task) => sum + (task.is_paid ? Number(task.expected_amount || 0) : 0), 0))}
+                    value={formatCurrency(tasks.reduce((sum, task) => sum + getCollectedAmount(task), 0))}
                     icon={Clock}
                     color="bg-purple-500"
                 />
@@ -252,13 +321,34 @@ const AdminDashboard = ({
 
                     <div className="bg-white rounded-xl shadow overflow-hidden">
                         <div className="p-3 md:p-4 border-b flex flex-wrap justify-between items-center gap-2 bg-gray-50">
-                            <h3 className="font-bold text-gray-700">All Tasks</h3>
-                            <button
-                                onClick={onAddTask}
-                                className="flex items-center gap-2 bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 text-sm"
-                            >
-                                <Plus size={16} /> New Task
-                            </button>
+                            <div>
+                                <h3 className="font-bold text-gray-700">All Tasks</h3>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Sort by payment urgency, quotes, priority, or client name.
+                                </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <select
+                                    value={sortBy}
+                                    onChange={(event) => setSortBy(event.target.value)}
+                                    className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm font-medium text-gray-700"
+                                >
+                                    <option value="created_newest">Created Newest</option>
+                                    <option value="due_soonest">Due Soonest</option>
+                                    <option value="overdue_first">Overdue First</option>
+                                    <option value="highest_due">Highest Current Due</option>
+                                    <option value="deposit_due_first">Deposit Due First</option>
+                                    <option value="pending_quote_first">Pending Quote First</option>
+                                    <option value="priority_highest">Priority Highest</option>
+                                    <option value="client_az">Client A-Z</option>
+                                </select>
+                                <button
+                                    onClick={onAddTask}
+                                    className="flex items-center gap-2 bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 text-sm"
+                                >
+                                    <Plus size={16} /> New Task
+                                </button>
+                            </div>
                         </div>
                         <TaskTable
                             tasks={filteredTasks}

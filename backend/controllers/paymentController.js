@@ -6,6 +6,7 @@ const PaymentSettings = require('../models/PaymentSettings');
 const logger = require('../utils/logger');
 const { pool } = require('../config/database');
 const EmailService = require('../services/emailService');
+const paymentReminderService = require('../services/paymentReminderService');
 const {
     roundMoney,
     derivePaymentState,
@@ -306,7 +307,8 @@ class PaymentController {
             exchangeRate: data.metadata?.exchange_rate || this.getExchangeRate(),
             kesAmount: data.currency === 'KES'
                 ? roundMoney((options.kesAmount !== undefined ? options.kesAmount : data.amount / 100))
-                : null
+                : null,
+            receivedAt: data.paid_at ? new Date(data.paid_at) : new Date()
         };
 
         const phase = options.phase || task.current_due_phase;
@@ -338,12 +340,14 @@ class PaymentController {
                 `SELECT p.*,
                         t.task_name,
                         COALESCE(u.full_name, gc.name, t.client_name) as display_client_name,
-                        t.status as current_task_status
+                        t.status as current_task_status,
+                        admin.full_name AS recorded_by_name
                  FROM payments p
                  JOIN tasks t ON p.task_id = t.id
                  LEFT JOIN users u ON t.client_id = u.id
                  LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id
-                 ORDER BY p.created_at DESC`
+                 LEFT JOIN users admin ON p.recorded_by = admin.id
+                 ORDER BY COALESCE(p.received_at, p.created_at) DESC, p.id DESC`
             );
 
             return res.status(200).json({ success: true, count: rows.length, data: rows });
@@ -609,6 +613,38 @@ class PaymentController {
                     </table>
                 </div>`
         }).catch((error) => logger.error(`Failed to send bulk underpayment alert email: ${error.message}`));
+    }
+
+    async getReminderOverview(req, res) {
+        try {
+            const overview = await paymentReminderService.getReminderOverview();
+            return res.status(200).json({ success: true, data: overview });
+        } catch (error) {
+            logger.error(`Error fetching payment reminder overview: ${error.message}`);
+            return res.status(500).json({ success: false, message: 'Failed to fetch payment reminder overview' });
+        }
+    }
+
+    async sendReminderNow(req, res) {
+        try {
+            const clientId = req.body?.clientId ? Number(req.body.clientId) : null;
+            if (req.body?.clientId && !Number.isInteger(clientId)) {
+                return res.status(400).json({ success: false, message: 'clientId must be a valid integer.' });
+            }
+
+            const result = await paymentReminderService.sendNow({
+                clientId,
+                triggeredBy: req.user.id
+            });
+
+            return res.status(200).json({
+                success: true,
+                data: result
+            });
+        } catch (error) {
+            logger.error(`Error sending payment reminders now: ${error.message}`);
+            return res.status(500).json({ success: false, message: error.message || 'Failed to send payment reminders' });
+        }
     }
 }
 

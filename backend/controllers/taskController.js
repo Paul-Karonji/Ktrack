@@ -37,6 +37,7 @@ class TaskController {
         taskName,
         taskDescription,
         requiresDeposit,
+        offlinePaymentReceivedAt,
         ...otherFields
       } = req.body;
 
@@ -100,6 +101,8 @@ class TaskController {
       const taskOrigin = isAdminOrigin ? 'admin' : 'client';
       const numericAmount = roundMoney(otherFields.expectedAmount || otherFields.quotedAmount || 0);
       const directPricingRequiresDeposit = isAdminOrigin && numericAmount > 0 && Boolean(requiresDeposit);
+      const requestedPaidFlag = Boolean(otherFields.isPaid || otherFields.is_paid);
+      const shouldRecordOfflinePayment = isAdminOrigin && requestedPaidFlag;
 
       let quoteStatus = 'pending_quote';
       let expectedAmount = 0;
@@ -132,10 +135,19 @@ class TaskController {
         taskOrigin,
         createdByUserId: req.user.id,
         completedAt: status === 'completed' ? new Date() : null,
-        paidAt: (otherFields.isPaid || otherFields.is_paid) ? new Date() : null
+        isPaid: false,
+        paidAt: null
       });
 
       task = await syncTaskDueTracking(null, task.id);
+
+      if (shouldRecordOfflinePayment) {
+        await Task.recordOfflinePayment(task.id, {
+          receivedAt: offlinePaymentReceivedAt,
+          recordedBy: req.user.id
+        });
+        task = await syncTaskDueTracking(task, task.id);
+      }
 
       invalidateCache('/analytics');
 
@@ -225,6 +237,7 @@ class TaskController {
           'clientId', 'client_id',
           'guestClientId', 'guest_client_id',
           'requiresDeposit', 'requires_deposit',
+          'offlinePaymentReceivedAt',
           'taskOrigin', 'task_origin',
           'createdByUserId', 'created_by_user_id',
           'paymentDueStartedAt', 'payment_due_started_at',
@@ -275,16 +288,38 @@ class TaskController {
       }
 
       const isPaidInput = req.body.isPaid !== undefined ? req.body.isPaid : req.body.is_paid;
+      const shouldRecordOfflinePayment = req.user.role === 'admin' && Boolean(isPaidInput) && !existingTask.is_paid;
+
+      if (shouldRecordOfflinePayment && Number(existingTask.deposit_paid) === 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Offline payment recording for remaining balances is not supported yet.'
+        });
+      }
+
       if (isPaidInput !== undefined) {
-        if (isPaidInput && !existingTask.is_paid) {
-          req.body.paidAt = new Date();
-        } else if (!isPaidInput && existingTask.is_paid) {
+        if (shouldRecordOfflinePayment) {
+          delete req.body.isPaid;
+          delete req.body.is_paid;
           req.body.paidAt = null;
+        } else if (!isPaidInput && existingTask.is_paid) {
+          return res.status(400).json({
+            success: false,
+            message: 'Clearing recorded payments is not supported from this screen.'
+          });
         }
       }
 
       let updatedTask = await Task.update(req.params.id, req.body);
       updatedTask = await syncTaskDueTracking(existingTask, updatedTask.id);
+
+      if (shouldRecordOfflinePayment) {
+        await Task.recordOfflinePayment(updatedTask.id, {
+          receivedAt: req.body.offlinePaymentReceivedAt,
+          recordedBy: req.user.id
+        });
+        updatedTask = await syncTaskDueTracking(updatedTask, updatedTask.id);
+      }
 
       invalidateCache('/analytics');
 
@@ -354,6 +389,10 @@ class TaskController {
   }
 
   static async togglePayment(req, res) {
+    return TaskController.recordOfflinePayment(req, res);
+  }
+
+  static async recordOfflinePayment(req, res) {
     try {
       const existingTask = await Task.findById(req.params.id);
 
@@ -371,7 +410,25 @@ class TaskController {
         });
       }
 
-      let updatedTask = await Task.togglePayment(req.params.id);
+      if (Number(existingTask.is_paid) === 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'This task is already fully paid.'
+        });
+      }
+
+      if (existingTask.current_due_phase === 'balance' || Number(existingTask.deposit_paid) === 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Offline payment recording for remaining balances is not supported yet.'
+        });
+      }
+
+      const receivedAt = req.body?.receivedAt || req.body?.offlinePaymentReceivedAt || null;
+      let updatedTask = await Task.recordOfflinePayment(req.params.id, {
+        receivedAt,
+        recordedBy: req.user.id
+      });
       updatedTask = await syncTaskDueTracking(existingTask, updatedTask.id);
 
       invalidateCache('/analytics');
@@ -380,7 +437,7 @@ class TaskController {
       console.error('Error toggling payment status:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to update payment status'
+        message: error.message || 'Failed to update payment status'
       });
     }
   }

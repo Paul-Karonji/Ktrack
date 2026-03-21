@@ -1,5 +1,5 @@
 import React from 'react';
-import { DollarSign, TrendingUp, TrendingDown, AlertCircle, CheckCircle } from 'lucide-react';
+import { BanknoteArrowDown, DollarSign, TrendingUp, AlertCircle } from 'lucide-react';
 import PaymentStatusChart from '../charts/PaymentStatusChart';
 import RevenueBreakdownTable from '../tables/RevenueBreakdownTable';
 import OverduePaymentsTable from '../tables/OverduePaymentsTable';
@@ -46,10 +46,10 @@ const FinancialSection = ({ data }) => {
             color: 'orange'
         },
         {
-            label: 'Paid This Month',
-            value: formatCurrency(data.paidThisMonth),
-            change: data.paidChange,
-            icon: CheckCircle,
+            label: 'Offline Revenue',
+            value: formatCurrency(data.offlineRevenue),
+            subtext: `Platform: ${formatCurrency(data.platformRevenue)}`,
+            icon: BanknoteArrowDown,
             color: 'green'
         }
     ];
@@ -63,7 +63,6 @@ const FinancialSection = ({ data }) => {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
             <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-gray-800">Financial Analytics</h2>
                 <div className="text-sm text-gray-500">
@@ -71,7 +70,6 @@ const FinancialSection = ({ data }) => {
                 </div>
             </div>
 
-            {/* Metrics Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {metrics.map((metric, index) => {
                     const Icon = metric.icon;
@@ -82,9 +80,7 @@ const FinancialSection = ({ data }) => {
                                     <Icon size={20} />
                                 </div>
                                 {metric.change && (
-                                    <div className={`flex items-center gap-1 text-xs font-medium ${metric.change.startsWith('+') ? 'text-green-600' : 'text-red-600'
-                                        }`}>
-                                        {metric.change.startsWith('+') ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                                    <div className={`flex items-center gap-1 text-xs font-medium ${metric.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
                                         {metric.change}
                                     </div>
                                 )}
@@ -99,10 +95,64 @@ const FinancialSection = ({ data }) => {
                 })}
             </div>
 
-            {/* Payment Status Chart */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                    <h3 className="text-sm font-bold text-gray-800 mb-3">Collected By Milestone</h3>
+                    <div className="space-y-2 text-sm">
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-600">Deposits</span>
+                            <span className="font-bold text-blue-700">{formatCurrency(data.depositRevenue)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-600">Balances</span>
+                            <span className="font-bold text-indigo-700">{formatCurrency(data.balanceRevenue)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-600">Full Payments</span>
+                            <span className="font-bold text-violet-700">{formatCurrency(data.fullRevenue)}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                    <h3 className="text-sm font-bold text-gray-800 mb-3">Outstanding Mix</h3>
+                    <div className="space-y-2 text-sm">
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-600">Deposit Due</span>
+                            <span className="font-bold text-orange-700">{formatCurrency(data.outstandingDeposit)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-600">Balance Due</span>
+                            <span className="font-bold text-blue-700">{formatCurrency(data.outstandingBalance)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-600">Full Due</span>
+                            <span className="font-bold text-amber-700">{formatCurrency(data.outstandingFull)}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                    <h3 className="text-sm font-bold text-gray-800 mb-3">Collection Metrics</h3>
+                    <div className="space-y-2 text-sm">
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-600">Collection Rate</span>
+                            <span className="font-bold text-gray-900">{data.collectionRate}%</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-600">Avg Days to Payment</span>
+                            <span className="font-bold text-gray-900">{data.avgDaysToPayment} days</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-600">Overdue Rate</span>
+                            <span className="font-bold text-gray-900">{data.overdueRate}%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <PaymentStatusChart data={data.paymentStatusByMonth} />
 
-            {/* Revenue Breakdown */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <h3 className="text-lg font-bold text-gray-800 mb-4">Revenue Breakdown</h3>
                 <div className="space-y-3">
@@ -122,54 +172,50 @@ const FinancialSection = ({ data }) => {
                             </div>
                         </div>
                     )) || (
-                            <p className="text-gray-500 text-center py-4">No breakdown data available</p>
-                        )}
+                        <p className="text-gray-500 text-center py-4">No breakdown data available</p>
+                    )}
                 </div>
             </div>
 
-            {/* Payment Status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4">Payment Status</h3>
+                    <h3 className="text-lg font-bold text-gray-800 mb-4">Revenue Sources</h3>
                     <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Paid</span>
-                            <span className="text-sm font-bold text-green-600">{formatCurrency(data.paid)}</span>
+                            <span className="text-sm text-gray-600">Platform Revenue</span>
+                            <span className="text-sm font-bold text-green-600">{formatCurrency(data.platformRevenue)}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Pending</span>
-                            <span className="text-sm font-bold text-yellow-600">{formatCurrency(data.pending)}</span>
+                            <span className="text-sm text-gray-600">Offline Revenue</span>
+                            <span className="text-sm font-bold text-amber-600">{formatCurrency(data.offlineRevenue)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Collected This Month</span>
+                            <span className="text-sm font-bold text-indigo-600">{formatCurrency(data.paidThisMonth)}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <h3 className="text-lg font-bold text-gray-800 mb-4">Current Liability Snapshot</h3>
+                    <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Current Due</span>
+                            <span className="text-sm font-bold text-yellow-700">{formatCurrency(data.pending)}</span>
                         </div>
                         <div className="flex justify-between items-center">
                             <span className="text-sm text-gray-600">Overdue</span>
                             <span className="text-sm font-bold text-red-600">{formatCurrency(data.overdue)}</span>
                         </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4">Collection Metrics</h3>
-                    <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Collection Rate</span>
-                            <span className="text-sm font-bold text-gray-900">{data.collectionRate}%</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Avg Days to Payment</span>
-                            <span className="text-sm font-bold text-gray-900">{data.avgDaysToPayment} days</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Overdue Rate</span>
-                            <span className="text-sm font-bold text-gray-900">{data.overdueRate}%</span>
+                            <span className="text-sm text-gray-600">Recognized Revenue</span>
+                            <span className="text-sm font-bold text-green-600">{formatCurrency(data.paid)}</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Revenue Breakdown Table */}
             <RevenueBreakdownTable data={data.revenueByClient} />
-
-            {/* Overdue Payments Table */}
             <OverduePaymentsTable data={data.overduePayments} />
         </div>
     );

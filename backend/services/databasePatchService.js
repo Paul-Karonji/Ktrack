@@ -10,6 +10,165 @@ async function safeExecute(sql, warningLabel, ignorableCodes = []) {
     }
 }
 
+async function tableExists(tableName) {
+    const [rows] = await pool.execute(
+        `SELECT 1
+         FROM INFORMATION_SCHEMA.TABLES
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = ?
+         LIMIT 1`,
+        [tableName]
+    );
+
+    return rows.length > 0;
+}
+
+async function columnExists(tableName, columnName) {
+    const [rows] = await pool.execute(
+        `SELECT 1
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = ?
+           AND COLUMN_NAME = ?
+         LIMIT 1`,
+        [tableName, columnName]
+    );
+
+    return rows.length > 0;
+}
+
+function roundMoney(value) {
+    return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+function resolveProjectTotal(task) {
+    const quotedAmount = roundMoney(task.quoted_amount);
+    const expectedAmount = roundMoney(task.expected_amount);
+    return quotedAmount > 0 ? quotedAmount : expectedAmount;
+}
+
+function resolveDepositAmount(task) {
+    const explicitDeposit = roundMoney(task.deposit_amount);
+    if (explicitDeposit > 0) return explicitDeposit;
+
+    const projectTotal = resolveProjectTotal(task);
+    if (Number(task.requires_deposit) === 1 && projectTotal > 0) {
+        return roundMoney(projectTotal / 2);
+    }
+
+    return 0;
+}
+
+async function backfillLegacyOfflinePayments() {
+    if (!(await tableExists('tasks')) || !(await tableExists('payments'))) {
+        return;
+    }
+
+    const [tasks] = await pool.execute(
+        `SELECT t.*,
+                EXISTS(
+                    SELECT 1
+                    FROM payments p
+                    WHERE p.task_id = t.id
+                      AND p.type = 'deposit'
+                ) AS has_deposit_payment,
+                EXISTS(
+                    SELECT 1
+                    FROM payments p
+                    WHERE p.task_id = t.id
+                      AND p.type IN ('balance', 'full')
+                ) AS has_final_payment
+         FROM tasks t
+         WHERE t.is_paid = 1`
+    );
+
+    for (const task of tasks) {
+        if (Number(task.has_final_payment) === 1) {
+            continue;
+        }
+
+        const projectTotal = resolveProjectTotal(task);
+        const depositAmount = resolveDepositAmount(task);
+        const hasDepositCoverage = Number(task.deposit_paid) === 1 || Number(task.has_deposit_payment) === 1;
+
+        let type = 'full';
+        let amount = projectTotal;
+        if (hasDepositCoverage && depositAmount > 0 && projectTotal > depositAmount) {
+            type = 'balance';
+            amount = roundMoney(projectTotal - depositAmount);
+        }
+
+        if (amount <= 0) {
+            continue;
+        }
+
+        const receivedAt = task.paid_at || task.updated_at || task.created_at || new Date();
+        const timestamp = Math.floor(new Date(receivedAt).getTime() / 1000);
+        const reference = `offline-legacy-${task.id}-${timestamp}-${type}`;
+
+        try {
+            await pool.execute(
+                `INSERT INTO payments (
+                    task_id,
+                    amount,
+                    currency,
+                    kes_amount,
+                    exchange_rate,
+                    reference,
+                    gateway_reference,
+                    type,
+                    source,
+                    recorded_by,
+                    received_at,
+                    created_at
+                 )
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    task.id,
+                    amount,
+                    task.payment_currency || 'USD',
+                    task.payment_kes_amount || null,
+                    task.payment_exchange_rate || null,
+                    reference,
+                    reference,
+                    type,
+                    'offline_admin',
+                    task.created_by_user_id || null,
+                    receivedAt,
+                    receivedAt
+                ]
+            );
+        } catch (error) {
+            if (error.code !== 'ER_DUP_ENTRY') {
+                console.warn(`[DatabasePatch] legacy payment backfill warning for task ${task.id}:`, error.message);
+            }
+        }
+    }
+}
+
+async function logSchemaStatus() {
+    try {
+        const checks = [
+            ['payment_settings', await tableExists('payment_settings')],
+            ['bulk_payment_intents', await tableExists('bulk_payment_intents')],
+            ['bulk_payment_intent_items', await tableExists('bulk_payment_intent_items')],
+            ['payment_reminder_logs', await tableExists('payment_reminder_logs')]
+        ];
+
+        const taskOriginExists = await columnExists('tasks', 'task_origin');
+        const paymentSourceExists = await columnExists('payments', 'source');
+
+        console.log(
+            '[DatabasePatch] Schema status:',
+            checks.map(([name, exists]) => `${name}=${exists ? 'yes' : 'no'}`).join(', '),
+            `tasks.task_origin=${taskOriginExists ? 'yes' : 'no'}`,
+            `payments.source=${paymentSourceExists ? 'yes' : 'no'}`
+        );
+    } catch (error) {
+        console.warn('[DatabasePatch] Schema status check warning:', error.message);
+    }
+}
+
 const DatabasePatchService = {
     async applyPatches() {
         console.log('[DatabasePatch] Checking for required schema updates...');
@@ -136,6 +295,58 @@ const DatabasePatchService = {
             );
 
             await safeExecute(
+                `ALTER TABLE payments
+                 ADD COLUMN source ENUM('platform', 'offline_admin') NOT NULL DEFAULT 'platform' AFTER type`,
+                'payments.source patch warning',
+                ['ER_DUP_FIELDNAME', 'ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
+                `ALTER TABLE payments
+                 ADD COLUMN recorded_by INT NULL AFTER source`,
+                'payments.recorded_by patch warning',
+                ['ER_DUP_FIELDNAME', 'ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
+                `ALTER TABLE payments
+                 ADD COLUMN received_at DATETIME NULL AFTER recorded_by`,
+                'payments.received_at patch warning',
+                ['ER_DUP_FIELDNAME', 'ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
+                `ALTER TABLE payments
+                 ADD CONSTRAINT fk_payments_recorded_by
+                 FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL`,
+                'payments.recorded_by foreign key warning',
+                ['ER_DUP_KEY', 'ER_CANT_CREATE_TABLE', 'ER_FK_DUP_NAME', 'ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
+                `CREATE INDEX idx_payments_source_received_at
+                 ON payments (source, received_at)`,
+                'payments.source/received_at index warning',
+                ['ER_DUP_KEYNAME', 'ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
+                `UPDATE payments
+                 SET source = 'platform'
+                 WHERE source IS NULL OR source = ''`,
+                'payments.source backfill warning',
+                ['ER_BAD_FIELD_ERROR', 'ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
+                `UPDATE payments
+                 SET received_at = COALESCE(received_at, created_at)
+                 WHERE received_at IS NULL`,
+                'payments.received_at backfill warning',
+                ['ER_BAD_FIELD_ERROR', 'ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
                 `CREATE TABLE IF NOT EXISTS payment_intents (
                     id INT PRIMARY KEY AUTO_INCREMENT,
                     task_id INT NOT NULL,
@@ -219,6 +430,29 @@ const DatabasePatchService = {
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
                 'bulk_payment_intent_items table patch warning'
             );
+
+            await safeExecute(
+                `CREATE TABLE IF NOT EXISTS payment_reminder_logs (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    client_id INT NOT NULL,
+                    source ENUM('scheduled', 'manual_all', 'manual_single') NOT NULL,
+                    triggered_by INT NULL,
+                    recipient_email VARCHAR(255) NOT NULL,
+                    total_due DECIMAL(10, 2) NOT NULL DEFAULT 0,
+                    task_count INT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_payment_reminder_logs_client_created (client_id, created_at),
+                    INDEX idx_payment_reminder_logs_source_created (source, created_at),
+                    CONSTRAINT fk_payment_reminder_logs_client
+                        FOREIGN KEY (client_id) REFERENCES users(id) ON DELETE CASCADE,
+                    CONSTRAINT fk_payment_reminder_logs_triggered_by
+                        FOREIGN KEY (triggered_by) REFERENCES users(id) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+                'payment_reminder_logs table patch warning'
+            );
+
+            await backfillLegacyOfflinePayments();
+            await logSchemaStatus();
 
             console.log('[DatabasePatch] Schema updates checked/applied.');
         } catch (error) {

@@ -67,18 +67,22 @@ export const useTasks = () => {
         }
     }, [loadTasks]);
 
-    const togglePayment = useCallback(async (id) => {
+    const recordOfflinePayment = useCallback(async (id, payload = {}) => {
         try {
             setError('');
-            await apiService.togglePayment(id);
+            await apiService.recordOfflinePayment(id, payload);
             await loadTasks();
             return true;
         } catch (err) {
-            setError('Failed to update payment status. Please try again.');
-            console.error('Error toggling payment:', err);
+            setError('Failed to record payment. Please try again.');
+            console.error('Error recording offline payment:', err);
             return false;
         }
     }, [loadTasks]);
+
+    const togglePayment = useCallback(async (id, payload = {}) => {
+        return recordOfflinePayment(id, payload);
+    }, [recordOfflinePayment]);
 
     return {
         tasks,
@@ -89,6 +93,7 @@ export const useTasks = () => {
         createTask,
         updateTask,
         deleteTask,
-        togglePayment
+        togglePayment,
+        recordOfflinePayment
     };
 };

@@ -121,7 +121,10 @@ const OverduePaymentsTable = ({ data }) => {
                                 >
                                     Amount
                                     <SortIcon field="amount" />
-                                </button>
+                                    </button>
+                            </th>
+                            <th className="px-4 py-3 text-center">
+                                <span className="font-semibold text-gray-700">Phase</span>
                             </th>
                             <th className="px-4 py-3 text-center">
                                 <button
@@ -155,6 +158,11 @@ const OverduePaymentsTable = ({ data }) => {
                                     <td className="px-4 py-3 font-medium text-gray-900">{item.client}</td>
                                     <td className="px-4 py-3 text-gray-700">{item.project}</td>
                                     <td className="px-4 py-3 text-right font-bold text-red-600">{formatCurrency(item.amount)}</td>
+                                    <td className="px-4 py-3 text-center">
+                                        <span className="inline-flex px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-orange-100 text-orange-700">
+                                            {item.phase || 'due'}
+                                        </span>
+                                    </td>
                                     <td className="px-4 py-3 text-center text-gray-600">{formatDate(item.dueDate)}</td>
                                     <td className="px-4 py-3 text-center">
                                         <div className="flex items-center justify-center gap-1 text-orange-600 font-medium">

@@ -89,7 +89,7 @@ const ExecutiveKPICards = ({ data }) => {
         {
             title: 'Payment Health',
             value: formatCurrency(data.outstanding),
-            subValue: `Overdue: ${formatCurrency(data.overdue)} | Paid MTD: ${formatCurrency(data.paidThisMonth)}`,
+            subValue: `Overdue: ${formatCurrency(data.overdue)} | Collected MTD: ${formatCurrency(data.paidThisMonth)}`,
             trend: data.paymentTrend,
             icon: CreditCard,
             color: 'orange'

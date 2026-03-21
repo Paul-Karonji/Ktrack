@@ -1,19 +1,27 @@
 import React from 'react';
 import { TrendingUp, DollarSign, CheckCircle, Clock } from 'lucide-react';
 
+const toNumber = (value) => Number(value || 0);
+
+const getProjectTotal = (task) => toNumber(task.project_total || task.quoted_amount || task.expected_amount);
+
+const getCollectedAmount = (task) => {
+    const projectTotal = getProjectTotal(task);
+    const currentDue = toNumber(task.current_due_amount);
+    if (Number(task.is_paid) === 1) return projectTotal;
+    if (Number(task.deposit_paid) === 1) return Math.max(projectTotal - currentDue, 0);
+    return 0;
+};
+
 const ProjectAnalytics = ({ tasks }) => {
     const stats = {
         total: tasks.length,
         completed: tasks.filter(t => t.status === 'completed').length,
-        inProgress: tasks.filter(t => t.status === 'in_progress').length,
+        inProgress: tasks.filter(t => ['in_progress', 'review', 'pending_deposit'].includes(t.status)).length,
         notStarted: tasks.filter(t => t.status === 'not_started').length,
-        totalRevenue: tasks.reduce((sum, t) => sum + (parseFloat(t.expected_amount) || 0), 0),
-        completedRevenue: tasks
-            .filter(t => t.status === 'completed')
-            .reduce((sum, t) => sum + (parseFloat(t.expected_amount) || 0), 0),
-        paidRevenue: tasks
-            .filter(t => t.is_paid)
-            .reduce((sum, t) => sum + (parseFloat(t.expected_amount) || 0), 0)
+        totalRevenue: tasks.reduce((sum, task) => sum + getProjectTotal(task), 0),
+        outstandingRevenue: tasks.reduce((sum, task) => sum + toNumber(task.current_due_amount), 0),
+        paidRevenue: tasks.reduce((sum, task) => sum + getCollectedAmount(task), 0)
     };
 
     const completionRate = stats.total > 0
@@ -86,7 +94,7 @@ const ProjectAnalytics = ({ tasks }) => {
                             {formatCurrency(stats.totalRevenue)}
                         </p>
                         <p className="text-xs text-emerald-600 font-semibold mt-1">
-                            {formatCurrency(stats.paidRevenue)} paid
+                            {formatCurrency(stats.paidRevenue)} collected • {formatCurrency(stats.outstandingRevenue)} current due
                         </p>
                     </div>
                 </div>

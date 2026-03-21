@@ -4,12 +4,18 @@ import { useAuth } from '../context/AuthContext';
 
 const AnalyticsContext = createContext();
 
+const toNumber = (value) => Number(value || 0);
+
+const titleize = (value) => String(value || '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
 export const AnalyticsProvider = ({ children }) => {
     const [dateRange, setDateRange] = useState({
-        start: new Date(new Date().setDate(new Date().getDate() - 30)), // Last 30 days
+        start: new Date(new Date().setDate(new Date().getDate() - 30)),
         end: new Date()
     });
-    const [refreshInterval, setRefreshInterval] = useState(null); // null, 30, 60, 300 (seconds)
+    const [refreshInterval, setRefreshInterval] = useState(null);
     const [analyticsData, setAnalyticsData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -17,39 +23,31 @@ export const AnalyticsProvider = ({ children }) => {
     const { user } = useAuth();
 
     const fillGaps = useCallback((data, start, end, format = 'month') => {
-        if (!data || !Array.isArray(data)) return [];
+        if (!Array.isArray(data)) return [];
+
         const result = [];
-        let current = new Date(start);
+        const existingByPeriod = new Map(data.map((item) => [item.period, item]));
+        const current = new Date(start);
         const finish = new Date(end);
 
-        while (current <= finish ||
-            (format === 'month' && current.getMonth() === finish.getMonth() && current.getFullYear() === finish.getFullYear())) {
+        while (
+            current <= finish
+            || (format === 'month' && current.getMonth() === finish.getMonth() && current.getFullYear() === finish.getFullYear())
+        ) {
             const period = format === 'day'
                 ? current.toISOString().split('T')[0]
-                : current.getFullYear() + '-' + String(current.getMonth() + 1).padStart(2, '0');
+                : `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
 
-            // Avoid duplicate periods
-            if (result.some(r => r.period === period)) {
-                if (format === 'day') current.setDate(current.getDate() + 1);
-                else current.setMonth(current.getMonth() + 1);
-                continue;
-            }
-
-            const existing = data.find(d => d.period === period);
-            if (existing) {
-                result.push(existing);
-            } else {
-                result.push({
-                    period,
-                    expected: 0,
-                    actual: 0,
-                    task_count: 0,
-                    registered: 0,
-                    guests: 0,
-                    count: 0,
-                    size: 0
-                });
-            }
+            result.push(existingByPeriod.get(period) || {
+                period,
+                expected: 0,
+                actual: 0,
+                task_count: 0,
+                registered: 0,
+                guests: 0,
+                count: 0,
+                size: 0
+            });
 
             if (format === 'day') {
                 current.setDate(current.getDate() + 1);
@@ -57,32 +55,22 @@ export const AnalyticsProvider = ({ children }) => {
                 current.setMonth(current.getMonth() + 1);
             }
         }
+
         return result;
     }, []);
 
     const fetchAnalytics = useCallback(async () => {
-        // Only admins have access to analytics endpoints — skip silently for clients
         if (!user || user.role !== 'admin') return;
 
         setLoading(true);
         setError(null);
 
         try {
-            // Prepare date range parameters
             const params = {
                 startDate: dateRange.start.toISOString(),
                 endDate: dateRange.end.toISOString()
             };
 
-            console.log('📊 Fetching analytics with params:', params);
-
-            // Debug: Check if new API methods exist (verifies frontend code sync)
-            if (typeof apiService.analytics.getFinancialStats !== 'function') {
-                console.error('❌ CRITICAL: apiService.analytics.getFinancialStats is NOT a function! Frontend code is outdated.');
-                throw new Error('Frontend code outdated - missing API methods');
-            }
-
-            // Fetch all analytics data in parallel
             const [
                 kpis,
                 revenue,
@@ -103,119 +91,113 @@ export const AnalyticsProvider = ({ children }) => {
                 apiService.analytics.getStorageAnalytics(params)
             ]);
 
-            console.log('✅ API Responses received:', {
-                kpis, revenue, pipeline, clientGrowth, taskStatus, financialStats, clientStats
-            });
-
-            // Fill gaps in time-series data
             const filledRevenue = fillGaps(revenue, dateRange.start, dateRange.end, 'month');
             const filledGrowth = fillGaps(clientGrowth, dateRange.start, dateRange.end, 'month');
+            const totalStatuses = taskStatus.reduce((sum, status) => sum + toNumber(status.count), 0);
 
-            // Build comprehensive analytics data with section-specific data
-            const analyticsData = {
+            setAnalyticsData({
                 kpis,
                 revenue: filledRevenue,
                 clientGrowth: filledGrowth,
                 pipeline,
                 taskStatus,
-
-                // Financial Section Data - From Real DB
                 financial: {
-                    totalRevenue: parseFloat(kpis.actualRevenue) || 0,
-                    expectedRevenue: parseFloat(kpis.expectedRevenue) || 0,
-                    outstanding: kpis.outstanding || 0,
-                    paidThisMonth: kpis.paidThisMonth || 0,
-                    revenueChange: kpis.revenueTrend || '+0%',
-                    paidChange: kpis.paymentTrend || '+0%',
-                    collectionRate: kpis.collectionRate || 0,
+                    totalRevenue: toNumber(financialStats.totalRevenue ?? kpis.actualRevenue),
+                    expectedRevenue: toNumber(kpis.expectedRevenue),
+                    outstanding: toNumber(financialStats.outstanding ?? kpis.outstanding),
+                    outstandingDeposit: toNumber(financialStats.outstandingDeposit),
+                    outstandingBalance: toNumber(financialStats.outstandingBalance),
+                    outstandingFull: toNumber(financialStats.outstandingFull),
+                    paidThisMonth: toNumber(kpis.paidThisMonth),
+                    revenueChange: kpis.revenueTrend || '0%',
+                    paidChange: kpis.paymentTrend || '0%',
+                    collectionRate: toNumber(kpis.collectionRate),
                     overdueCount: financialStats.overduePayments?.length || 0,
-                    paid: kpis.paidThisMonth || 0,
-                    pending: kpis.outstanding || 0,
-                    overdue: kpis.overdue || 0,
-                    avgDaysToPayment: financialStats.avgDaysToPayment || 0,
-                    overdueRate: financialStats.overdueRate || 0,
-                    // Real data from new endpoints
-                    revenueBreakdown: financialStats.revenueByClient,
-                    paymentStatusByMonth: financialStats.paymentStatusByMonth,
-                    overduePayments: financialStats.overduePayments
+                    paid: toNumber(financialStats.totalRevenue),
+                    pending: toNumber(financialStats.outstanding),
+                    overdue: toNumber(kpis.overdue),
+                    avgDaysToPayment: toNumber(financialStats.avgDaysToPayment),
+                    overdueRate: toNumber(financialStats.overdueRate),
+                    platformRevenue: toNumber(financialStats.platformRevenue),
+                    offlineRevenue: toNumber(financialStats.offlineRevenue),
+                    depositRevenue: toNumber(financialStats.depositRevenue),
+                    balanceRevenue: toNumber(financialStats.balanceRevenue),
+                    fullRevenue: toNumber(financialStats.fullRevenue),
+                    revenueBreakdown: financialStats.revenueBreakdown || [],
+                    paymentStatusByMonth: financialStats.paymentStatusByMonth || [],
+                    overduePayments: financialStats.overduePayments || [],
+                    revenueByClient: financialStats.revenueByClient || []
                 },
-
-                // Tasks Section Data - Calculated from KPIs & Task Status
                 tasks: {
-                    activeTasks: kpis.activeTasks || 0,
-                    completedThisMonth: kpis.completedThisPeriod || 0,
-                    avgCompletionTime: kpis.avgCompletionTime || 0,
-                    onTimeRate: kpis.onTimeRate || 0,
-                    statusDistribution: taskStatus.map(t => ({
-                        status: t.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                        count: t.count,
-                        percentage: taskStatus.reduce((sum, s) => sum + s.count, 0) > 0
-                            ? Math.round((t.count / taskStatus.reduce((sum, s) => sum + s.count, 0)) * 100)
+                    activeTasks: toNumber(kpis.activeTasks),
+                    completedThisMonth: toNumber(kpis.completedThisPeriod),
+                    avgCompletionTime: toNumber(kpis.avgCompletionTime),
+                    onTimeRate: toNumber(kpis.onTimeRate),
+                    statusDistribution: taskStatus.map((item) => ({
+                        status: item.status,
+                        label: titleize(item.status),
+                        count: toNumber(item.count),
+                        percentage: totalStatuses > 0
+                            ? Math.round((toNumber(item.count) / totalStatuses) * 100)
                             : 0
                     })),
                     priorityBreakdown: kpis.priorityBreakdown ? [
-                        { priority: 'urgent', count: kpis.priorityBreakdown.urgent || 0 },
-                        { priority: 'high', count: kpis.priorityBreakdown.high || 0 },
-                        { priority: 'medium', count: kpis.priorityBreakdown.medium || 0 },
-                        { priority: 'low', count: kpis.priorityBreakdown.low || 0 }
+                        { priority: 'urgent', count: toNumber(kpis.priorityBreakdown.urgent) },
+                        { priority: 'high', count: toNumber(kpis.priorityBreakdown.high) },
+                        { priority: 'medium', count: toNumber(kpis.priorityBreakdown.medium) },
+                        { priority: 'low', count: toNumber(kpis.priorityBreakdown.low) }
                     ] : [],
-                    completedOnTime: kpis.completedOnTime || 0,
-                    completedLate: (kpis.completedThisPeriod || 0) - (kpis.completedOnTime || 0),
-                    avgResponseTime: kpis.avgResponseTime || 0,
+                    completedOnTime: toNumber(kpis.completedOnTime),
+                    completedLate: Math.max(toNumber(kpis.completedThisPeriod) - toNumber(kpis.completedOnTime), 0),
+                    avgResponseTime: toNumber(kpis.avgQuoteResponseTime),
                     avgReviewTime: 0,
                     quotePerformance: {
-                        totalQuotes: (kpis.pendingQuotes || 0) + (kpis.completedThisPeriod || 0),
-                        approved: kpis.completedThisPeriod || 0,
-                        pending: kpis.pendingQuotes || 0,
-                        rejected: 0,
-                        acceptanceRate: kpis.quoteAcceptanceRate || 0,
-                        avgResponseTime: kpis.avgQuoteResponseTime || 0
+                        totalQuotes: toNumber(kpis.totalQuotes),
+                        approved: toNumber(kpis.approvedQuotes),
+                        pending: toNumber(kpis.pendingQuotes),
+                        rejected: toNumber(kpis.rejectedQuotes),
+                        acceptanceRate: toNumber(kpis.quoteAcceptanceRate),
+                        avgResponseTime: toNumber(kpis.avgQuoteResponseTime)
                     }
                 },
-
-                // Clients Section Data - From Real DB
                 clients: {
-                    totalClients: kpis.totalClients || 0,
-                    newThisMonth: clientGrowth.length > 0 ? (Number(clientGrowth[clientGrowth.length - 1].registered) + Number(clientGrowth[clientGrowth.length - 1].guests)) : 0,
-                    activeClients: kpis.registeredClients || 0,
+                    totalClients: toNumber(clientStats.totalClients ?? kpis.totalClients),
+                    newThisMonth: filledGrowth.length > 0
+                        ? (toNumber(filledGrowth[filledGrowth.length - 1].registered) + toNumber(filledGrowth[filledGrowth.length - 1].guests))
+                        : 0,
+                    activeClients: toNumber(clientStats.activeClients ?? kpis.totalClients),
                     growthRate: parseFloat(kpis.clientGrowth) || 0,
-                    registeredClients: kpis.registeredClients || 0,
-                    guestClients: kpis.guestClients || 0,
-                    inactiveClients: (kpis.totalClients || 0) - (kpis.registeredClients || 0),
-                    // Real data from new endpoints
-                    topClients: clientStats.topClients,
-                    acquisitionChannels: clientStats.acquisitionChannels,
-                    avgProjectsPerClient: kpis.totalClients > 0 ? ((kpis.activeTasks + kpis.completedThisPeriod) / kpis.totalClients).toFixed(1) : 0,
-                    avgLifetimeValue: kpis.totalClients > 0 ? (kpis.actualRevenue / kpis.totalClients).toFixed(0) : 0,
-                    avgClientResponseTime: kpis.avgQuoteResponseTime || 0,
-                    retentionRate: clientStats.retentionRate || 0,
-                    repeatClientRate: clientStats.retentionRate || 0
+                    registeredClients: toNumber(kpis.registeredClients),
+                    guestClients: toNumber(kpis.guestClients),
+                    inactiveClients: toNumber(clientStats.inactiveClients),
+                    topClients: clientStats.topClients || [],
+                    acquisitionChannels: clientStats.acquisitionChannels || [],
+                    clientLoyalty: clientStats.clientLoyalty || [],
+                    clientScatter: clientStats.clientScatter || [],
+                    avgProjectsPerClient: toNumber(clientStats.totalClients ?? kpis.totalClients) > 0
+                        ? ((toNumber(kpis.activeTasks) + toNumber(kpis.completedThisPeriod)) / toNumber(clientStats.totalClients ?? kpis.totalClients)).toFixed(1)
+                        : 0,
+                    avgLifetimeValue: toNumber(clientStats.totalClients ?? kpis.totalClients) > 0
+                        ? (toNumber(kpis.actualRevenue) / toNumber(clientStats.totalClients ?? kpis.totalClients)).toFixed(0)
+                        : 0,
+                    avgClientResponseTime: toNumber(kpis.avgQuoteResponseTime),
+                    retentionRate: toNumber(clientStats.retentionRate),
+                    repeatClientRate: toNumber(clientStats.retentionRate)
                 },
-
                 storage: storageStats,
                 lastUpdated: new Date()
-            };
-
-            console.log('📈 Setting analytics data:', analyticsData);
-            setAnalyticsData(analyticsData);
+            });
         } catch (err) {
-            console.error('❌ Analytics fetch error:', err);
-            console.error('Error message:', err.message);
-            console.error('Error response:', err.response?.data);
-            console.error('Error status:', err.response?.status);
-
             setError(err.message || 'Failed to fetch analytics data');
         } finally {
             setLoading(false);
         }
-    }, [dateRange, user]);
+    }, [dateRange, fillGaps, user]);
 
-    // Initial fetch
     useEffect(() => {
         fetchAnalytics();
     }, [fetchAnalytics]);
 
-    // Auto-refresh
     useEffect(() => {
         if (!refreshInterval) return;
 

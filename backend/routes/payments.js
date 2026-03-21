@@ -37,5 +37,7 @@ router.post('/webhook', (req, res) => paymentController.handleWebhook(req, res))
 router.get('/', authenticate, requireAdmin, (req, res) => paymentController.getPayments(req, res));
 router.get('/settings', authenticate, requireAdmin, (req, res) => paymentController.getPaymentSettings(req, res));
 router.put('/settings', authenticate, requireAdmin, (req, res) => paymentController.updatePaymentSettings(req, res));
+router.get('/reminders/overview', authenticate, requireAdmin, (req, res) => paymentController.getReminderOverview(req, res));
+router.post('/reminders/send-now', authenticate, requireAdmin, (req, res) => paymentController.sendReminderNow(req, res));
 
 module.exports = router;

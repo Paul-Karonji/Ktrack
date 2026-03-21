@@ -9,6 +9,7 @@ import Header from '../components/layout/Header';
 import Sidebar from '../components/layout/Sidebar';
 import FileManager from '../components/files/FileManager';
 import SendQuoteModal from '../components/tasks/SendQuoteModal';
+import RecordOfflinePaymentModal from '../components/payments/RecordOfflinePaymentModal';
 
 import AdminDashboard from './AdminDashboard';
 import ClientDashboard from './ClientDashboard';
@@ -19,7 +20,7 @@ const Dashboard = () => {
     const [selectedTaskForQuote, setSelectedTaskForQuote] = useState(null);
 
     // Custom hooks
-    const { tasks, loading, error, loadTasks, createTask, updateTask, deleteTask, togglePayment } = useTasks();
+    const { tasks, loading, error, loadTasks, createTask, updateTask, deleteTask, recordOfflinePayment } = useTasks();
     const isOnline = useOnlineStatus();
 
     // UI state
@@ -29,6 +30,9 @@ const Dashboard = () => {
     const [showFileManager, setShowFileManager] = useState(false);
     const [fileManagerMode, setFileManagerMode] = useState('manage'); // 'manage' or 'deliver'
     const [selectedTaskId, setSelectedTaskId] = useState(null);
+    const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false);
+    const [selectedTaskForPayment, setSelectedTaskForPayment] = useState(null);
+    const [isRecordingOfflinePayment, setIsRecordingOfflinePayment] = useState(false);
     const fileInputRef = React.useRef(null);
 
     // Form state
@@ -40,6 +44,7 @@ const Dashboard = () => {
         dateDelivered: '',
         expectedAmount: '',
         isPaid: false,
+        offlinePaymentReceivedAt: new Date().toISOString().split('T')[0],
         requiresDeposit: false,
         priority: 'medium',
         status: 'not_started',
@@ -62,6 +67,7 @@ const Dashboard = () => {
             dateDelivered: '',
             expectedAmount: '',
             isPaid: false,
+            offlinePaymentReceivedAt: new Date().toISOString().split('T')[0],
             requiresDeposit: false,
             priority: 'medium',
             status: 'not_started',
@@ -95,7 +101,8 @@ const Dashboard = () => {
         const submissionData = {
             ...formData,
             clientName: effectiveClientName,
-            isPaid: Boolean(formData.isPaid) // Fix: Ensure boolean for backend validation
+            isPaid: Boolean(formData.isPaid), // Fix: Ensure boolean for backend validation
+            offlinePaymentReceivedAt: formData.offlinePaymentReceivedAt || new Date().toISOString().split('T')[0]
         };
         // Remove file from submission data as it's handled separately
         delete submissionData.file;
@@ -156,6 +163,7 @@ const Dashboard = () => {
             dateDelivered: task.date_delivered ? task.date_delivered.split('T')[0] : '',
             expectedAmount: task.expected_amount.toString(),
             isPaid: task.is_paid,
+            offlinePaymentReceivedAt: task.paid_at ? task.paid_at.split('T')[0] : new Date().toISOString().split('T')[0],
             requiresDeposit: Boolean(task.requires_deposit),
             priority: task.priority || 'medium',
             status: task.status || 'not_started',
@@ -190,12 +198,24 @@ const Dashboard = () => {
     };
 
     // Handle toggle payment
-    const handleTogglePayment = async (taskId) => {
+    const handleTogglePayment = async (task) => {
+        setSelectedTaskForPayment(task);
+        setShowRecordPaymentModal(true);
+    };
+
+    const confirmRecordOfflinePayment = async (receivedAt) => {
+        if (!selectedTaskForPayment) return;
+
         try {
-            await togglePayment(taskId);
+            setIsRecordingOfflinePayment(true);
+            await recordOfflinePayment(selectedTaskForPayment.id, { receivedAt });
+            setShowRecordPaymentModal(false);
+            setSelectedTaskForPayment(null);
         } catch (err) {
-            console.error('Toggle payment error:', err);
-            alert('Failed to update payment status');
+            console.error('Offline payment recording error:', err);
+            alert('Failed to record payment');
+        } finally {
+            setIsRecordingOfflinePayment(false);
         }
     };
 
@@ -258,6 +278,7 @@ const Dashboard = () => {
             status: 'not_started',
             notes: task.notes || '',
             quantity: task.quantity || 1,
+            offlinePaymentReceivedAt: new Date().toISOString().split('T')[0],
             files: null
         });
         setEditingTask(null);
@@ -392,6 +413,18 @@ const Dashboard = () => {
                     task={selectedTaskForQuote}
                 />
             )}
+
+            <RecordOfflinePaymentModal
+                isOpen={showRecordPaymentModal}
+                task={selectedTaskForPayment}
+                isSubmitting={isRecordingOfflinePayment}
+                onClose={() => {
+                    if (isRecordingOfflinePayment) return;
+                    setShowRecordPaymentModal(false);
+                    setSelectedTaskForPayment(null);
+                }}
+                onConfirm={confirmRecordOfflinePayment}
+            />
         </div>
     );
 };

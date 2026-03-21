@@ -131,6 +131,19 @@ const TaskCard = ({
                     </button>
                 )}
 
+                {user?.role === 'admin' && onTogglePayment && (
+                    <button
+                        onClick={() => onTogglePayment(task)}
+                        disabled={!isOnline || Number(task.is_paid) === 1}
+                        className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${Number(task.is_paid) === 1
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                            } disabled:opacity-60 disabled:cursor-not-allowed`}
+                    >
+                        {Number(task.is_paid) === 1 ? 'Paid' : 'Record Paid'}
+                    </button>
+                )}
+
                 {user?.role === 'admin' && shouldShowSendQuote(task) && (
                     <button
                         onClick={() => onSendQuote(task)}

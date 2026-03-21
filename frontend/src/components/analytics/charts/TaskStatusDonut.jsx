@@ -3,19 +3,21 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 
 const TaskStatusDonut = ({ data }) => {
     const COLORS = {
-        'pending_quote': '#f59e0b',
-        'quote_sent': '#8b5cf6',
+        'not_started': '#94a3b8',
+        'pending_deposit': '#fb923c',
         'in_progress': '#3b82f6',
         'review': '#f97316',
-        'completed': '#10b981'
+        'completed': '#10b981',
+        'cancelled': '#ef4444'
     };
 
     const STATUS_LABELS = {
-        'pending_quote': 'Pending Quote',
-        'quote_sent': 'Quote Sent',
+        'not_started': 'Not Started',
+        'pending_deposit': 'Pending Deposit',
         'in_progress': 'In Progress',
         'review': 'Review',
-        'completed': 'Completed'
+        'completed': 'Completed',
+        'cancelled': 'Cancelled'
     };
 
     if (!data || !Array.isArray(data) || data.length === 0) {

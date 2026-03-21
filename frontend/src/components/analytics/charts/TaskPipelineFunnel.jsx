@@ -5,17 +5,25 @@ const TaskPipelineFunnel = ({ data }) => {
     const stageColors = {
         'pending_quote': '#f59e0b',
         'quote_sent': '#8b5cf6',
+        'payment_due': '#f59e0b',
+        'pending_deposit': '#fb923c',
+        'not_started': '#94a3b8',
         'in_progress': '#3b82f6',
         'review': '#f97316',
-        'completed': '#10b981'
+        'completed': '#10b981',
+        'cancelled': '#ef4444'
     };
 
     const stageLabels = {
         'pending_quote': 'Pending Quote',
         'quote_sent': 'Quote Sent',
+        'payment_due': 'Payment Due',
+        'pending_deposit': 'Pending Deposit',
+        'not_started': 'Not Started',
         'in_progress': 'In Progress',
         'review': 'Review',
-        'completed': 'Completed'
+        'completed': 'Completed',
+        'cancelled': 'Cancelled'
     };
 
     if (!data || !Array.isArray(data) || data.length === 0) {
@@ -74,7 +82,7 @@ const TaskPipelineFunnel = ({ data }) => {
             </ResponsiveContainer>
 
             {/* Conversion Rates */}
-            <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2">
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
                 {formattedData.map((stage, index) => (
                     <div key={index} className="text-center p-2 bg-gray-50 rounded-lg">
                         <p className="text-xs text-gray-600 truncate">{stage.stage}</p>

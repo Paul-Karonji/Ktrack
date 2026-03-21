@@ -14,6 +14,7 @@ router.get('/', TaskController.getAllTasks);
 router.post('/', validateTask, TaskController.createTask);
 router.put('/:id', validateId, validateTask, TaskController.updateTask);
 router.patch('/:id/toggle-payment', validateId, TaskController.togglePayment);
+router.post('/:id/record-payment', validateId, TaskController.recordOfflinePayment);
 router.delete('/:id', validateId, TaskController.deleteTask);
 router.post('/:id/quote', authorize(['admin']), validateId, TaskController.sendQuote);
 router.post('/:id/quote/respond', validateId, TaskController.respondToQuote);

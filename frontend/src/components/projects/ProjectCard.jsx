@@ -106,14 +106,14 @@ const ProjectCard = ({
                     </span>
                     {user?.role === 'admin' ? (
                         <button
-                            onClick={() => onTogglePayment && onTogglePayment(task.id)}
+                            onClick={() => onTogglePayment && onTogglePayment(task)}
                             disabled={!isOnline}
                             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${Number(task.is_paid) === 1
                                 ? 'bg-green-100 text-green-700 hover:bg-green-200'
                                 : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
                                 } ${!isOnline ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                         >
-                            {Number(task.is_paid) === 1 ? 'Paid' : 'Pending'}
+                            {Number(task.is_paid) === 1 ? 'Paid' : 'Record Paid'}
                         </button>
                     ) : (
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${Number(task.is_paid) === 1 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>

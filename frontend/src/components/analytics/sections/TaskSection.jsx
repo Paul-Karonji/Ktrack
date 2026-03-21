@@ -15,9 +15,11 @@ const TaskSection = ({ data, dateRange }) => {
 
     const statusColors = {
         'not_started': 'bg-gray-100 text-gray-600',
+        'pending_deposit': 'bg-orange-100 text-orange-600',
         'in_progress': 'bg-blue-100 text-blue-600',
         'review': 'bg-orange-100 text-orange-600',
-        'completed': 'bg-green-100 text-green-600'
+        'completed': 'bg-green-100 text-green-600',
+        'cancelled': 'bg-red-100 text-red-600'
     };
 
     const performanceMetrics = [
@@ -144,8 +146,8 @@ const TaskSection = ({ data, dateRange }) => {
                             <span className="text-sm font-bold text-orange-600">{data.completedLate || 0}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Avg Response Time</span>
-                            <span className="text-sm font-bold text-gray-900">{data.avgResponseTime || 0} hrs</span>
+                            <span className="text-sm text-gray-600">Avg Quote Response</span>
+                            <span className="text-sm font-bold text-gray-900">{data.avgResponseTime || 0} days</span>
                         </div>
                         <div className="flex justify-between items-center">
                             <span className="text-sm text-gray-600">Avg Review Time</span>
@@ -167,15 +169,15 @@ const TaskSection = ({ data, dateRange }) => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="text-center p-4 bg-gray-50 rounded-lg">
                         <p className="text-sm text-gray-600 mb-1">Acceptance Rate</p>
-                        <p className="text-2xl font-bold text-gray-900">{data.quoteAcceptanceRate || 0}%</p>
+                        <p className="text-2xl font-bold text-gray-900">{data.quotePerformance?.acceptanceRate || 0}%</p>
                     </div>
                     <div className="text-center p-4 bg-gray-50 rounded-lg">
                         <p className="text-sm text-gray-600 mb-1">Pending Quotes</p>
-                        <p className="text-2xl font-bold text-gray-900">{data.pendingQuotes || 0}</p>
+                        <p className="text-2xl font-bold text-gray-900">{data.quotePerformance?.pending || 0}</p>
                     </div>
                     <div className="text-center p-4 bg-gray-50 rounded-lg">
                         <p className="text-sm text-gray-600 mb-1">Avg Response Time</p>
-                        <p className="text-2xl font-bold text-gray-900">{data.avgQuoteResponseTime || 0} days</p>
+                        <p className="text-2xl font-bold text-gray-900">{data.quotePerformance?.avgResponseTime || 0} days</p>
                     </div>
                 </div>
             </div>

@@ -22,6 +22,7 @@ const TaskCard = ({
     hideAmounts,
     onEdit,
     onDelete,
+    onTogglePayment,
     onDownloadFile,
     onDeliverWork,
     onSendQuote,

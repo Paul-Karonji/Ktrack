@@ -67,7 +67,20 @@ const ProgressArc = ({ step, total = 5, status }) => {
 const DeadlineChip = ({ dateDelivered }) => {
     if (!dateDelivered) return null;
     const now = new Date();
-    const due = new Date(dateDelivered);
+    
+    // Replace space with T to fix iOS Safari parsing issues for "YYYY-MM-DD HH:MM:SS"
+    const safeDateStr = typeof dateDelivered === 'string' ? dateDelivered.replace(' ', 'T') : dateDelivered;
+    const due = new Date(safeDateStr);
+    
+    if (isNaN(due.getTime())) {
+        return (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-50 text-gray-500">
+                <Calendar size={10} />
+                Invalid Date
+            </span>
+        );
+    }
+
     const diff = Math.ceil((due - now) / 86400000);
 
     let label;

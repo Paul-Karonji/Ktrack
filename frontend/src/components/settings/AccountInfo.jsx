@@ -4,7 +4,10 @@ import { Info, Mail, Shield, Calendar, Clock } from 'lucide-react';
 const AccountInfo = ({ user }) => {
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
-        return new Date(dateString).toLocaleDateString('en-US', {
+        const safeDateStr = typeof dateString === 'string' ? dateString.replace(' ', 'T') : dateString;
+        const date = new Date(safeDateStr);
+        if (isNaN(date.getTime())) return 'Invalid Date';
+        return date.toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'long',
             day: 'numeric'

@@ -26,7 +26,9 @@ const FileList = ({ files, onDownload, onDelete, userRole }) => {
 
     const formatDate = (dateString) => {
         if (!dateString) return 'Unknown';
-        const date = new Date(dateString);
+        const safeDateStr = typeof dateString === 'string' ? dateString.replace(' ', 'T') : dateString;
+        const date = new Date(safeDateStr);
+        if (isNaN(date.getTime())) return 'Invalid Date';
         const now = new Date();
         const diffTime = Math.abs(now - date);
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));

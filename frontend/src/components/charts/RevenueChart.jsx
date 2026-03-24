@@ -11,7 +11,11 @@ const RevenueChart = ({ tasks }) => {
             const date = task.date_commissioned || task.created_at;
             if (!date) return;
 
-            const monthKey = new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+            const safeDateStr = typeof date === 'string' ? date.replace(' ', 'T') : date;
+            const validDate = new Date(safeDateStr);
+            if (isNaN(validDate.getTime())) return;
+
+            const monthKey = validDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
 
             if (!monthlyData[monthKey]) {
                 monthlyData[monthKey] = {

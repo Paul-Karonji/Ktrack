@@ -81,7 +81,10 @@ const AdminFilesView = () => {
 
     const formatDate = (dateString) => {
         if (!dateString) return 'Unknown';
-        return new Date(dateString).toLocaleDateString('en-US', {
+        const safeDateStr = typeof dateString === 'string' ? dateString.replace(' ', 'T') : dateString;
+        const date = new Date(safeDateStr);
+        if (isNaN(date.getTime())) return 'Invalid Date';
+        return date.toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric',

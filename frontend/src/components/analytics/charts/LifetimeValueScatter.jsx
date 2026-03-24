@@ -15,13 +15,17 @@ const LifetimeValueScatter = ({ data }) => {
     const CustomTooltip = ({ active, payload }) => {
         if (active && payload && payload.length) {
             const data = payload[0].payload;
+            const safeDateStr = typeof data.lastActive === 'string' ? data.lastActive.replace(' ', 'T') : data.lastActive;
+            const d = new Date(safeDateStr);
+            const displayDate = isNaN(d.getTime()) ? 'Invalid Date' : d.toLocaleDateString();
+
             return (
                 <div className="bg-white p-3 border border-gray-100 shadow-xl rounded-xl text-xs">
                     <p className="font-bold text-gray-800">{data.name}</p>
                     <div className="mt-1 space-y-1 text-gray-600">
                         <p>Revenue: <span className="font-semibold text-indigo-600">{formatCurrency(data.revenue)}</span></p>
                         <p>Projects: {data.projects}</p>
-                        <p className="text-gray-400 text-[10px]">Last Active: {new Date(data.lastActive).toLocaleDateString()}</p>
+                        <p className="text-gray-400 text-[10px]">Last Active: {displayDate}</p>
                     </div>
                 </div>
             );

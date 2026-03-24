@@ -7,7 +7,8 @@ const ClientGrowthChart = ({ users = [], guests = [] }) => {
 
         // Process registered users
         users.forEach(user => {
-            const date = new Date(user.created_at);
+            const safeDateStr = typeof user.created_at === 'string' ? user.created_at.replace(' ', 'T') : user.created_at;
+            const date = new Date(safeDateStr);
             if (isNaN(date.getTime())) return;
             const key = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
 
@@ -20,7 +21,8 @@ const ClientGrowthChart = ({ users = [], guests = [] }) => {
 
         // Process guests
         guests.forEach(guest => {
-            const date = new Date(guest.created_at);
+            const safeDateStr = typeof guest.created_at === 'string' ? guest.created_at.replace(' ', 'T') : guest.created_at;
+            const date = new Date(safeDateStr);
             if (isNaN(date.getTime())) return;
             const key = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
 

@@ -13,6 +13,7 @@ import {
 import ChatComponent from '../chat/ChatComponent';
 import TaskPaymentSummary from '../payments/TaskPaymentSummary';
 import { canTaskBePaid, getPaymentActionLabel, shouldShowSendQuote } from '../../utils/paymentSummary';
+import { formatDate } from '../../utils/formatters';
 import useTaskPayment from '../../hooks/useTaskPayment';
 
 const ProjectCard = ({
@@ -55,10 +56,7 @@ const ProjectCard = ({
     const showPayButton = user?.role === 'client' && canTaskBePaid(task) && Number(task.is_paid) !== 1;
     const payLabel = getPaymentActionLabel(task);
 
-    const formatDate = (dateString) => {
-        if (!dateString) return 'Not set';
-        return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    };
+    // Use the imported formatDate function below
 
     return (
         <div className="bg-white rounded-2xl border-2 border-gray-100 hover:border-indigo-200 hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden">

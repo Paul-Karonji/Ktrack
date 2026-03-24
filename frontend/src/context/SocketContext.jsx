@@ -21,7 +21,7 @@ export const SocketProvider = ({ children }) => {
             return;
         }
 
-        const socketUrl = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:3001';
+        const socketUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001';
         
         const newSocket = io(socketUrl, {
             withCredentials: true,

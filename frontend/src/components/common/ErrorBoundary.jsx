@@ -31,14 +31,20 @@ class ErrorBoundary extends React.Component {
                         <h1 className="text-2xl font-bold text-gray-900 mb-2">
                             Something went wrong
                         </h1>
-                        <p className="text-gray-600 mb-6">
+                        <p className="text-gray-600 mb-2">
                             The application encountered an error. This usually happens due to cached data.
                         </p>
+                        {this.state.error && (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-left">
+                                <p className="text-red-700 text-xs font-mono font-bold">{this.state.error.name}</p>
+                                <p className="text-red-600 text-xs font-mono mt-1 break-words">{this.state.error.message}</p>
+                            </div>
+                        )}
                         <button
                             onClick={this.handleReset}
                             className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors"
                         >
-                            Clear Cache & Reload
+                            Clear Cache &amp; Reload
                         </button>
                     </div>
                 </div>

@@ -57,6 +57,7 @@ const AdminDashboard = ({
     onQuoteResponse,
     onSendQuote,
     onDuplicate,
+    onGuestPaymentLink,
     // ...
     // Form props
     showForm,
@@ -364,6 +365,7 @@ const AdminDashboard = ({
                             onQuoteResponse={onQuoteResponse}
                             onSendQuote={onSendQuote}
                             onDuplicate={onDuplicate}
+                            onGuestPaymentLink={onGuestPaymentLink}
                             user={user}
                         />
                     </div>

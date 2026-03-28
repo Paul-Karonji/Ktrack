@@ -11,6 +11,12 @@ class PaystackService {
         this.baseUrl = 'https://api.paystack.co';
     }
 
+    safeEqualHex(left, right) {
+        if (typeof left !== 'string' || typeof right !== 'string') return false;
+        if (left.length !== right.length) return false;
+        return crypto.timingSafeEqual(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
+    }
+
     /**
      * Verifies a transaction with Paystack API using the reference.
      * @param {string} reference - The transaction reference from Paystack.
@@ -41,12 +47,19 @@ class PaystackService {
      * @param {string} signature - The x-paystack-signature header.
      * @returns {boolean}
      */
-    validateWebhook(payload, signature) {
+    validateWebhook(payload, signature, rawBody = '') {
+        if (!this.secretKey || !signature) {
+            return false;
+        }
+
+        const body = typeof rawBody === 'string' && rawBody.length > 0
+            ? rawBody
+            : JSON.stringify(payload);
         const hash = crypto
             .createHmac('sha512', this.secretKey)
-            .update(JSON.stringify(payload))
+            .update(body)
             .digest('hex');
-        return hash === signature;
+        return this.safeEqualHex(hash, String(signature));
     }
 }
 

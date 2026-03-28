@@ -140,6 +140,8 @@ export const apiService = {
     togglePayment: (id, payload = {}) => api.patch(`/tasks/${id}/toggle-payment`, payload).then(res => res.data),
     recordOfflinePayment: (id, payload) => api.post(`/tasks/${id}/record-payment`, payload).then(res => res.data),
     getPaymentHistory: () => api.get('/payments').then(res => res.data),
+    createGuestPaymentLink: (payload) => api.post('/payments/guest-links', payload).then(res => res.data),
+    revokeGuestPaymentLink: (id) => api.post(`/payments/guest-links/${id}/revoke`).then(res => res.data),
     getOutstandingSummary: () => api.get('/payments/outstanding-summary').then(res => res.data),
     initializeBulkPayment: () => api.post('/payments/initialize-bulk').then(res => res.data),
     verifyBulkPayment: (payload) => api.post('/payments/verify-bulk', payload).then(res => res.data),
@@ -201,6 +203,9 @@ export const apiService = {
 
     // Public
     getPublicStats: () => api.get('/public/stats').then(res => res.data),
+    getGuestPaymentLink: (token) => api.get(`/public/payments/guest/${encodeURIComponent(token)}`).then(res => res.data),
+    initializeGuestPayment: (token, payload) => api.post(`/public/payments/guest/${encodeURIComponent(token)}/initialize`, payload).then(res => res.data),
+    verifyGuestPayment: (token, payload) => api.post(`/public/payments/guest/${encodeURIComponent(token)}/verify`, payload).then(res => res.data),
 
     // Analytics
     analytics: {

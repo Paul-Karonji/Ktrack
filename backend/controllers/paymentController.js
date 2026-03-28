@@ -2,11 +2,13 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const paystackService = require('../services/paystackService');
 const Task = require('../models/Task');
+const GuestClient = require('../models/GuestClient');
 const PaymentSettings = require('../models/PaymentSettings');
 const logger = require('../utils/logger');
 const { pool } = require('../config/database');
 const EmailService = require('../services/emailService');
 const paymentReminderService = require('../services/paymentReminderService');
+const guestPaymentLinkService = require('../services/guestPaymentLinkService');
 const {
     roundMoney,
     derivePaymentState,
@@ -58,6 +60,147 @@ class PaymentController {
                     sortOrder: index + 1
                 };
             });
+    }
+
+    isValidEmail(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
+    }
+
+    sanitizeGuestTask(task) {
+        return {
+            id: task.id,
+            taskName: task.task_name || `Task #${task.id}`,
+            currentDuePhase: task.current_due_phase,
+            currentDueAmount: roundMoney(task.current_due_amount || 0),
+            paymentStateLabel: task.payment_state_label,
+            status: task.status
+        };
+    }
+
+    async getEligibleGuestTasks(guestClientId, executor = pool) {
+        const tasks = await Task.findAll({ guestClientId }, 0, executor);
+        return tasks.filter((task) =>
+            Number(task.guest_client_id) === Number(guestClientId)
+            && Number(task.can_pay_now) === 1
+            && Number(task.current_due_amount) > 0
+            && Number(task.is_paid) !== 1
+            && task.status !== 'cancelled'
+        );
+    }
+
+    async getGuestLinkContext(token, executor = pool) {
+        const resolved = await guestPaymentLinkService.resolveToken(token, executor);
+        if (!resolved) {
+            return {
+                statusCode: 404,
+                state: 'invalid',
+                message: 'This payment link is invalid or has been tampered with.'
+            };
+        }
+
+        const { link, publicUrl } = resolved;
+
+        if (link.status === 'revoked') {
+            return {
+                statusCode: 410,
+                state: 'revoked',
+                message: 'This payment link has been revoked.'
+            };
+        }
+
+        if (link.status === 'settled' && link.scope === 'task') {
+            return {
+                statusCode: 410,
+                state: 'settled',
+                message: 'This payment link has already been settled.'
+            };
+        }
+
+        if (link.upgraded_to_user_id) {
+            return {
+                statusCode: 410,
+                state: 'invalid',
+                message: 'This guest profile now uses the main dashboard instead of a public payment link.'
+            };
+        }
+
+        return {
+            link,
+            publicUrl
+        };
+    }
+
+    async getGuestLinkTasks(link, executor = pool) {
+        if (link.scope === 'task') {
+            const task = await Task.findById(link.task_id, executor, 0);
+
+            if (!task || Number(task.guest_client_id) !== Number(link.guest_client_id)) {
+                return {
+                    state: 'invalid',
+                    tasks: [],
+                    message: 'This payment link is no longer available.'
+                };
+            }
+
+            if (task.status === 'cancelled') {
+                return {
+                    state: 'cancelled',
+                    tasks: [],
+                    message: 'This task is no longer payable.'
+                };
+            }
+
+            if (Number(task.is_paid) === 1) {
+                await guestPaymentLinkService.settleLink(link.id, executor);
+                return {
+                    state: 'settled',
+                    tasks: [],
+                    message: 'This task has already been fully paid.'
+                };
+            }
+
+            if (Number(task.can_pay_now) !== 1 || Number(task.current_due_amount || 0) <= 0) {
+                return {
+                    state: 'unavailable',
+                    tasks: [],
+                    message: 'This task is not currently payable.'
+                };
+            }
+
+            return {
+                state: 'ready',
+                tasks: [task],
+                message: null
+            };
+        }
+
+        const tasks = await this.getEligibleGuestTasks(link.guest_client_id, executor);
+        return {
+            state: tasks.length > 0 ? 'ready' : 'empty',
+            tasks,
+            message: tasks.length > 0 ? null : 'No outstanding payment is due right now.'
+        };
+    }
+
+    selectGuestPaymentTasks(link, tasks, mode, taskId) {
+        if (link.scope === 'task') {
+            return tasks.slice(0, 1);
+        }
+
+        if (mode === 'single') {
+            const numericTaskId = Number(taskId);
+            const selectedTask = tasks.find((task) => task.id === numericTaskId);
+            if (!selectedTask) {
+                throw new Error('The selected task is not available for payment from this link.');
+            }
+            return [selectedTask];
+        }
+
+        if (mode === 'bulk') {
+            return tasks;
+        }
+
+        throw new Error('mode must be one of: single, bulk');
     }
 
     async initializePayment(req, res) {
@@ -128,6 +271,51 @@ class PaymentController {
         };
     }
 
+    getMetadataValue(data, key) {
+        const value = data?.metadata?.[key];
+        return value == null ? '' : String(value).trim();
+    }
+
+    assertVerifiedTransaction(data, {
+        reference,
+        expectedNonce,
+        expectedScope,
+        expectedTaskId = null,
+        expectedGuestMode = null
+    }) {
+        if (!data || typeof data !== 'object') {
+            throw new Error('Payment verification did not return transaction data.');
+        }
+
+        if (String(data.reference || '').trim() !== String(reference || '').trim()) {
+            throw new Error('Payment reference mismatch.');
+        }
+
+        if (String(data.status || '').toLowerCase() !== 'success') {
+            throw new Error(`Payment status: ${data.status || 'unknown'}`);
+        }
+
+        if (String(data.currency || '').toUpperCase() !== 'KES') {
+            throw new Error('Payment currency mismatch.');
+        }
+
+        if (this.getMetadataValue(data, 'nonce') !== String(expectedNonce || '')) {
+            throw new Error('Payment session mismatch.');
+        }
+
+        if (expectedScope && this.getMetadataValue(data, 'payment_scope') !== String(expectedScope)) {
+            throw new Error('Payment scope mismatch.');
+        }
+
+        if (expectedTaskId !== null && this.getMetadataValue(data, 'task_id') !== String(expectedTaskId)) {
+            throw new Error('Payment task mismatch.');
+        }
+
+        if (expectedGuestMode && this.getMetadataValue(data, 'guest_payment_mode') !== String(expectedGuestMode)) {
+            throw new Error('Payment mode mismatch.');
+        }
+    }
+
     async verifyPayment(req, res) {
         try {
             const { reference, taskId, nonce } = req.body;
@@ -153,11 +341,18 @@ class PaymentController {
             }
 
             const data = await paystackService.verifyTransaction(reference);
-
-            const verifiedTaskId = data.metadata?.task_id?.toString();
-            if (verifiedTaskId && verifiedTaskId !== taskId.toString()) {
-                await pool.execute(`UPDATE payment_intents SET status = 'failed' WHERE id = ?`, [intent.id]);
-                await this.sendTaskMismatchAlert(reference, verifiedTaskId, taskId, req.user.id);
+            try {
+                this.assertVerifiedTransaction(data, {
+                    reference,
+                    expectedNonce: nonce,
+                    expectedScope: 'single',
+                    expectedTaskId: taskId
+                });
+            } catch (validationError) {
+                if (validationError.message === 'Payment task mismatch.') {
+                    await this.sendTaskMismatchAlert(reference, this.getMetadataValue(data, 'task_id'), taskId, req.user.id);
+                }
+                logger.warn(`Single payment verification rejected: ${validationError.message}. ref=${reference}, task=${taskId}, user=${req.user.id}`);
                 return res.status(400).json({ success: false, message: 'Payment reference does not match this task.' });
             }
 
@@ -175,10 +370,6 @@ class PaymentController {
                     success: false,
                     message: 'Payment amount does not match the required amount. Please contact support.'
                 });
-            }
-
-            if (data.status !== 'success') {
-                return res.status(400).json({ success: false, message: `Payment status: ${data.status}`, data });
             }
 
             await pool.execute(
@@ -200,7 +391,7 @@ class PaymentController {
         const signature = req.headers['x-paystack-signature'];
         const payload = req.body;
 
-        if (!paystackService.validateWebhook(payload, signature)) {
+        if (!paystackService.validateWebhook(payload, signature, req.rawBody)) {
             logger.warn('Invalid Paystack Webhook Signature received');
             return res.status(401).send('Invalid signature');
         }
@@ -225,6 +416,18 @@ class PaymentController {
             );
 
             if (singleIntent) {
+                try {
+                    this.assertVerifiedTransaction(data, {
+                        reference,
+                        expectedNonce: nonce,
+                        expectedScope: 'single',
+                        expectedTaskId: singleIntent.task_id
+                    });
+                } catch (validationError) {
+                    logger.warn(`Webhook single payment rejected: ${validationError.message}. ref=${reference}, task=${singleIntent.task_id}`);
+                    return;
+                }
+
                 if (data.amount < singleIntent.amount_kes) {
                     await pool.execute(`UPDATE payment_intents SET status = 'failed' WHERE id = ?`, [singleIntent.id]);
                     await this.sendUnderpaymentAlert({
@@ -251,6 +454,56 @@ class PaymentController {
                 return;
             }
 
+            const [[guestSession]] = await pool.execute(
+                `SELECT * FROM guest_payment_sessions WHERE nonce = ? AND status = 'pending'`,
+                [nonce]
+            );
+
+            if (guestSession) {
+                try {
+                    this.assertVerifiedTransaction(data, {
+                        reference,
+                        expectedNonce: nonce,
+                        expectedScope: 'guest',
+                        expectedGuestMode: guestSession.mode
+                    });
+                } catch (validationError) {
+                    logger.warn(`Webhook guest payment rejected: ${validationError.message}. ref=${reference}, session=${guestSession.id}`);
+                    return;
+                }
+
+                if (data.amount < guestSession.total_amount_kes) {
+                    await pool.execute(`UPDATE guest_payment_sessions SET status = 'failed' WHERE id = ?`, [guestSession.id]);
+                    await this.sendBulkUnderpaymentAlert(reference, guestSession.total_amount_kes, data.amount);
+                    return;
+                }
+
+                const connection = await pool.getConnection();
+                try {
+                    await connection.beginTransaction();
+                    await connection.execute(
+                        `UPDATE guest_payment_sessions
+                         SET status = 'completed', reference = ?
+                         WHERE id = ?`,
+                        [reference, guestSession.id]
+                    );
+                    await this.processGuestPaymentSession(guestSession, reference, data, connection);
+                    await connection.commit();
+                    logger.info(`Webhook: processed guest payment session ${guestSession.id}.`);
+                } catch (error) {
+                    await connection.rollback();
+                    await pool.execute(
+                        `UPDATE guest_payment_sessions SET status = 'failed' WHERE id = ?`,
+                        [guestSession.id]
+                    );
+                    logger.error(`Webhook guest payment processing failed: ${error.message}`);
+                } finally {
+                    connection.release();
+                }
+
+                return;
+            }
+
             const [[bulkIntent]] = await pool.execute(
                 `SELECT * FROM bulk_payment_intents WHERE nonce = ? AND status = 'pending'`,
                 [nonce]
@@ -258,6 +511,17 @@ class PaymentController {
 
             if (!bulkIntent) {
                 logger.warn(`Webhook: unknown nonce=${nonce}. Ref=${reference}`);
+                return;
+            }
+
+            try {
+                this.assertVerifiedTransaction(data, {
+                    reference,
+                    expectedNonce: nonce,
+                    expectedScope: 'bulk'
+                });
+            } catch (validationError) {
+                logger.warn(`Webhook bulk payment rejected: ${validationError.message}. ref=${reference}, intent=${bulkIntent.id}`);
                 return;
             }
 
@@ -332,6 +596,390 @@ class PaymentController {
         }
 
         await syncTaskDueTracking(task, taskId, executor);
+    }
+
+    async createGuestPaymentLink(req, res) {
+        try {
+            const { scope, taskId, guestClientId } = req.body || {};
+
+            if (!['task', 'portal'].includes(scope)) {
+                return res.status(400).json({ success: false, message: 'scope must be one of: task, portal' });
+            }
+
+            if (scope === 'task') {
+                const task = await Task.findById(taskId, pool, req.user.id);
+                if (!task) {
+                    return res.status(404).json({ success: false, message: 'Task not found' });
+                }
+
+                if (!task.guest_client_id) {
+                    return res.status(400).json({ success: false, message: 'Guest payment links can only be created for guest tasks.' });
+                }
+
+                if (Number(task.can_pay_now) !== 1 || Number(task.current_due_amount) <= 0) {
+                    return res.status(400).json({ success: false, message: 'This task is not currently payable.' });
+                }
+
+                const guest = await GuestClient.findById(task.guest_client_id);
+                if (!guest || guest.upgraded_to_user_id) {
+                    return res.status(400).json({ success: false, message: 'This guest record is no longer eligible for public payment links.' });
+                }
+
+                const result = await guestPaymentLinkService.createOrReuseLink({
+                    scope,
+                    guestClientId: task.guest_client_id,
+                    taskId: task.id,
+                    createdBy: req.user.id
+                });
+
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        linkId: result.link.id,
+                        scope: result.link.scope,
+                        guestClientId: result.link.guest_client_id,
+                        taskId: result.link.task_id,
+                        publicUrl: result.publicUrl,
+                        reused: result.reused
+                    }
+                });
+            }
+
+            const guest = await GuestClient.findById(guestClientId);
+            if (!guest) {
+                return res.status(404).json({ success: false, message: 'Guest client not found' });
+            }
+
+            if (guest.upgraded_to_user_id) {
+                return res.status(400).json({ success: false, message: 'This guest record now uses the registered client dashboard.' });
+            }
+
+            const payableTasks = await this.getEligibleGuestTasks(guest.id);
+            if (payableTasks.length === 0) {
+                return res.status(400).json({ success: false, message: 'This guest does not have any payable tasks right now.' });
+            }
+
+            const result = await guestPaymentLinkService.createOrReuseLink({
+                scope,
+                guestClientId: guest.id,
+                createdBy: req.user.id
+            });
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    linkId: result.link.id,
+                    scope: result.link.scope,
+                    guestClientId: result.link.guest_client_id,
+                    taskId: null,
+                    publicUrl: result.publicUrl,
+                    reused: result.reused,
+                    payableTaskCount: payableTasks.length
+                }
+            });
+        } catch (error) {
+            logger.error(`Create Guest Payment Link Error: ${error.message}`);
+            return res.status(500).json({ success: false, message: 'Failed to create guest payment link' });
+        }
+    }
+
+    async revokeGuestPaymentLink(req, res) {
+        try {
+            const id = Number(req.params.id);
+            if (!Number.isInteger(id) || id <= 0) {
+                return res.status(400).json({ success: false, message: 'Invalid guest payment link ID.' });
+            }
+
+            const existingLink = await guestPaymentLinkService.findById(id);
+            if (!existingLink) {
+                return res.status(404).json({ success: false, message: 'Guest payment link not found.' });
+            }
+
+            const link = await guestPaymentLinkService.revokeLink(id);
+            return res.status(200).json({
+                success: true,
+                data: {
+                    id: link.id,
+                    status: link.status,
+                    revokedAt: link.revoked_at
+                }
+            });
+        } catch (error) {
+            logger.error(`Revoke Guest Payment Link Error: ${error.message}`);
+            return res.status(500).json({ success: false, message: 'Failed to revoke guest payment link' });
+        }
+    }
+
+    async getGuestPaymentLinkDetails(req, res) {
+        try {
+            const context = await this.getGuestLinkContext(req.params.token);
+            if (!context.link) {
+                return res.status(context.statusCode).json({
+                    success: false,
+                    state: context.state,
+                    message: context.message
+                });
+            }
+
+            const tasksState = await this.getGuestLinkTasks(context.link);
+
+            if (['invalid', 'revoked', 'settled', 'cancelled', 'unavailable'].includes(tasksState.state)) {
+                const statusCode = tasksState.state === 'unavailable' ? 400 : 410;
+                return res.status(statusCode).json({
+                    success: false,
+                    state: tasksState.state,
+                    message: tasksState.message
+                });
+            }
+
+            await guestPaymentLinkService.touchLink(context.link.id);
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    guestName: context.link.guest_name,
+                    guestEmail: context.link.guest_email || '',
+                    scope: context.link.scope,
+                    requiresEmail: !context.link.guest_email,
+                    totalDue: roundMoney(tasksState.tasks.reduce((sum, task) => sum + Number(task.current_due_amount || 0), 0)),
+                    payableTaskCount: tasksState.tasks.length,
+                    state: tasksState.state,
+                    message: tasksState.message,
+                    tasks: tasksState.tasks.map((task) => this.sanitizeGuestTask(task))
+                }
+            });
+        } catch (error) {
+            logger.error(`Get Guest Payment Link Details Error: ${error.message}`);
+            return res.status(500).json({ success: false, message: 'Failed to load guest payment link' });
+        }
+    }
+
+    async initializeGuestPayment(req, res) {
+        try {
+            const context = await this.getGuestLinkContext(req.params.token);
+            if (!context.link) {
+                return res.status(context.statusCode).json({
+                    success: false,
+                    state: context.state,
+                    message: context.message
+                });
+            }
+
+            const tasksState = await this.getGuestLinkTasks(context.link);
+            if (tasksState.state !== 'ready') {
+                return res.status(400).json({
+                    success: false,
+                    state: tasksState.state,
+                    message: tasksState.message || 'This payment link is not currently ready for checkout.'
+                });
+            }
+
+            const requestedMode = context.link.scope === 'task'
+                ? 'single'
+                : (req.body?.mode || 'bulk');
+            const enteredEmail = String(req.body?.email || context.link.guest_email || '').trim().toLowerCase();
+
+            if (!this.isValidEmail(enteredEmail)) {
+                return res.status(400).json({ success: false, message: 'A valid email address is required to start checkout.' });
+            }
+
+            let selectedTasks;
+            try {
+                selectedTasks = this.selectGuestPaymentTasks(
+                    context.link,
+                    tasksState.tasks,
+                    requestedMode,
+                    req.body?.taskId
+                );
+            } catch (selectionError) {
+                return res.status(400).json({ success: false, message: selectionError.message });
+            }
+
+            if (selectedTasks.length === 0) {
+                return res.status(400).json({ success: false, message: 'There are no payable tasks in this checkout.' });
+            }
+
+            const items = this.buildBulkItems(selectedTasks);
+            const totalAmountUsd = roundMoney(items.reduce((sum, item) => sum + Number(item.amountUsd || 0), 0));
+            const totalAmountKes = items.reduce((sum, item) => sum + Number(item.amountKes || 0), 0);
+            const nonce = crypto.randomBytes(32).toString('hex');
+            const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+            const connection = await pool.getConnection();
+            try {
+                await connection.beginTransaction();
+
+                const [result] = await connection.execute(
+                    `INSERT INTO guest_payment_sessions
+                        (link_id, guest_client_id, mode, entered_email, total_amount_usd, total_amount_kes, currency, nonce, expires_at)
+                     VALUES (?, ?, ?, ?, ?, ?, 'KES', ?, ?)`,
+                    [context.link.id, context.link.guest_client_id, requestedMode, enteredEmail, totalAmountUsd, totalAmountKes, nonce, expiresAt]
+                );
+
+                for (const item of items) {
+                    await connection.execute(
+                        `INSERT INTO guest_payment_session_items
+                            (session_id, task_id, phase, amount_usd, amount_kes, sort_order)
+                         VALUES (?, ?, ?, ?, ?, ?)`,
+                        [result.insertId, item.taskId, item.phase, item.amountUsd, item.amountKes, item.sortOrder]
+                    );
+                }
+
+                await guestPaymentLinkService.touchLink(context.link.id, connection);
+                await connection.commit();
+            } catch (error) {
+                await connection.rollback();
+                throw error;
+            } finally {
+                connection.release();
+            }
+
+            return res.status(201).json({
+                success: true,
+                nonce,
+                email: enteredEmail,
+                totalAmountUsd,
+                totalAmountKes,
+                totalAmountKesDisplay: roundMoney(totalAmountKes / 100),
+                exchangeRate: this.getExchangeRate(),
+                payableTaskCount: items.length,
+                mode: requestedMode
+            });
+        } catch (error) {
+            logger.error(`Initialize Guest Payment Error: ${error.message}`);
+            return res.status(500).json({ success: false, message: error.message || 'Failed to initialize guest payment' });
+        }
+    }
+
+    async verifyGuestPayment(req, res) {
+        try {
+            const context = await this.getGuestLinkContext(req.params.token);
+            if (!context.link) {
+                return res.status(context.statusCode).json({
+                    success: false,
+                    state: context.state,
+                    message: context.message
+                });
+            }
+
+            const { reference, nonce } = req.body || {};
+            if (!reference || !nonce) {
+                return res.status(400).json({ success: false, message: 'reference and nonce are required' });
+            }
+
+            const [[session]] = await pool.execute(
+                `SELECT *
+                 FROM guest_payment_sessions
+                 WHERE nonce = ?
+                   AND link_id = ?
+                   AND status = 'pending'
+                   AND expires_at > NOW()`,
+                [nonce, context.link.id]
+            );
+
+            if (!session) {
+                return res.status(400).json({ success: false, message: 'Invalid or expired guest payment session. Please start again.' });
+            }
+
+            const data = await paystackService.verifyTransaction(reference);
+            try {
+                this.assertVerifiedTransaction(data, {
+                    reference,
+                    expectedNonce: nonce,
+                    expectedScope: 'guest',
+                    expectedGuestMode: session.mode
+                });
+            } catch (validationError) {
+                logger.warn(`Guest payment verification rejected: ${validationError.message}. ref=${reference}, session=${session.id}`);
+                return res.status(400).json({ success: false, message: 'Payment session validation failed. Please start checkout again.' });
+            }
+
+            if (data.amount < session.total_amount_kes) {
+                await pool.execute(`UPDATE guest_payment_sessions SET status = 'failed' WHERE id = ?`, [session.id]);
+                await this.sendBulkUnderpaymentAlert(reference, session.total_amount_kes, data.amount);
+                return res.status(400).json({
+                    success: false,
+                    message: 'Payment amount does not match the required total.'
+                });
+            }
+
+            const connection = await pool.getConnection();
+            try {
+                await connection.beginTransaction();
+                await connection.execute(
+                    `UPDATE guest_payment_sessions
+                     SET status = 'completed', reference = ?
+                     WHERE id = ?`,
+                    [reference, session.id]
+                );
+                await this.processGuestPaymentSession(session, reference, data, connection);
+                await connection.commit();
+            } catch (error) {
+                await connection.rollback();
+                await pool.execute(`UPDATE guest_payment_sessions SET status = 'failed' WHERE id = ?`, [session.id]);
+                logger.error(`Guest payment verification error: ${error.message}`);
+                return res.status(400).json({
+                    success: false,
+                    message: 'Guest payment could not be applied because the outstanding balance changed. Please refresh and try again.'
+                });
+            } finally {
+                connection.release();
+            }
+
+            return res.status(200).json({ success: true, message: 'Guest payment verified and applied.' });
+        } catch (error) {
+            logger.error(`Verify Guest Payment Error: ${error.message}`);
+            return res.status(500).json({ success: false, message: 'Internal server error during guest payment verification' });
+        }
+    }
+
+    async processGuestPaymentSession(session, gatewayReference, data, connection) {
+        const [items] = await connection.execute(
+            `SELECT *
+             FROM guest_payment_session_items
+             WHERE session_id = ?
+             ORDER BY sort_order ASC, id ASC`,
+            [session.id]
+        );
+
+        if (items.length === 0) {
+            throw new Error('Guest payment session has no items.');
+        }
+
+        for (const item of items) {
+            const task = await Task.findById(item.task_id, connection, 0);
+            if (!task || Number(task.guest_client_id) !== Number(session.guest_client_id)) {
+                throw new Error(`Task ${item.task_id} is no longer payable by this guest.`);
+            }
+
+            if (
+                Number(task.can_pay_now) !== 1
+                || task.current_due_phase !== item.phase
+                || Math.abs(Number(task.current_due_amount) - Number(item.amount_usd)) > 0.009
+            ) {
+                throw new Error(`Task ${item.task_id} payment state changed after checkout started.`);
+            }
+
+            const internalReference = `${gatewayReference}:${item.task_id}:${item.phase}:${uuidv4().slice(0, 8)}`;
+            await this.processTaskPayment(item.task_id, gatewayReference, data, {
+                executor: connection,
+                viewerId: 0,
+                phase: item.phase,
+                internalReference,
+                gatewayReference,
+                kesAmount: roundMoney(item.amount_kes / 100)
+            });
+        }
+
+        await guestPaymentLinkService.touchLink(session.link_id, connection);
+
+        const link = await guestPaymentLinkService.findById(session.link_id, connection);
+        if (link && link.scope === 'task' && link.task_id) {
+            const task = await Task.findById(link.task_id, connection, 0);
+            if (task && Number(task.is_paid) === 1) {
+                await guestPaymentLinkService.settleLink(link.id, connection);
+            }
+        }
     }
 
     async getPayments(req, res) {
@@ -488,6 +1136,17 @@ class PaymentController {
             }
 
             const data = await paystackService.verifyTransaction(reference);
+            try {
+                this.assertVerifiedTransaction(data, {
+                    reference,
+                    expectedNonce: nonce,
+                    expectedScope: 'bulk'
+                });
+            } catch (validationError) {
+                logger.warn(`Bulk payment verification rejected: ${validationError.message}. ref=${reference}, user=${req.user.id}`);
+                return res.status(400).json({ success: false, message: 'Payment session validation failed. Please start checkout again.' });
+            }
+
             if (data.amount < intent.total_amount_kes) {
                 await pool.execute(`UPDATE bulk_payment_intents SET status = 'failed' WHERE id = ?`, [intent.id]);
                 await this.sendBulkUnderpaymentAlert(reference, intent.total_amount_kes, data.amount);
@@ -495,10 +1154,6 @@ class PaymentController {
                     success: false,
                     message: 'Payment amount does not match the required total.'
                 });
-            }
-
-            if (data.status !== 'success') {
-                return res.status(400).json({ success: false, message: `Payment status: ${data.status}`, data });
             }
 
             const connection = await pool.getConnection();

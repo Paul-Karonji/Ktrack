@@ -35,6 +35,8 @@ router.post('/webhook', (req, res) => paymentController.handleWebhook(req, res))
  * @access Private (Admin only) — F-04 fix: added requireAdmin
  */
 router.get('/', authenticate, requireAdmin, (req, res) => paymentController.getPayments(req, res));
+router.post('/guest-links', authenticate, requireAdmin, (req, res) => paymentController.createGuestPaymentLink(req, res));
+router.post('/guest-links/:id/revoke', authenticate, requireAdmin, (req, res) => paymentController.revokeGuestPaymentLink(req, res));
 router.get('/settings', authenticate, requireAdmin, (req, res) => paymentController.getPaymentSettings(req, res));
 router.put('/settings', authenticate, requireAdmin, (req, res) => paymentController.updatePaymentSettings(req, res));
 router.get('/reminders/overview', authenticate, requireAdmin, (req, res) => paymentController.getReminderOverview(req, res));

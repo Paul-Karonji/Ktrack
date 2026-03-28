@@ -10,6 +10,7 @@ import Sidebar from '../components/layout/Sidebar';
 import FileManager from '../components/files/FileManager';
 import SendQuoteModal from '../components/tasks/SendQuoteModal';
 import RecordOfflinePaymentModal from '../components/payments/RecordOfflinePaymentModal';
+import GuestPaymentLinkModal from '../components/payments/GuestPaymentLinkModal';
 
 import AdminDashboard from './AdminDashboard';
 import ClientDashboard from './ClientDashboard';
@@ -33,6 +34,7 @@ const Dashboard = () => {
     const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false);
     const [selectedTaskForPayment, setSelectedTaskForPayment] = useState(null);
     const [isRecordingOfflinePayment, setIsRecordingOfflinePayment] = useState(false);
+    const [guestPaymentLinkTarget, setGuestPaymentLinkTarget] = useState(null);
     const fileInputRef = React.useRef(null);
 
     // Form state
@@ -305,6 +307,14 @@ const Dashboard = () => {
         }
     };
 
+    const handleOpenGuestPaymentLink = (task) => {
+        if (!task) return;
+        setGuestPaymentLinkTarget({
+            scope: 'task',
+            task
+        });
+    };
+
 
     if (loading) return <LoadingSpinner message="Loading..." />;
 
@@ -352,6 +362,7 @@ const Dashboard = () => {
                             onSendQuote={handleSendQuote}
                             onDuplicate={handleDuplicate}
                             onUploadFile={handleUploadFile}
+                            onGuestPaymentLink={handleOpenGuestPaymentLink}
                             // Form
                             showForm={showForm}
                             setShowForm={setShowForm}
@@ -424,6 +435,12 @@ const Dashboard = () => {
                     setSelectedTaskForPayment(null);
                 }}
                 onConfirm={confirmRecordOfflinePayment}
+            />
+
+            <GuestPaymentLinkModal
+                isOpen={Boolean(guestPaymentLinkTarget)}
+                target={guestPaymentLinkTarget}
+                onClose={() => setGuestPaymentLinkTarget(null)}
             />
         </div>
     );

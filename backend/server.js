@@ -7,7 +7,13 @@ const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const fs = require('fs');
-require('dotenv').config();
+const dotenv = require('dotenv');
+
+const preferredEnvFile = process.env.NODE_ENV === 'production'
+  ? path.join(__dirname, '.env.production')
+  : path.join(__dirname, '.env');
+
+dotenv.config(fs.existsSync(preferredEnvFile) ? { path: preferredEnvFile } : undefined);
 
 // Validate environment variables before starting
 const { validateEnvironment } = require('./config/validateEnv');
@@ -31,6 +37,8 @@ const paymentReminderService = require('./services/paymentReminderService');
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
+
+app.disable('x-powered-by');
 
 // Start Server after database is ready
 const startServer = async () => {
@@ -122,8 +130,14 @@ const apiLimiter = rateLimit({
   }
 });
 
+const captureRawBody = (req, _res, buffer) => {
+  if (req.originalUrl?.startsWith('/api/payments/webhook')) {
+    req.rawBody = buffer.toString('utf8');
+  }
+};
+
 // Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '10mb', verify: captureRawBody }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // JSON Parse Error Handler

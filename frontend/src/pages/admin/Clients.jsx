@@ -5,9 +5,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigation } from '../../context/NavigationContext';
 import Sidebar from '../../components/layout/Sidebar';
 import apiService, { api } from '../../services/api';
+import GuestPaymentLinkModal from '../../components/payments/GuestPaymentLinkModal';
 import {
     Users, Shield, ShieldOff, AlertCircle, Menu, Clock,
-    Check, Merge, X, Trash2, RefreshCw, Sparkles, Search, Plus, Edit2, AlertTriangle, Phone, Mail, BookOpen
+    Check, Merge, X, Trash2, RefreshCw, Sparkles, Search, Plus, Edit2, AlertTriangle, Phone, Mail, BookOpen, Link2
 } from 'lucide-react';
 
 // ─── Confirmation Modal ───────────────────────────────────────────────────────
@@ -96,6 +97,7 @@ const Clients = () => {
     const [guestFormData, setGuestFormData] = useState({ name: '', email: '', phone: '', course: '', notes: '' });
     const [editingGuestId, setEditingGuestId] = useState(null);
     const [duplicateWarning, setDuplicateWarning] = useState(null);
+    const [guestPaymentLinkTarget, setGuestPaymentLinkTarget] = useState(null);
 
     // Shared UI State
     const [confirm, setConfirm] = useState(null);
@@ -336,6 +338,14 @@ const Clients = () => {
         setEditingGuestId(guest.id);
         setShowGuestForm(true);
         setDuplicateWarning(null);
+    };
+
+    const handleOpenGuestPortalLink = (guest) => {
+        if (!guest) return;
+        setGuestPaymentLinkTarget({
+            scope: 'portal',
+            guest
+        });
     };
 
     const resetGuestForm = () => {
@@ -641,8 +651,17 @@ const Clients = () => {
 
                                             <div className="mt-8 pt-5 border-t border-gray-50 flex items-center justify-between">
                                                 <span className="text-[10px] font-black uppercase text-gray-300 tracking-widest">History</span>
-                                                <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-xs font-black">
-                                                    {guest.task_count || 0} TASKS
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-xs font-black">
+                                                        {guest.task_count || 0} TASKS
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleOpenGuestPortalLink(guest)}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-50 text-sky-700 text-xs font-black hover:bg-sky-100 transition"
+                                                    >
+                                                        <Link2 size={12} />
+                                                        Portal Link
+                                                    </button>
                                                 </div>
                                             </div>
                                         </div>
@@ -723,6 +742,12 @@ const Clients = () => {
             </div>
 
             <ConfirmModal config={confirm?.config} onConfirm={confirm?.action} onCancel={() => setConfirm(null)} />
+
+            <GuestPaymentLinkModal
+                isOpen={Boolean(guestPaymentLinkTarget)}
+                target={guestPaymentLinkTarget}
+                onClose={() => setGuestPaymentLinkTarget(null)}
+            />
         </div>
     );
 };

@@ -6,6 +6,7 @@ import {
     FileText,
     CheckCircle,
     CreditCard,
+    Link2,
     Loader2,
     MessageSquare
 } from 'lucide-react';
@@ -28,6 +29,7 @@ const TaskCard = ({
     onSendQuote,
     onQuoteResponse,
     onPaymentSuccess,
+    onGuestPaymentLink,
     user
 }) => {
     const [showChat, setShowChat] = useState(false);
@@ -39,6 +41,10 @@ const TaskCard = ({
 
     const showPayButton = user?.role === 'client' && canTaskBePaid(task) && Number(task.is_paid) !== 1;
     const actionLabel = getPaymentActionLabel(task);
+    const showGuestPaymentLink = user?.role === 'admin'
+        && Number(task?.guest_client_id) > 0
+        && Number(task?.can_pay_now) === 1
+        && Number(task?.current_due_amount) > 0;
 
     return (
         <div className="bg-white rounded-xl shadow-md p-4 space-y-4 border border-gray-100 hover:shadow-lg transition-shadow">
@@ -151,6 +157,16 @@ const TaskCard = ({
                         className="flex-1 px-3 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-all shadow-sm transform active:scale-95"
                     >
                         Send Quote
+                    </button>
+                )}
+
+                {showGuestPaymentLink && onGuestPaymentLink && (
+                    <button
+                        onClick={() => onGuestPaymentLink(task)}
+                        className="flex-1 px-3 py-2.5 bg-sky-50 text-sky-700 rounded-lg text-sm font-bold hover:bg-sky-100 transition-all shadow-sm transform active:scale-95 flex items-center justify-center gap-2"
+                    >
+                        <Link2 size={16} />
+                        Payment Link
                     </button>
                 )}
 

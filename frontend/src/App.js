@@ -17,6 +17,7 @@ import PrivateRoute from './components/auth/PrivateRoute';
 import LandingPage from './pages/LandingPage';
 import MessagesPage from './pages/chat/MessagesPage';
 import WhatsAppButton from './components/common/WhatsAppButton';
+import GuestPaymentPage from './pages/GuestPaymentPage';
 
 const App = () => {
   return (
@@ -29,6 +30,7 @@ const App = () => {
               {/* Public Routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/guest/pay/:token" element={<GuestPaymentPage />} />
 
               {/* Protected Routes */}
               <Route

@@ -11,13 +11,15 @@ const requiredEnvVars = [
     'DB_PASSWORD',
     'DB_NAME',
     'JWT_SECRET',
-    'PORT'
+    'PORT',
+    'GUEST_PAYMENT_LINK_SECRET'
 ];
 
 const optionalEnvVars = [
     'EMAIL_USER',
     'EMAIL_PASS',
     'CORS_ORIGIN',
+    'CLIENT_URL',
     'R2_ACCOUNT_ID',
     'R2_ACCESS_KEY_ID',
     'R2_SECRET_ACCESS_KEY',

@@ -152,7 +152,10 @@ async function logSchemaStatus() {
             ['payment_settings', await tableExists('payment_settings')],
             ['bulk_payment_intents', await tableExists('bulk_payment_intents')],
             ['bulk_payment_intent_items', await tableExists('bulk_payment_intent_items')],
-            ['payment_reminder_logs', await tableExists('payment_reminder_logs')]
+            ['payment_reminder_logs', await tableExists('payment_reminder_logs')],
+            ['guest_payment_links', await tableExists('guest_payment_links')],
+            ['guest_payment_sessions', await tableExists('guest_payment_sessions')],
+            ['guest_payment_session_items', await tableExists('guest_payment_session_items')]
         ];
 
         const taskOriginExists = await columnExists('tasks', 'task_origin');
@@ -449,6 +452,78 @@ const DatabasePatchService = {
                         FOREIGN KEY (triggered_by) REFERENCES users(id) ON DELETE SET NULL
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
                 'payment_reminder_logs table patch warning'
+            );
+
+            await safeExecute(
+                `CREATE TABLE IF NOT EXISTS guest_payment_links (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    scope ENUM('task', 'portal') NOT NULL,
+                    guest_client_id INT NOT NULL,
+                    task_id INT NULL,
+                    token_hash VARCHAR(64) NOT NULL UNIQUE,
+                    status ENUM('active', 'revoked', 'settled') NOT NULL DEFAULT 'active',
+                    created_by INT NULL,
+                    last_used_at DATETIME NULL,
+                    revoked_at DATETIME NULL,
+                    settled_at DATETIME NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_guest_payment_links_guest_scope_status (guest_client_id, scope, status),
+                    INDEX idx_guest_payment_links_task_status (task_id, status),
+                    CONSTRAINT fk_guest_payment_links_guest
+                        FOREIGN KEY (guest_client_id) REFERENCES guest_clients(id) ON DELETE CASCADE,
+                    CONSTRAINT fk_guest_payment_links_task
+                        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+                    CONSTRAINT fk_guest_payment_links_created_by
+                        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+                'guest_payment_links table patch warning'
+            );
+
+            await safeExecute(
+                `CREATE TABLE IF NOT EXISTS guest_payment_sessions (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    link_id INT NOT NULL,
+                    guest_client_id INT NOT NULL,
+                    mode ENUM('single', 'bulk') NOT NULL,
+                    entered_email VARCHAR(255) NOT NULL,
+                    total_amount_usd DECIMAL(10, 2) NOT NULL,
+                    total_amount_kes INT NOT NULL,
+                    currency VARCHAR(10) NOT NULL DEFAULT 'KES',
+                    nonce VARCHAR(64) NOT NULL UNIQUE,
+                    reference VARCHAR(100) NULL,
+                    status ENUM('pending', 'completed', 'failed') NOT NULL DEFAULT 'pending',
+                    expires_at TIMESTAMP NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_guest_payment_sessions_link_status (link_id, status),
+                    INDEX idx_guest_payment_sessions_guest_status (guest_client_id, status),
+                    CONSTRAINT fk_guest_payment_sessions_link
+                        FOREIGN KEY (link_id) REFERENCES guest_payment_links(id) ON DELETE CASCADE,
+                    CONSTRAINT fk_guest_payment_sessions_guest
+                        FOREIGN KEY (guest_client_id) REFERENCES guest_clients(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+                'guest_payment_sessions table patch warning'
+            );
+
+            await safeExecute(
+                `CREATE TABLE IF NOT EXISTS guest_payment_session_items (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    session_id INT NOT NULL,
+                    task_id INT NOT NULL,
+                    phase ENUM('deposit', 'balance', 'full') NOT NULL,
+                    amount_usd DECIMAL(10, 2) NOT NULL,
+                    amount_kes INT NOT NULL,
+                    sort_order INT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_guest_payment_session_items_session (session_id),
+                    INDEX idx_guest_payment_session_items_task (task_id),
+                    CONSTRAINT fk_guest_payment_session_items_session
+                        FOREIGN KEY (session_id) REFERENCES guest_payment_sessions(id) ON DELETE CASCADE,
+                    CONSTRAINT fk_guest_payment_session_items_task
+                        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+                'guest_payment_session_items table patch warning'
             );
 
             await backfillLegacyOfflinePayments();

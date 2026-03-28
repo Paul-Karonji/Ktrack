@@ -17,6 +17,7 @@ import { useNavigation } from '../context/NavigationContext';
 import BulkPaymentCard from '../components/payments/BulkPaymentCard';
 import useBulkPayment from '../hooks/useBulkPayment';
 import RecordOfflinePaymentModal from '../components/payments/RecordOfflinePaymentModal';
+import GuestPaymentLinkModal from '../components/payments/GuestPaymentLinkModal';
 
 const Projects = () => {
     const { user, logout } = useAuth();
@@ -69,6 +70,7 @@ const Projects = () => {
     const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false);
     const [selectedTaskForPayment, setSelectedTaskForPayment] = useState(null);
     const [isRecordingOfflinePayment, setIsRecordingOfflinePayment] = useState(false);
+    const [guestPaymentLinkTarget, setGuestPaymentLinkTarget] = useState(null);
 
     // Load tasks on mount
     useEffect(() => {
@@ -375,6 +377,14 @@ const Projects = () => {
         }
     };
 
+    const handleOpenGuestPaymentLink = (task) => {
+        if (!task) return;
+        setGuestPaymentLinkTarget({
+            scope: 'task',
+            task
+        });
+    };
+
     return (
         <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
             <Sidebar user={user} onLogout={logout} />
@@ -549,6 +559,7 @@ const Projects = () => {
                                     onDeliverWork={handleDeliverWork}
                                     onSendQuote={handleSendQuote}
                                     onPaymentSuccess={handlePaymentSuccess}
+                                    onGuestPaymentLink={handleOpenGuestPaymentLink}
                                 />
                             ) : (
                                 <TaskTable
@@ -567,6 +578,7 @@ const Projects = () => {
                                     onSendQuote={handleSendQuote}
                                     onDuplicate={handleDuplicate}
                                     onPaymentSuccess={handlePaymentSuccess}
+                                    onGuestPaymentLink={handleOpenGuestPaymentLink}
                                 />
                             )}
                         </div>
@@ -611,6 +623,12 @@ const Projects = () => {
                     setSelectedTaskForPayment(null);
                 }}
                 onConfirm={confirmRecordOfflinePayment}
+            />
+
+            <GuestPaymentLinkModal
+                isOpen={Boolean(guestPaymentLinkTarget)}
+                target={guestPaymentLinkTarget}
+                onClose={() => setGuestPaymentLinkTarget(null)}
             />
         </div>
     );

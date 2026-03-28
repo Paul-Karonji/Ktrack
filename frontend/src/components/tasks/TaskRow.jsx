@@ -10,6 +10,7 @@ import {
     MessageSquare,
     Upload,
     CreditCard,
+    Link2,
     Loader2
 } from 'lucide-react';
 import { formatDate, formatCurrency } from '../../utils/formatters';
@@ -33,6 +34,7 @@ const TaskRow = ({
     onSendQuote,
     onDuplicate,
     onPaymentSuccess,
+    onGuestPaymentLink,
     user
 }) => {
     const [showChat, setShowChat] = useState(false);
@@ -53,6 +55,10 @@ const TaskRow = ({
 
     const showPayButton = user?.role === 'client' && canTaskBePaid(task) && Number(task.is_paid) !== 1;
     const payLabel = getPaymentActionLabel(task);
+    const showGuestPaymentLink = user?.role === 'admin'
+        && Number(task?.guest_client_id) > 0
+        && Number(task?.can_pay_now) === 1
+        && Number(task?.current_due_amount) > 0;
 
     return (
         <>
@@ -187,6 +193,16 @@ const TaskRow = ({
                                 className="text-xs bg-indigo-600 text-white px-3 py-1 rounded-full font-bold hover:bg-indigo-700"
                             >
                                 Send Quote
+                            </button>
+                        )}
+
+                        {showGuestPaymentLink && onGuestPaymentLink && (
+                            <button
+                                onClick={() => onGuestPaymentLink(task)}
+                                className="text-xs bg-sky-100 text-sky-700 px-3 py-1 rounded-full font-bold hover:bg-sky-200 inline-flex items-center gap-1.5"
+                            >
+                                <Link2 size={12} />
+                                Payment Link
                             </button>
                         )}
 

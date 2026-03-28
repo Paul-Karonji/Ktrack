@@ -8,6 +8,7 @@ import {
     CheckCircle,
     MessageSquare,
     CreditCard,
+    Link2,
     Loader2
 } from 'lucide-react';
 import ChatComponent from '../chat/ChatComponent';
@@ -27,7 +28,8 @@ const ProjectCard = ({
     onDownloadFile,
     onDeliverWork,
     onSendQuote,
-    onPaymentSuccess
+    onPaymentSuccess,
+    onGuestPaymentLink
 }) => {
     const [showChat, setShowChat] = useState(false);
     const { expectedKesAmount, isInitializing, isVerifying, startPayment } = useTaskPayment({
@@ -55,6 +57,10 @@ const ProjectCard = ({
     const clientName = task.display_client_name || task.client_name;
     const showPayButton = user?.role === 'client' && canTaskBePaid(task) && Number(task.is_paid) !== 1;
     const payLabel = getPaymentActionLabel(task);
+    const showGuestPaymentLink = user?.role === 'admin'
+        && Number(task?.guest_client_id) > 0
+        && Number(task?.can_pay_now) === 1
+        && Number(task?.current_due_amount) > 0;
 
     // Use the imported formatDate function below
 
@@ -180,6 +186,15 @@ const ProjectCard = ({
                             className="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-all shadow-sm"
                         >
                             Send Quote
+                        </button>
+                    )}
+                    {showGuestPaymentLink && onGuestPaymentLink && (
+                        <button
+                            onClick={() => onGuestPaymentLink(task)}
+                            className="flex-1 px-3 py-2 bg-sky-50 text-sky-700 rounded-lg text-sm font-bold hover:bg-sky-100 transition-all shadow-sm flex items-center justify-center gap-1.5"
+                        >
+                            <Link2 size={15} />
+                            Payment Link
                         </button>
                     )}
                     {onDeliverWork && user?.role === 'admin' && (task.status === 'in_progress' || task.status === 'review') && (

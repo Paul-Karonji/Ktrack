@@ -74,7 +74,19 @@ class GuestPaymentLinkService {
         return rows[0] || null;
     }
 
-    async findActiveByTarget({ scope, guestClientId, taskId = null }, executor = pool) {
+    async findActiveByTarget({
+        scope,
+        guestClientId,
+        taskId = null,
+        collectionMode = 'current_due',
+        fixedAmountUsd = null,
+        allocationRule = 'oldest_due_first'
+    }, executor = pool) {
+        const normalizedCollectionMode = scope === 'task' ? 'current_due' : collectionMode;
+        const normalizedFixedAmountUsd = normalizedCollectionMode === 'fixed_amount'
+            ? Math.round((Number(fixedAmountUsd) || 0) * 100) / 100
+            : null;
+
         const [rows] = await executor.execute(
             `SELECT gpl.*,
                     gc.name AS guest_name,
@@ -86,17 +98,52 @@ class GuestPaymentLinkService {
              WHERE gpl.scope = ?
                AND gpl.guest_client_id = ?
                AND ((? IS NULL AND gpl.task_id IS NULL) OR gpl.task_id = ?)
+               AND gpl.collection_mode = ?
+               AND (
+                    (? IS NULL AND gpl.fixed_amount_usd IS NULL)
+                    OR ABS(COALESCE(gpl.fixed_amount_usd, 0) - ?) <= 0.009
+               )
+               AND gpl.allocation_rule = ?
                AND gpl.status = 'active'
              ORDER BY gpl.id DESC
              LIMIT 1`,
-            [scope, guestClientId, taskId, taskId]
+            [
+                scope,
+                guestClientId,
+                taskId,
+                taskId,
+                normalizedCollectionMode,
+                normalizedFixedAmountUsd,
+                normalizedFixedAmountUsd ?? 0,
+                allocationRule
+            ]
         );
 
         return rows[0] || null;
     }
 
-    async createOrReuseLink({ scope, guestClientId, taskId = null, createdBy = null, executor = pool }) {
-        const existing = await this.findActiveByTarget({ scope, guestClientId, taskId }, executor);
+    async createOrReuseLink({
+        scope,
+        guestClientId,
+        taskId = null,
+        collectionMode = 'current_due',
+        fixedAmountUsd = null,
+        allocationRule = 'oldest_due_first',
+        createdBy = null,
+        executor = pool
+    }) {
+        const normalizedCollectionMode = scope === 'task' ? 'current_due' : collectionMode;
+        const normalizedFixedAmountUsd = normalizedCollectionMode === 'fixed_amount'
+            ? Math.round((Number(fixedAmountUsd) || 0) * 100) / 100
+            : null;
+        const existing = await this.findActiveByTarget({
+            scope,
+            guestClientId,
+            taskId,
+            collectionMode: normalizedCollectionMode,
+            fixedAmountUsd: normalizedFixedAmountUsd,
+            allocationRule
+        }, executor);
         if (existing) {
             const { token, publicUrl } = this.getPublicUrlForLink(existing.id);
             return {
@@ -112,9 +159,32 @@ class GuestPaymentLinkService {
 
         const [result] = await executor.execute(
             `INSERT INTO guest_payment_links
-                (scope, guest_client_id, task_id, token_hash, status, created_by, created_at, updated_at)
-             VALUES (?, ?, ?, ?, 'active', ?, ?, ?)`,
-            [scope, guestClientId, taskId, placeholderHash, createdBy, now, now]
+                (
+                    scope,
+                    guest_client_id,
+                    task_id,
+                    collection_mode,
+                    fixed_amount_usd,
+                    allocation_rule,
+                    token_hash,
+                    status,
+                    created_by,
+                    created_at,
+                    updated_at
+                )
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
+            [
+                scope,
+                guestClientId,
+                taskId,
+                normalizedCollectionMode,
+                normalizedFixedAmountUsd,
+                allocationRule,
+                placeholderHash,
+                createdBy,
+                now,
+                now
+            ]
         );
 
         const token = this.buildToken(result.insertId);

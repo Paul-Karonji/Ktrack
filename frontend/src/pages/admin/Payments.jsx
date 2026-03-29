@@ -476,6 +476,11 @@ const Payments = () => {
                                                         <span className={`inline-flex w-fit px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${getTypeBadge(payment.type)}`}>
                                                             {payment.type}
                                                         </span>
+                                                        {Number(payment.is_partial) === 1 && (
+                                                            <span className="inline-flex w-fit px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest bg-amber-100 text-amber-700">
+                                                                partial
+                                                            </span>
+                                                        )}
                                                         <span className="text-xs text-gray-500">{payment.current_task_status}</span>
                                                     </div>
                                                 </td>

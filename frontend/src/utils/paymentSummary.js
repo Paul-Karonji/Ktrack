@@ -33,6 +33,19 @@ export const getRemainingBalance = (task) => {
         : projectTotal;
 };
 
+export const getAmountPaidTotal = (task) => {
+    if (task?.amount_paid_total !== undefined && task?.amount_paid_total !== null) {
+        return toNumber(task.amount_paid_total);
+    }
+
+    const projectTotal = getProjectTotal(task);
+    return Math.max(projectTotal - getRemainingBalance(task), 0);
+};
+
+export const getCollectedAmount = (task) => {
+    return getAmountPaidTotal(task);
+};
+
 export const canTaskBePaid = (task) => {
     return Number(task?.can_pay_now) === 1 && toNumber(task?.current_due_amount) > 0;
 };
@@ -50,6 +63,18 @@ export const getPaymentActionLabel = (task) => {
 export const getPaymentBadgeStyles = (task) => {
     if (Number(task?.is_paid) === 1) {
         return { label: 'Fully Paid', className: 'bg-green-100 text-green-700' };
+    }
+
+    if (task?.payment_state_label === 'Balance Partially Paid') {
+        return { label: 'Balance Partially Paid', className: 'bg-sky-100 text-sky-700' };
+    }
+
+    if (task?.payment_state_label === 'Deposit Partially Paid') {
+        return { label: 'Deposit Partially Paid', className: 'bg-orange-100 text-orange-700' };
+    }
+
+    if (task?.payment_state_label === 'Payment Partially Paid') {
+        return { label: 'Payment Partially Paid', className: 'bg-amber-100 text-amber-700' };
     }
 
     if (task?.current_due_phase === 'balance') {

@@ -1,10 +1,13 @@
 const { pool } = require('../config/database');
 const {
   augmentTask,
+  getTaskPaymentProgress,
   getProjectTotal,
   getDepositAmount,
   roundMoney
 } = require('../services/taskPaymentStateService');
+
+const EPSILON = 0.009;
 
 const BASE_SELECT = `
   SELECT t.*,
@@ -41,7 +44,7 @@ class Task {
       query += ' WHERE t.guest_client_id = ?';
       params.push(filters.guestClientId);
     } else if (filters.hasAnyPayment) {
-      query += ' WHERE t.is_paid = 1 OR t.deposit_paid = 1';
+      query += ' WHERE t.is_paid = 1 OR t.deposit_paid = 1 OR COALESCE(t.amount_paid_total, 0) > 0';
     } else if (filters.isPaid !== undefined) {
       query += ' WHERE t.is_paid = ?';
       params.push(filters.isPaid ? 1 : 0);
@@ -89,6 +92,8 @@ class Task {
       requiresDeposit = 0,
       depositPaid = 0,
       depositAmount = 0,
+      amountPaidTotal = 0,
+      depositPaidAmount = 0,
       depositRef = null,
       depositPaidAt = null,
       taskOrigin = null,
@@ -103,10 +108,10 @@ class Task {
          client_name, task_name, task_description, date_commissioned, date_delivered,
          expected_amount, is_paid, priority, status, notes, quote_status, quoted_amount,
          quantity, client_id, guest_client_id, completed_at, paid_at,
-         requires_deposit, deposit_paid, deposit_amount, deposit_ref, deposit_paid_at,
+         requires_deposit, deposit_paid, deposit_amount, amount_paid_total, deposit_paid_amount, deposit_ref, deposit_paid_at,
          task_origin, created_by_user_id, payment_due_started_at, last_payment_reminder_sent_at
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
       [
         clientName || null,
         taskName || 'Untitled Task',
@@ -128,6 +133,8 @@ class Task {
         requiresDeposit ? 1 : 0,
         depositPaid ? 1 : 0,
         depositAmount || 0,
+        amountPaidTotal || 0,
+        depositPaidAmount || 0,
         depositRef || null,
         depositPaidAt || null,
         taskOrigin || null,
@@ -165,6 +172,8 @@ class Task {
       requiresDeposit: 'requires_deposit',
       depositPaid: 'deposit_paid',
       depositAmount: 'deposit_amount',
+      amountPaidTotal: 'amount_paid_total',
+      depositPaidAmount: 'deposit_paid_amount',
       depositRef: 'deposit_ref',
       depositPaidAt: 'deposit_paid_at',
       taskOrigin: 'task_origin',
@@ -226,11 +235,12 @@ class Task {
            reference,
            gateway_reference,
            type,
+           is_partial,
            source,
            recorded_by,
            received_at
          )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         payment.taskId,
         payment.amount,
@@ -240,11 +250,155 @@ class Task {
         payment.reference,
         payment.gatewayReference || payment.reference,
         payment.type,
+        payment.isPartial ? 1 : 0,
         payment.source || 'platform',
         payment.recordedBy || null,
         payment.receivedAt || new Date()
       ]
     );
+  }
+
+  static getPhaseAvailableAmount(task, phase) {
+    const progress = getTaskPaymentProgress(task);
+
+    if (phase === 'deposit') {
+      return roundMoney(progress.deposit_remaining_amount || 0);
+    }
+
+    if (phase === 'balance') {
+      if ((progress.deposit_remaining_amount || 0) > EPSILON) {
+        return 0;
+      }
+      return roundMoney(progress.remaining_balance || 0);
+    }
+
+    if (phase === 'full') {
+      return roundMoney(progress.remaining_balance || 0);
+    }
+
+    return 0;
+  }
+
+  static async applyPaymentAllocation(id, paymentRef, paymentData = {}, options = {}) {
+    const executor = options.executor || pool;
+    const gatewayReference = options.gatewayReference || paymentRef;
+    const task = await this.findById(id, executor, options.viewerId || 0);
+
+    if (!task) {
+      throw new Error('Task not found.');
+    }
+
+    const progress = getTaskPaymentProgress(task);
+    const phase = options.phase || task.current_due_phase || 'full';
+    const availableAmount = this.getPhaseAvailableAmount(task, phase);
+
+    if (availableAmount <= EPSILON) {
+      throw new Error(`Task ${id} cannot accept a ${phase} payment right now.`);
+    }
+
+    const requestedAmount = options.amountUsd !== undefined && options.amountUsd !== null
+      ? roundMoney(options.amountUsd)
+      : availableAmount;
+
+    if (requestedAmount <= EPSILON) {
+      throw new Error(`Task ${id} payment amount must be greater than zero.`);
+    }
+
+    if (requestedAmount - availableAmount > EPSILON) {
+      throw new Error(`Task ${id} payment exceeds the currently available ${phase} amount.`);
+    }
+
+    const amountUsd = roundMoney(requestedAmount);
+    const nextAmountPaidTotal = roundMoney(Math.min(progress.project_total, progress.amount_paid_total + amountUsd));
+    const appliedDepositPortion = progress.requires_deposit
+      ? roundMoney(Math.min(amountUsd, progress.deposit_remaining_amount || 0))
+      : 0;
+    const nextDepositPaidAmount = progress.requires_deposit
+      ? roundMoney(Math.min(progress.deposit_target, progress.deposit_paid_amount + appliedDepositPortion))
+      : 0;
+
+    const depositCompletedBefore = Number(progress.deposit_paid) === 1;
+    const depositCompletedAfter = !progress.requires_deposit || (progress.deposit_target - nextDepositPaidAmount) <= EPSILON;
+    const fullyPaidAfter = progress.project_total > 0 && (progress.project_total - nextAmountPaidTotal) <= EPSILON;
+
+    let paymentType = 'full';
+    if (phase === 'deposit') {
+      paymentType = 'deposit';
+    } else if (phase === 'balance' || (progress.requires_deposit && depositCompletedBefore)) {
+      paymentType = 'balance';
+    }
+
+    await this.insertPaymentRecord({
+      taskId: id,
+      amount: amountUsd,
+      currency: paymentData.currency || 'USD',
+      kesAmount: paymentData.kesAmount ?? null,
+      exchangeRate: paymentData.exchangeRate ?? null,
+      reference: paymentRef,
+      gatewayReference,
+      type: paymentType,
+      isPartial: amountUsd + EPSILON < availableAmount,
+      source: options.source || 'platform',
+      recordedBy: options.recordedBy || null,
+      receivedAt: paymentData.receivedAt || new Date()
+    }, executor);
+
+    const receivedAt = paymentData.receivedAt || new Date();
+    const [result] = await executor.execute(
+      `UPDATE tasks
+       SET amount_paid_total = ?,
+           deposit_paid_amount = ?,
+           deposit_paid = ?,
+           deposit_paid_at = CASE
+             WHEN ? = 1 AND ? = 0 THEN ?
+             ELSE deposit_paid_at
+           END,
+           deposit_ref = CASE
+             WHEN ? = 1 AND ? = 0 THEN ?
+             ELSE deposit_ref
+           END,
+           is_paid = ?,
+           paid_at = CASE
+             WHEN ? = 1 THEN ?
+             ELSE paid_at
+           END,
+           payment_ref = CASE
+             WHEN ? = 1 THEN ?
+             ELSE payment_ref
+           END,
+           payment_currency = ?,
+           payment_exchange_rate = ?,
+           payment_kes_amount = ?,
+           status = CASE
+             WHEN status = 'pending_deposit' AND ? = 1 THEN 'in_progress'
+             ELSE status
+           END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [
+        nextAmountPaidTotal,
+        nextDepositPaidAmount,
+        depositCompletedAfter ? 1 : 0,
+        depositCompletedAfter ? 1 : 0,
+        depositCompletedBefore ? 1 : 0,
+        receivedAt,
+        depositCompletedAfter ? 1 : 0,
+        depositCompletedBefore ? 1 : 0,
+        gatewayReference,
+        fullyPaidAfter ? 1 : 0,
+        fullyPaidAfter ? 1 : 0,
+        receivedAt,
+        fullyPaidAfter ? 1 : 0,
+        gatewayReference,
+        paymentData.currency || 'USD',
+        paymentData.exchangeRate ?? null,
+        paymentData.kesAmount ?? null,
+        depositCompletedAfter ? 1 : 0,
+        id
+      ]
+    );
+
+    return result.affectedRows > 0;
   }
 
   static async recordOfflinePayment(id, paymentData = {}, options = {}) {
@@ -260,148 +414,46 @@ class Task {
       throw new Error('This task does not have a payable amount.');
     }
 
+    const remainingAmount = roundMoney(task.remaining_balance || totalAmount);
+    if (remainingAmount <= EPSILON) {
+      throw new Error('This task does not have any remaining payable balance.');
+    }
+
     const receivedAt = paymentData.receivedAt ? new Date(paymentData.receivedAt) : new Date();
     const paymentReference = paymentData.reference || `offline-${id}-${Date.now()}`;
+    const phase = Number(task.requires_deposit) === 1 && Number(task.deposit_paid) === 1
+      ? 'balance'
+      : 'full';
 
-    await this.insertPaymentRecord({
-      taskId: id,
-      amount: roundMoney(totalAmount),
+    await this.applyPaymentAllocation(id, paymentReference, {
       currency: 'USD',
-      reference: paymentReference,
-      gatewayReference: paymentReference,
-      type: 'full',
-      source: 'offline_admin',
-      recordedBy: paymentData.recordedBy || null,
+      exchangeRate: null,
+      kesAmount: null,
       receivedAt
-    }, executor);
-
-    const [result] = await executor.execute(
-      `UPDATE tasks
-       SET is_paid = 1,
-           paid_at = ?,
-           payment_ref = ?,
-           payment_currency = 'USD',
-           payment_exchange_rate = NULL,
-           payment_kes_amount = NULL,
-           deposit_paid = CASE
-               WHEN requires_deposit = 1 THEN 1
-               ELSE deposit_paid
-           END,
-           deposit_paid_at = CASE
-               WHEN requires_deposit = 1 AND deposit_paid = 0 THEN ?
-               ELSE deposit_paid_at
-           END,
-           deposit_ref = CASE
-               WHEN requires_deposit = 1 AND deposit_paid = 0 THEN ?
-               ELSE deposit_ref
-           END,
-           status = CASE
-               WHEN status = 'pending_deposit' THEN 'in_progress'
-               ELSE status
-           END,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [receivedAt, paymentReference, receivedAt, paymentReference, id]
-    );
-
-    if (result.affectedRows === 0) {
-      return false;
-    }
+    }, {
+      executor,
+      phase,
+      amountUsd: remainingAmount,
+      gatewayReference: paymentReference,
+      source: 'offline_admin',
+      recordedBy: paymentData.recordedBy || null
+    });
 
     return this.findById(id, executor);
   }
 
   static async markAsPaid(id, paymentRef, paymentData = {}, options = {}) {
-    const executor = options.executor || pool;
-    const gatewayReference = options.gatewayReference || paymentRef;
-    const paymentType = options.type || null;
-    const {
-      currency = 'USD',
-      exchangeRate = null,
-      kesAmount = null,
-      receivedAt = new Date()
-    } = paymentData;
-
-    const task = await this.findById(id, executor);
-    if (!task) return false;
-
-    const totalAmount = getProjectTotal(task);
-    const depositAmount = getDepositAmount(task);
-    const balanceAmount = task.deposit_paid
-      ? Math.max(totalAmount - depositAmount, 0)
-      : totalAmount;
-
-    await this.insertPaymentRecord({
-      taskId: id,
-      amount: balanceAmount,
-      currency,
-      kesAmount,
-      exchangeRate,
-      reference: paymentRef,
-      gatewayReference,
-      type: paymentType || (task.deposit_paid ? 'balance' : 'full'),
-      source: options.source || 'platform',
-      recordedBy: options.recordedBy || null,
-      receivedAt
-    }, executor);
-
-    const [result] = await executor.execute(
-        `UPDATE tasks
-       SET is_paid = 1,
-            paid_at = ?,
-            payment_ref = ?,
-            payment_currency = ?,
-            payment_exchange_rate = ?,
-            payment_kes_amount = ?,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?`,
-      [receivedAt, gatewayReference, currency, exchangeRate, kesAmount, id]
-    );
-
-    return result.affectedRows > 0;
+    return this.applyPaymentAllocation(id, paymentRef, paymentData, {
+      ...options,
+      phase: options.phase || (options.type === 'balance' ? 'balance' : 'full')
+    });
   }
 
   static async markDepositAsPaid(id, paymentRef, paymentData = {}, options = {}) {
-    const executor = options.executor || pool;
-    const gatewayReference = options.gatewayReference || paymentRef;
-    const {
-      currency = 'USD',
-      exchangeRate = null,
-      kesAmount = null,
-      receivedAt = new Date()
-    } = paymentData;
-
-    const task = await this.findById(id, executor);
-    if (!task) return false;
-
-    await this.insertPaymentRecord({
-      taskId: id,
-      amount: getDepositAmount(task),
-      currency,
-      kesAmount,
-      exchangeRate,
-      reference: paymentRef,
-      gatewayReference,
-      type: 'deposit',
-      source: options.source || 'platform',
-      recordedBy: options.recordedBy || null,
-      receivedAt
-    }, executor);
-
-    const [result] = await executor.execute(
-        `UPDATE tasks
-       SET deposit_paid = 1,
-            deposit_paid_at = ?,
-            deposit_ref = ?,
-            payment_currency = ?,
-            payment_exchange_rate = ?,
-            payment_kes_amount = ?,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?`,
-      [receivedAt, gatewayReference, currency, exchangeRate, kesAmount, id]
-    );
-
-    return result.affectedRows > 0;
+    return this.applyPaymentAllocation(id, paymentRef, paymentData, {
+      ...options,
+      phase: 'deposit'
+    });
   }
 
   static async transferGuestTasks(guestClientId, userId, executor = pool) {

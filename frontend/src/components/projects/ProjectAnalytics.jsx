@@ -1,17 +1,10 @@
 import React from 'react';
 import { TrendingUp, DollarSign, CheckCircle, Clock } from 'lucide-react';
+import { getCollectedAmount } from '../../utils/paymentSummary';
 
 const toNumber = (value) => Number(value || 0);
 
 const getProjectTotal = (task) => toNumber(task.project_total || task.quoted_amount || task.expected_amount);
-
-const getCollectedAmount = (task) => {
-    const projectTotal = getProjectTotal(task);
-    const currentDue = toNumber(task.current_due_amount);
-    if (Number(task.is_paid) === 1) return projectTotal;
-    if (Number(task.deposit_paid) === 1) return Math.max(projectTotal - currentDue, 0);
-    return 0;
-};
 
 const ProjectAnalytics = ({ tasks }) => {
     const stats = {

@@ -62,6 +62,37 @@ class PaymentController {
             });
     }
 
+    getGuestCollectionMode(link) {
+        if (!link || link.scope === 'task') return 'current_due';
+        return link.collection_mode || 'current_due';
+    }
+
+    getGuestAllocationRule(link) {
+        return link?.allocation_rule || 'oldest_due_first';
+    }
+
+    toTime(value) {
+        if (!value) return Number.POSITIVE_INFINITY;
+        const time = new Date(value).getTime();
+        return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
+    }
+
+    sortGuestTasksForAllocation(tasks) {
+        return [...tasks].sort((left, right) => {
+            const leftDueStart = this.toTime(left.payment_due_started_at);
+            const rightDueStart = this.toTime(right.payment_due_started_at);
+            const byDueStart = leftDueStart === rightDueStart ? 0 : leftDueStart - rightDueStart;
+            if (byDueStart !== 0) return byDueStart;
+
+            const leftCreatedAt = this.toTime(left.created_at);
+            const rightCreatedAt = this.toTime(right.created_at);
+            const byCreatedAt = leftCreatedAt === rightCreatedAt ? 0 : leftCreatedAt - rightCreatedAt;
+            if (byCreatedAt !== 0) return byCreatedAt;
+
+            return Number(left.id) - Number(right.id);
+        });
+    }
+
     isValidEmail(email) {
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
     }
@@ -72,6 +103,10 @@ class PaymentController {
             taskName: task.task_name || `Task #${task.id}`,
             currentDuePhase: task.current_due_phase,
             currentDueAmount: roundMoney(task.current_due_amount || 0),
+            remainingBalance: roundMoney(task.remaining_balance || 0),
+            amountPaidTotal: roundMoney(task.amount_paid_total || 0),
+            depositRemainingAmount: roundMoney(task.deposit_remaining_amount || 0),
+            requiresDeposit: Number(task.requires_deposit) === 1,
             paymentStateLabel: task.payment_state_label,
             status: task.status
         };
@@ -79,13 +114,133 @@ class PaymentController {
 
     async getEligibleGuestTasks(guestClientId, executor = pool) {
         const tasks = await Task.findAll({ guestClientId }, 0, executor);
-        return tasks.filter((task) =>
+        return this.sortGuestTasksForAllocation(tasks.filter((task) =>
             Number(task.guest_client_id) === Number(guestClientId)
             && Number(task.can_pay_now) === 1
-            && Number(task.current_due_amount) > 0
+            && Number(task.remaining_balance) > 0
             && Number(task.is_paid) !== 1
             && task.status !== 'cancelled'
-        );
+        ));
+    }
+
+    buildCurrentDueItems(tasks, startingSortOrder = 0) {
+        return tasks.flatMap((task, index) => {
+            const amountUsd = roundMoney(task.current_due_amount || 0);
+            if (!task.current_due_phase || amountUsd <= 0) {
+                return [];
+            }
+
+            const { amountKes } = this.toPaystackKesAmounts(amountUsd);
+            return [{
+                taskId: task.id,
+                phase: task.current_due_phase,
+                amountUsd,
+                availableAmountUsd: amountUsd,
+                amountKes,
+                sortOrder: startingSortOrder + index + 1
+            }];
+        });
+    }
+
+    buildRemainingBalanceItems(tasks, startingSortOrder = 0) {
+        const items = [];
+        let sortOrder = startingSortOrder;
+
+        for (const task of this.sortGuestTasksForAllocation(tasks)) {
+            const depositRemainingAmount = roundMoney(task.deposit_remaining_amount || 0);
+            const remainingBalance = roundMoney(task.remaining_balance || 0);
+
+            if (depositRemainingAmount > 0) {
+                const { amountKes } = this.toPaystackKesAmounts(depositRemainingAmount);
+                sortOrder += 1;
+                items.push({
+                    taskId: task.id,
+                    phase: 'deposit',
+                    amountUsd: depositRemainingAmount,
+                    availableAmountUsd: depositRemainingAmount,
+                    amountKes,
+                    sortOrder
+                });
+            }
+
+            const afterDepositRemaining = roundMoney(remainingBalance - depositRemainingAmount);
+            if (afterDepositRemaining > 0) {
+                const phase = Number(task.requires_deposit) === 1 ? 'balance' : 'full';
+                const { amountKes } = this.toPaystackKesAmounts(afterDepositRemaining);
+                sortOrder += 1;
+                items.push({
+                    taskId: task.id,
+                    phase,
+                    amountUsd: afterDepositRemaining,
+                    availableAmountUsd: afterDepositRemaining,
+                    amountKes,
+                    sortOrder
+                });
+            }
+        }
+
+        return items;
+    }
+
+    truncateGuestItemsToFixedAmount(items, fixedAmountUsd) {
+        const targetAmount = roundMoney(fixedAmountUsd);
+        let remaining = targetAmount;
+        const selectedItems = [];
+
+        for (const item of items) {
+            if (remaining <= 0.009) {
+                break;
+            }
+
+            const appliedAmountUsd = roundMoney(Math.min(remaining, Number(item.amountUsd || 0)));
+            if (appliedAmountUsd <= 0) {
+                continue;
+            }
+
+            const { amountKes } = this.toPaystackKesAmounts(appliedAmountUsd);
+            selectedItems.push({
+                ...item,
+                amountUsd: appliedAmountUsd,
+                amountKes
+            });
+
+            remaining = roundMoney(remaining - appliedAmountUsd);
+        }
+
+        return selectedItems;
+    }
+
+    summarizeGuestAllocation(items, tasks) {
+        if (!Array.isArray(items) || items.length === 0) {
+            return [];
+        }
+
+        const taskMap = new Map(tasks.map((task) => [Number(task.id), task]));
+        const grouped = [];
+
+        for (const item of items) {
+            const taskId = Number(item.taskId || item.task_id);
+            let summary = grouped.find((entry) => entry.taskId === taskId);
+            if (!summary) {
+                const task = taskMap.get(taskId);
+                summary = {
+                    taskId,
+                    taskName: task?.task_name || `Task #${taskId}`,
+                    totalAmount: 0,
+                    segments: []
+                };
+                grouped.push(summary);
+            }
+
+            const amount = roundMoney(item.amountUsd || item.amount_usd);
+            summary.totalAmount = roundMoney(summary.totalAmount + amount);
+            summary.segments.push({
+                phase: item.phase,
+                amount
+            });
+        }
+
+        return grouped;
     }
 
     async getGuestLinkContext(token, executor = pool) {
@@ -99,6 +254,7 @@ class PaymentController {
         }
 
         const { link, publicUrl } = resolved;
+        const collectionMode = this.getGuestCollectionMode(link);
 
         if (link.status === 'revoked') {
             return {
@@ -108,7 +264,7 @@ class PaymentController {
             };
         }
 
-        if (link.status === 'settled' && link.scope === 'task') {
+        if (link.status === 'settled' && (link.scope === 'task' || collectionMode === 'fixed_amount')) {
             return {
                 statusCode: 410,
                 state: 'settled',
@@ -131,6 +287,9 @@ class PaymentController {
     }
 
     async getGuestLinkTasks(link, executor = pool) {
+        const collectionMode = this.getGuestCollectionMode(link);
+        const allocationRule = this.getGuestAllocationRule(link);
+
         if (link.scope === 'task') {
             const task = await Task.findById(link.task_id, executor, 0);
 
@@ -170,21 +329,108 @@ class PaymentController {
             return {
                 state: 'ready',
                 tasks: [task],
-                message: null
+                message: null,
+                collectionMode,
+                allocationRule,
+                fixedAmountUsd: null,
+                eligibleOutstandingTotal: roundMoney(task.remaining_balance || 0),
+                totalDue: roundMoney(task.current_due_amount || 0),
+                allocationPreview: []
             };
         }
 
         const tasks = await this.getEligibleGuestTasks(link.guest_client_id, executor);
+        const eligibleOutstandingTotal = roundMoney(tasks.reduce((sum, task) => sum + Number(task.remaining_balance || 0), 0));
+
+        if (tasks.length === 0) {
+            return {
+                state: 'empty',
+                tasks,
+                message: 'No outstanding payment is due right now.',
+                collectionMode,
+                allocationRule,
+                fixedAmountUsd: null,
+                eligibleOutstandingTotal,
+                totalDue: 0,
+                allocationPreview: []
+            };
+        }
+
+        if (collectionMode === 'fixed_amount') {
+            const fixedAmountUsd = roundMoney(link.fixed_amount_usd || 0);
+            if (fixedAmountUsd <= 0) {
+                return {
+                    state: 'unavailable',
+                    tasks: [],
+                    message: 'This fixed-amount link is not configured correctly.',
+                    collectionMode,
+                    allocationRule,
+                    fixedAmountUsd,
+                    eligibleOutstandingTotal,
+                    totalDue: 0,
+                    allocationPreview: []
+                };
+            }
+
+            if (fixedAmountUsd - eligibleOutstandingTotal > 0.009) {
+                return {
+                    state: 'unavailable',
+                    tasks: [],
+                    message: 'The requested fixed amount is higher than the guest client outstanding balance.',
+                    collectionMode,
+                    allocationRule,
+                    fixedAmountUsd,
+                    eligibleOutstandingTotal,
+                    totalDue: 0,
+                    allocationPreview: []
+                };
+            }
+
+            const previewItems = this.truncateGuestItemsToFixedAmount(
+                this.buildRemainingBalanceItems(tasks),
+                fixedAmountUsd
+            );
+
+            return {
+                state: previewItems.length > 0 ? 'ready' : 'empty',
+                tasks,
+                message: previewItems.length > 0 ? null : 'No outstanding payment is due right now.',
+                collectionMode,
+                allocationRule,
+                fixedAmountUsd,
+                eligibleOutstandingTotal,
+                totalDue: fixedAmountUsd,
+                allocationPreview: this.summarizeGuestAllocation(previewItems, tasks)
+            };
+        }
+
+        const totalDue = collectionMode === 'all_balances'
+            ? eligibleOutstandingTotal
+            : roundMoney(tasks.reduce((sum, task) => sum + Number(task.current_due_amount || 0), 0));
+
         return {
-            state: tasks.length > 0 ? 'ready' : 'empty',
+            state: 'ready',
             tasks,
-            message: tasks.length > 0 ? null : 'No outstanding payment is due right now.'
+            message: null,
+            collectionMode,
+            allocationRule,
+            fixedAmountUsd: null,
+            eligibleOutstandingTotal,
+            totalDue,
+            allocationPreview: []
         };
     }
 
-    selectGuestPaymentTasks(link, tasks, mode, taskId) {
+    buildGuestCheckoutPlan(link, tasksState, mode, taskId) {
+        const tasks = tasksState.tasks || [];
+        const collectionMode = tasksState.collectionMode || this.getGuestCollectionMode(link);
+
         if (link.scope === 'task') {
-            return tasks.slice(0, 1);
+            return {
+                mode: 'single',
+                items: this.buildCurrentDueItems(tasks.slice(0, 1)),
+                payableTaskCount: tasks.length > 0 ? 1 : 0
+            };
         }
 
         if (mode === 'single') {
@@ -193,11 +439,52 @@ class PaymentController {
             if (!selectedTask) {
                 throw new Error('The selected task is not available for payment from this link.');
             }
-            return [selectedTask];
+
+            if (collectionMode === 'current_due') {
+                return {
+                    mode: 'single',
+                    items: this.buildCurrentDueItems([selectedTask]),
+                    payableTaskCount: 1
+                };
+            }
+
+            return {
+                mode: 'single',
+                items: this.buildRemainingBalanceItems([selectedTask]),
+                payableTaskCount: 1
+            };
         }
 
         if (mode === 'bulk') {
-            return tasks;
+            if (collectionMode === 'current_due') {
+                return {
+                    mode: 'bulk',
+                    items: this.buildCurrentDueItems(tasks),
+                    payableTaskCount: tasks.length
+                };
+            }
+
+            return {
+                mode: 'bulk',
+                items: this.buildRemainingBalanceItems(tasks),
+                payableTaskCount: tasks.length
+            };
+        }
+
+        if (mode === 'fixed' && collectionMode === 'fixed_amount') {
+            const items = this.truncateGuestItemsToFixedAmount(
+                this.buildRemainingBalanceItems(tasks),
+                tasksState.fixedAmountUsd
+            );
+            return {
+                mode: 'fixed',
+                items,
+                payableTaskCount: new Set(items.map((item) => Number(item.taskId))).size
+            };
+        }
+
+        if (collectionMode === 'fixed_amount') {
+            throw new Error('mode must be fixed for fixed-amount guest links.');
         }
 
         throw new Error('mode must be one of: single, bulk');
@@ -576,37 +863,38 @@ class PaymentController {
         };
 
         const phase = options.phase || task.current_due_phase;
-
-        if (phase === 'deposit') {
-            await Task.markDepositAsPaid(taskId, options.internalReference || reference, paymentData, {
-                executor,
-                gatewayReference: options.gatewayReference || reference
-            });
-
-            const refreshedTask = await Task.findById(taskId, executor, options.viewerId || 0);
-            if (refreshedTask && refreshedTask.status === 'pending_deposit') {
-                await Task.update(taskId, { status: 'in_progress' }, executor);
-            }
-        } else {
-            await Task.markAsPaid(taskId, options.internalReference || reference, paymentData, {
-                executor,
-                gatewayReference: options.gatewayReference || reference,
-                type: phase === 'balance' ? 'balance' : 'full'
-            });
-        }
+        await Task.applyPaymentAllocation(taskId, options.internalReference || reference, paymentData, {
+            executor,
+            viewerId: options.viewerId || 0,
+            gatewayReference: options.gatewayReference || reference,
+            source: options.source || 'platform',
+            recordedBy: options.recordedBy || null,
+            phase,
+            amountUsd: options.amountUsd
+        });
 
         await syncTaskDueTracking(task, taskId, executor);
     }
 
     async createGuestPaymentLink(req, res) {
         try {
-            const { scope, taskId, guestClientId } = req.body || {};
+            const {
+                scope,
+                taskId,
+                guestClientId,
+                collectionMode: requestedCollectionMode,
+                fixedAmountUsd: rawFixedAmountUsd
+            } = req.body || {};
 
             if (!['task', 'portal'].includes(scope)) {
                 return res.status(400).json({ success: false, message: 'scope must be one of: task, portal' });
             }
 
             if (scope === 'task') {
+                if (requestedCollectionMode && requestedCollectionMode !== 'current_due') {
+                    return res.status(400).json({ success: false, message: 'Task guest payment links only support current_due mode.' });
+                }
+
                 const task = await Task.findById(taskId, pool, req.user.id);
                 if (!task) {
                     return res.status(404).json({ success: false, message: 'Task not found' });
@@ -629,6 +917,7 @@ class PaymentController {
                     scope,
                     guestClientId: task.guest_client_id,
                     taskId: task.id,
+                    collectionMode: 'current_due',
                     createdBy: req.user.id
                 });
 
@@ -639,9 +928,20 @@ class PaymentController {
                         scope: result.link.scope,
                         guestClientId: result.link.guest_client_id,
                         taskId: result.link.task_id,
+                        collectionMode: this.getGuestCollectionMode(result.link),
+                        fixedAmountUsd: result.link.fixed_amount_usd ? roundMoney(result.link.fixed_amount_usd) : null,
+                        allocationRule: this.getGuestAllocationRule(result.link),
                         publicUrl: result.publicUrl,
                         reused: result.reused
                     }
+                });
+            }
+
+            const collectionMode = requestedCollectionMode || 'all_balances';
+            if (!['current_due', 'all_balances', 'fixed_amount'].includes(collectionMode)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'collectionMode must be one of: current_due, all_balances, fixed_amount'
                 });
             }
 
@@ -659,9 +959,35 @@ class PaymentController {
                 return res.status(400).json({ success: false, message: 'This guest does not have any payable tasks right now.' });
             }
 
+            const eligibleOutstandingTotal = roundMoney(
+                payableTasks.reduce((sum, task) => sum + Number(task.remaining_balance || 0), 0)
+            );
+            const fixedAmountUsd = collectionMode === 'fixed_amount'
+                ? roundMoney(rawFixedAmountUsd)
+                : null;
+
+            if (collectionMode === 'fixed_amount') {
+                if (fixedAmountUsd <= 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'fixedAmountUsd must be greater than zero for fixed_amount links.'
+                    });
+                }
+
+                if (fixedAmountUsd - eligibleOutstandingTotal > 0.009) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'The requested fixed amount is higher than the guest client outstanding balance.'
+                    });
+                }
+            }
+
             const result = await guestPaymentLinkService.createOrReuseLink({
                 scope,
                 guestClientId: guest.id,
+                collectionMode,
+                fixedAmountUsd,
+                allocationRule: 'oldest_due_first',
                 createdBy: req.user.id
             });
 
@@ -672,9 +998,13 @@ class PaymentController {
                     scope: result.link.scope,
                     guestClientId: result.link.guest_client_id,
                     taskId: null,
+                    collectionMode: this.getGuestCollectionMode(result.link),
+                    fixedAmountUsd: result.link.fixed_amount_usd ? roundMoney(result.link.fixed_amount_usd) : null,
+                    allocationRule: this.getGuestAllocationRule(result.link),
                     publicUrl: result.publicUrl,
                     reused: result.reused,
-                    payableTaskCount: payableTasks.length
+                    payableTaskCount: payableTasks.length,
+                    eligibleOutstandingTotal
                 }
             });
         } catch (error) {
@@ -740,11 +1070,18 @@ class PaymentController {
                     guestName: context.link.guest_name,
                     guestEmail: context.link.guest_email || '',
                     scope: context.link.scope,
+                    collectionMode: tasksState.collectionMode || this.getGuestCollectionMode(context.link),
+                    fixedAmountUsd: tasksState.fixedAmountUsd ?? null,
+                    allocationRule: tasksState.allocationRule || this.getGuestAllocationRule(context.link),
                     requiresEmail: !context.link.guest_email,
-                    totalDue: roundMoney(tasksState.tasks.reduce((sum, task) => sum + Number(task.current_due_amount || 0), 0)),
-                    payableTaskCount: tasksState.tasks.length,
+                    totalDue: roundMoney(tasksState.totalDue || 0),
+                    payableTaskCount: (tasksState.collectionMode || this.getGuestCollectionMode(context.link)) === 'fixed_amount'
+                        ? (tasksState.allocationPreview || []).length
+                        : tasksState.tasks.length,
+                    eligibleOutstandingTotal: roundMoney(tasksState.eligibleOutstandingTotal || 0),
                     state: tasksState.state,
                     message: tasksState.message,
+                    allocationPreview: tasksState.allocationPreview || [],
                     tasks: tasksState.tasks.map((task) => this.sanitizeGuestTask(task))
                 }
             });
@@ -774,20 +1111,21 @@ class PaymentController {
                 });
             }
 
+            const collectionMode = tasksState.collectionMode || this.getGuestCollectionMode(context.link);
             const requestedMode = context.link.scope === 'task'
                 ? 'single'
-                : (req.body?.mode || 'bulk');
+                : (collectionMode === 'fixed_amount' ? 'fixed' : (req.body?.mode || 'bulk'));
             const enteredEmail = String(req.body?.email || context.link.guest_email || '').trim().toLowerCase();
 
             if (!this.isValidEmail(enteredEmail)) {
                 return res.status(400).json({ success: false, message: 'A valid email address is required to start checkout.' });
             }
 
-            let selectedTasks;
+            let checkoutPlan;
             try {
-                selectedTasks = this.selectGuestPaymentTasks(
+                checkoutPlan = this.buildGuestCheckoutPlan(
                     context.link,
-                    tasksState.tasks,
+                    tasksState,
                     requestedMode,
                     req.body?.taskId
                 );
@@ -795,11 +1133,11 @@ class PaymentController {
                 return res.status(400).json({ success: false, message: selectionError.message });
             }
 
-            if (selectedTasks.length === 0) {
+            if (!checkoutPlan.items || checkoutPlan.items.length === 0) {
                 return res.status(400).json({ success: false, message: 'There are no payable tasks in this checkout.' });
             }
 
-            const items = this.buildBulkItems(selectedTasks);
+            const items = checkoutPlan.items;
             const totalAmountUsd = roundMoney(items.reduce((sum, item) => sum + Number(item.amountUsd || 0), 0));
             const totalAmountKes = items.reduce((sum, item) => sum + Number(item.amountKes || 0), 0);
             const nonce = crypto.randomBytes(32).toString('hex');
@@ -813,15 +1151,23 @@ class PaymentController {
                     `INSERT INTO guest_payment_sessions
                         (link_id, guest_client_id, mode, entered_email, total_amount_usd, total_amount_kes, currency, nonce, expires_at)
                      VALUES (?, ?, ?, ?, ?, ?, 'KES', ?, ?)`,
-                    [context.link.id, context.link.guest_client_id, requestedMode, enteredEmail, totalAmountUsd, totalAmountKes, nonce, expiresAt]
+                    [context.link.id, context.link.guest_client_id, checkoutPlan.mode, enteredEmail, totalAmountUsd, totalAmountKes, nonce, expiresAt]
                 );
 
                 for (const item of items) {
                     await connection.execute(
                         `INSERT INTO guest_payment_session_items
-                            (session_id, task_id, phase, amount_usd, amount_kes, sort_order)
-                         VALUES (?, ?, ?, ?, ?, ?)`,
-                        [result.insertId, item.taskId, item.phase, item.amountUsd, item.amountKes, item.sortOrder]
+                            (session_id, task_id, phase, amount_usd, available_amount_usd, amount_kes, sort_order)
+                         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                            result.insertId,
+                            item.taskId,
+                            item.phase,
+                            item.amountUsd,
+                            item.availableAmountUsd ?? item.amountUsd,
+                            item.amountKes,
+                            item.sortOrder
+                        ]
                     );
                 }
 
@@ -842,8 +1188,8 @@ class PaymentController {
                 totalAmountKes,
                 totalAmountKesDisplay: roundMoney(totalAmountKes / 100),
                 exchangeRate: this.getExchangeRate(),
-                payableTaskCount: items.length,
-                mode: requestedMode
+                payableTaskCount: checkoutPlan.payableTaskCount,
+                mode: checkoutPlan.mode
             });
         } catch (error) {
             logger.error(`Initialize Guest Payment Error: ${error.message}`);
@@ -952,10 +1298,16 @@ class PaymentController {
                 throw new Error(`Task ${item.task_id} is no longer payable by this guest.`);
             }
 
+            const currentlyAvailableAmount = Task.getPhaseAvailableAmount(task, item.phase);
+            const expectedAvailableAmount = roundMoney(
+                item.available_amount_usd !== undefined && item.available_amount_usd !== null
+                    ? item.available_amount_usd
+                    : item.amount_usd
+            );
             if (
                 Number(task.can_pay_now) !== 1
-                || task.current_due_phase !== item.phase
-                || Math.abs(Number(task.current_due_amount) - Number(item.amount_usd)) > 0.009
+                || Math.abs(Number(currentlyAvailableAmount) - Number(expectedAvailableAmount)) > 0.009
+                || Number(item.amount_usd) - Number(currentlyAvailableAmount) > 0.009
             ) {
                 throw new Error(`Task ${item.task_id} payment state changed after checkout started.`);
             }
@@ -965,6 +1317,7 @@ class PaymentController {
                 executor: connection,
                 viewerId: 0,
                 phase: item.phase,
+                amountUsd: roundMoney(item.amount_usd),
                 internalReference,
                 gatewayReference,
                 kesAmount: roundMoney(item.amount_kes / 100)
@@ -979,6 +1332,8 @@ class PaymentController {
             if (task && Number(task.is_paid) === 1) {
                 await guestPaymentLinkService.settleLink(link.id, connection);
             }
+        } else if (link && this.getGuestCollectionMode(link) === 'fixed_amount') {
+            await guestPaymentLinkService.settleLink(link.id, connection);
         }
     }
 

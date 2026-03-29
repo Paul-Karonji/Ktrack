@@ -2,6 +2,7 @@ import React from 'react';
 import { CheckCircle2, ShieldCheck, Wallet } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import {
+    getAmountPaidTotal,
     getDepositAmount,
     getPaymentBadgeStyles,
     getProjectTotal,
@@ -13,6 +14,7 @@ const TaskPaymentSummary = ({ task, hideAmounts = false, compact = false }) => {
     const projectTotal = getProjectTotal(task);
     const depositAmount = getDepositAmount(task);
     const remainingBalance = getRemainingBalance(task);
+    const amountPaidTotal = getAmountPaidTotal(task);
     const showDepositDetails = Number(task.requires_deposit) === 1 || Number(task.deposit_paid) === 1;
 
     return (
@@ -44,9 +46,23 @@ const TaskPaymentSummary = ({ task, hideAmounts = false, compact = false }) => {
                 {showDepositDetails && (
                     <div>
                         <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold">Deposit</p>
-                        <p className="text-sm font-bold text-gray-900">{formatCurrency(depositAmount, hideAmounts)}</p>
+                        <p className="text-sm font-bold text-gray-900">
+                            {formatCurrency(Number(task.deposit_paid_amount ?? depositAmount), hideAmounts)}
+                            {Number(task.deposit_paid) !== 1 && depositAmount > 0 && (
+                                <span className="text-xs text-gray-500 font-medium"> / {formatCurrency(depositAmount, hideAmounts)}</span>
+                            )}
+                        </p>
                     </div>
                 )}
+
+                <div>
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold">
+                        Collected
+                    </p>
+                    <p className="text-sm font-bold text-emerald-700">
+                        {formatCurrency(amountPaidTotal, hideAmounts)}
+                    </p>
+                </div>
 
                 <div>
                     <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold">
@@ -57,6 +73,14 @@ const TaskPaymentSummary = ({ task, hideAmounts = false, compact = false }) => {
                     </p>
                 </div>
             </div>
+
+            {Number(task.is_paid) !== 1 && amountPaidTotal > 0 && (
+                <p className="text-xs text-emerald-700 font-medium">
+                    {Number(task.deposit_paid) === 1
+                        ? `Collected ${formatCurrency(amountPaidTotal, hideAmounts)} so far. Remaining balance: ${formatCurrency(remainingBalance, hideAmounts)}.`
+                        : `Collected ${formatCurrency(amountPaidTotal, hideAmounts)} so far.`}
+                </p>
+            )}
 
             {Number(task.deposit_paid) === 1 && Number(task.is_paid) !== 1 && (
                 <p className="text-xs text-blue-600 font-medium">

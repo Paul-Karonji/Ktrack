@@ -41,6 +41,10 @@ function roundMoney(value) {
     return Math.round((Number(value) || 0) * 100) / 100;
 }
 
+function clampMoney(value, min = 0, max = Number.POSITIVE_INFINITY) {
+    return Math.min(max, Math.max(min, roundMoney(value)));
+}
+
 function resolveProjectTotal(task) {
     const quotedAmount = roundMoney(task.quoted_amount);
     const expectedAmount = roundMoney(task.expected_amount);
@@ -146,6 +150,92 @@ async function backfillLegacyOfflinePayments() {
     }
 }
 
+async function backfillTaskPaymentProgress() {
+    if (!(await tableExists('tasks')) || !(await tableExists('payments'))) {
+        return;
+    }
+
+    const [tasks] = await pool.execute(
+        `SELECT t.*,
+                COALESCE(payment_totals.total_paid, 0) AS total_paid_from_payments,
+                COALESCE(payment_totals.deposit_paid, 0) AS deposit_paid_from_payments
+         FROM tasks t
+         LEFT JOIN (
+            SELECT p.task_id,
+                   ROUND(SUM(p.amount), 2) AS total_paid,
+                   ROUND(SUM(CASE WHEN p.type = 'deposit' THEN p.amount ELSE 0 END), 2) AS deposit_paid
+            FROM payments p
+            GROUP BY p.task_id
+         ) payment_totals ON payment_totals.task_id = t.id`
+    );
+
+    for (const task of tasks) {
+        const projectTotal = resolveProjectTotal(task);
+        const depositTarget = Math.min(resolveDepositAmount(task), projectTotal);
+        const requiresDeposit = Number(task.requires_deposit) === 1 && depositTarget > 0;
+        const totalPaidFromPayments = roundMoney(task.total_paid_from_payments);
+
+        const nextAmountPaidTotal = projectTotal > 0
+            ? clampMoney(
+                Math.max(
+                    roundMoney(task.amount_paid_total),
+                    totalPaidFromPayments,
+                    Number(task.is_paid) === 1 ? projectTotal : 0,
+                    requiresDeposit && Number(task.deposit_paid) === 1 ? depositTarget : 0
+                ),
+                0,
+                projectTotal
+            )
+            : roundMoney(task.amount_paid_total);
+
+        const nextDepositPaidAmount = requiresDeposit
+            ? clampMoney(
+                Math.max(
+                    roundMoney(task.deposit_paid_amount),
+                    roundMoney(task.deposit_paid_from_payments),
+                    Number(task.deposit_paid) === 1 || Number(task.is_paid) === 1 ? depositTarget : 0,
+                    Math.min(nextAmountPaidTotal, depositTarget)
+                ),
+                0,
+                depositTarget
+            )
+            : 0;
+
+        const nextIsPaid = projectTotal > 0 && projectTotal - nextAmountPaidTotal <= 0.009 ? 1 : 0;
+        const nextDepositPaid = requiresDeposit && depositTarget - nextDepositPaidAmount <= 0.009 ? 1 : 0;
+
+        const needsUpdate =
+            Math.abs(roundMoney(task.amount_paid_total) - nextAmountPaidTotal) > 0.009
+            || Math.abs(roundMoney(task.deposit_paid_amount) - nextDepositPaidAmount) > 0.009
+            || Number(task.is_paid) !== nextIsPaid
+            || Number(task.deposit_paid) !== nextDepositPaid;
+
+        if (!needsUpdate) {
+            continue;
+        }
+
+        try {
+            await pool.execute(
+                `UPDATE tasks
+                 SET amount_paid_total = ?,
+                     deposit_paid_amount = ?,
+                     is_paid = ?,
+                     deposit_paid = ?
+                 WHERE id = ?`,
+                [
+                    nextAmountPaidTotal,
+                    nextDepositPaidAmount,
+                    nextIsPaid,
+                    nextDepositPaid,
+                    task.id
+                ]
+            );
+        } catch (error) {
+            console.warn(`[DatabasePatch] task payment progress backfill warning for task ${task.id}:`, error.message);
+        }
+    }
+}
+
 async function logSchemaStatus() {
     try {
         const checks = [
@@ -229,6 +319,8 @@ const DatabasePatchService = {
                 'ADD COLUMN requires_deposit TINYINT DEFAULT 0',
                 'ADD COLUMN deposit_paid TINYINT DEFAULT 0',
                 'ADD COLUMN deposit_amount DECIMAL(10, 2) DEFAULT 0',
+                'ADD COLUMN amount_paid_total DECIMAL(10, 2) NOT NULL DEFAULT 0',
+                'ADD COLUMN deposit_paid_amount DECIMAL(10, 2) NOT NULL DEFAULT 0',
                 'ADD COLUMN deposit_ref VARCHAR(255)',
                 'ADD COLUMN deposit_paid_at DATETIME',
                 'ADD COLUMN guest_client_id INT',
@@ -269,6 +361,7 @@ const DatabasePatchService = {
                     reference VARCHAR(255) UNIQUE NOT NULL,
                     gateway_reference VARCHAR(255) NULL,
                     type ENUM('deposit', 'balance', 'full') NOT NULL,
+                    is_partial TINYINT(1) NOT NULL DEFAULT 0,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     INDEX idx_task_id (task_id),
                     INDEX idx_gateway_reference (gateway_reference),
@@ -295,6 +388,13 @@ const DatabasePatchService = {
                  WHERE gateway_reference IS NULL`,
                 'payments.gateway_reference backfill warning',
                 ['ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
+                `ALTER TABLE payments
+                 ADD COLUMN is_partial TINYINT(1) NOT NULL DEFAULT 0 AFTER type`,
+                'payments.is_partial patch warning',
+                ['ER_DUP_FIELDNAME', 'ER_NO_SUCH_TABLE']
             );
 
             await safeExecute(
@@ -460,6 +560,9 @@ const DatabasePatchService = {
                     scope ENUM('task', 'portal') NOT NULL,
                     guest_client_id INT NOT NULL,
                     task_id INT NULL,
+                    collection_mode ENUM('current_due', 'all_balances', 'fixed_amount') NOT NULL DEFAULT 'current_due',
+                    fixed_amount_usd DECIMAL(10, 2) NULL,
+                    allocation_rule ENUM('oldest_due_first') NOT NULL DEFAULT 'oldest_due_first',
                     token_hash VARCHAR(64) NOT NULL UNIQUE,
                     status ENUM('active', 'revoked', 'settled') NOT NULL DEFAULT 'active',
                     created_by INT NULL,
@@ -481,11 +584,39 @@ const DatabasePatchService = {
             );
 
             await safeExecute(
+                `ALTER TABLE guest_payment_links
+                 ADD COLUMN collection_mode ENUM('current_due', 'all_balances', 'fixed_amount') NOT NULL DEFAULT 'current_due' AFTER task_id`,
+                'guest_payment_links.collection_mode patch warning',
+                ['ER_DUP_FIELDNAME', 'ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
+                `ALTER TABLE guest_payment_links
+                 ADD COLUMN fixed_amount_usd DECIMAL(10, 2) NULL AFTER collection_mode`,
+                'guest_payment_links.fixed_amount_usd patch warning',
+                ['ER_DUP_FIELDNAME', 'ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
+                `ALTER TABLE guest_payment_links
+                 ADD COLUMN allocation_rule ENUM('oldest_due_first') NOT NULL DEFAULT 'oldest_due_first' AFTER fixed_amount_usd`,
+                'guest_payment_links.allocation_rule patch warning',
+                ['ER_DUP_FIELDNAME', 'ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
+                `CREATE INDEX idx_guest_payment_links_guest_scope_mode_status
+                 ON guest_payment_links (guest_client_id, scope, collection_mode, status)`,
+                'guest_payment_links mode index warning',
+                ['ER_DUP_KEYNAME', 'ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
                 `CREATE TABLE IF NOT EXISTS guest_payment_sessions (
                     id INT PRIMARY KEY AUTO_INCREMENT,
                     link_id INT NOT NULL,
                     guest_client_id INT NOT NULL,
-                    mode ENUM('single', 'bulk') NOT NULL,
+                    mode ENUM('single', 'bulk', 'fixed') NOT NULL,
                     entered_email VARCHAR(255) NOT NULL,
                     total_amount_usd DECIMAL(10, 2) NOT NULL,
                     total_amount_kes INT NOT NULL,
@@ -507,12 +638,20 @@ const DatabasePatchService = {
             );
 
             await safeExecute(
+                `ALTER TABLE guest_payment_sessions
+                 MODIFY COLUMN mode ENUM('single', 'bulk', 'fixed') NOT NULL`,
+                'guest_payment_sessions.mode patch warning',
+                ['ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
                 `CREATE TABLE IF NOT EXISTS guest_payment_session_items (
                     id INT PRIMARY KEY AUTO_INCREMENT,
                     session_id INT NOT NULL,
                     task_id INT NOT NULL,
                     phase ENUM('deposit', 'balance', 'full') NOT NULL,
                     amount_usd DECIMAL(10, 2) NOT NULL,
+                    available_amount_usd DECIMAL(10, 2) NOT NULL DEFAULT 0,
                     amount_kes INT NOT NULL,
                     sort_order INT NOT NULL DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -526,7 +665,15 @@ const DatabasePatchService = {
                 'guest_payment_session_items table patch warning'
             );
 
+            await safeExecute(
+                `ALTER TABLE guest_payment_session_items
+                 ADD COLUMN available_amount_usd DECIMAL(10, 2) NOT NULL DEFAULT 0 AFTER amount_usd`,
+                'guest_payment_session_items.available_amount_usd patch warning',
+                ['ER_DUP_FIELDNAME', 'ER_NO_SUCH_TABLE']
+            );
+
             await backfillLegacyOfflinePayments();
+            await backfillTaskPaymentProgress();
             await logSchemaStatus();
 
             console.log('[DatabasePatch] Schema updates checked/applied.');

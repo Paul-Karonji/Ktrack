@@ -11,7 +11,8 @@ import {
 import apiService from '../services/api';
 import { formatCurrency } from '../utils/formatters';
 
-const getActionLabel = (phase) => {
+const getActionLabel = (phase, collectionMode) => {
+    if (collectionMode === 'all_balances') return 'Pay Remaining Balance';
     if (phase === 'deposit') return 'Pay Deposit';
     if (phase === 'balance') return 'Clear Balance';
     return 'Pay Now';
@@ -176,8 +177,22 @@ const GuestPaymentPage = () => {
     }
 
     const isPortal = details?.scope === 'portal';
+    const collectionMode = details?.collectionMode || 'current_due';
     const tasks = details?.tasks || [];
     const hasOutstanding = tasks.length > 0;
+    const isFixedAmount = collectionMode === 'fixed_amount';
+    const isAllBalances = collectionMode === 'all_balances';
+    const totalLabel = isFixedAmount
+        ? 'Requested Amount'
+        : isAllBalances
+            ? 'Total Remaining Balance'
+            : 'Total Due Now';
+
+    const primaryButtonLabel = isFixedAmount
+        ? 'Pay Requested Amount'
+        : isAllBalances
+            ? 'Pay All Remaining'
+            : 'Pay Total Due';
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50 py-10 px-4">
@@ -208,9 +223,13 @@ const GuestPaymentPage = () => {
                                             {isPortal ? 'Guest Payment Portal' : 'Task Payment Link'}
                                         </h2>
                                         <p className="text-sm text-gray-500 mt-2">
-                                            {isPortal
-                                                ? 'Settle one task or clear all current guest balances in one checkout.'
-                                                : 'This link always points at the current due amount for this task.'}
+                                            {isPortal && isFixedAmount
+                                                ? 'This link collects one exact amount and allocates it oldest-due-first across the guest unpaid tasks.'
+                                                : isPortal && isAllBalances
+                                                    ? 'Settle one task full remaining balance or clear every unpaid guest task in one checkout.'
+                                                    : isPortal
+                                                        ? 'Settle one task current due milestone or clear every current due item in one checkout.'
+                                                        : 'This link always points at the current due amount for this task.'}
                                         </p>
                                     </div>
 
@@ -235,25 +254,27 @@ const GuestPaymentPage = () => {
                                 </div>
 
                                 <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5">
-                                    <p className="text-xs uppercase tracking-[0.18em] font-black text-emerald-500">Total Due Now</p>
+                                    <p className="text-xs uppercase tracking-[0.18em] font-black text-emerald-500">{totalLabel}</p>
                                     <div className="text-4xl font-black text-emerald-900 mt-3">
                                         {formatCurrency(details?.totalDue || 0)}
                                     </div>
                                     <p className="text-sm text-emerald-700 mt-3">
-                                        {details?.payableTaskCount || 0} payable task{Number(details?.payableTaskCount || 0) === 1 ? '' : 's'} in this link.
+                                        {isFixedAmount
+                                            ? `${details?.allocationRule === 'oldest_due_first' ? 'Applied oldest-due-first across' : 'Applied across'} ${details?.allocationPreview?.length || 0} task${Number(details?.allocationPreview?.length || 0) === 1 ? '' : 's'}.`
+                                            : `${details?.payableTaskCount || 0} payable task${Number(details?.payableTaskCount || 0) === 1 ? '' : 's'} in this link.`}
                                     </p>
 
-                                    {isPortal && hasOutstanding && tasks.length > 1 && (
+                                    {isPortal && hasOutstanding && (isFixedAmount || tasks.length > 1) && (
                                         <button
                                             type="button"
-                                            onClick={() => startCheckout({ mode: 'bulk' })}
+                                            onClick={() => startCheckout({ mode: isFixedAmount ? 'fixed' : 'bulk' })}
                                             disabled={isInitializing || isVerifying}
                                             className="mt-5 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-black hover:from-emerald-700 hover:to-teal-600 disabled:opacity-60"
                                         >
                                             {(isInitializing && busyTaskId == null) || isVerifying
                                                 ? <Loader2 size={18} className="animate-spin" />
                                                 : <Wallet size={18} />}
-                                            {isVerifying ? 'Verifying...' : 'Pay Total Due'}
+                                            {isVerifying ? 'Verifying...' : primaryButtonLabel}
                                         </button>
                                     )}
 
@@ -267,7 +288,7 @@ const GuestPaymentPage = () => {
                                             {(isInitializing && busyTaskId === tasks[0]?.id) || isVerifying
                                                 ? <Loader2 size={18} className="animate-spin" />
                                                 : <CreditCard size={18} />}
-                                            {isVerifying ? 'Verifying...' : getActionLabel(tasks[0]?.currentDuePhase)}
+                                            {isVerifying ? 'Verifying...' : getActionLabel(tasks[0]?.currentDuePhase, collectionMode)}
                                         </button>
                                     )}
                                 </div>
@@ -283,9 +304,11 @@ const GuestPaymentPage = () => {
                         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 md:p-8">
                             <div className="flex items-center justify-between gap-4 mb-5">
                                 <div>
-                                    <p className="text-xs uppercase tracking-[0.18em] font-black text-gray-400">Outstanding Items</p>
+                                    <p className="text-xs uppercase tracking-[0.18em] font-black text-gray-400">
+                                        {isFixedAmount ? 'Allocation Preview' : 'Outstanding Items'}
+                                    </p>
                                     <h2 className="text-2xl font-black text-gray-900 mt-2">
-                                        {hasOutstanding ? 'Ready For Payment' : 'No Outstanding Balance'}
+                                        {hasOutstanding ? (isFixedAmount ? 'Requested Amount Breakdown' : 'Ready For Payment') : 'No Outstanding Balance'}
                                     </h2>
                                 </div>
                             </div>
@@ -297,42 +320,65 @@ const GuestPaymentPage = () => {
                                         This portal link stays valid, so you can use the same URL again if new work is added later.
                                     </p>
                                 </div>
-                            ) : (
+                            ) : isFixedAmount ? (
                                 <div className="space-y-4">
-                                    {tasks.map((task) => (
-                                        <div key={task.id} className="rounded-3xl border border-gray-100 bg-gray-50/80 p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                                            <div>
-                                                <p className="text-lg font-black text-gray-900">{task.taskName}</p>
-                                                <div className="flex flex-wrap gap-2 mt-3">
-                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
-                                                        {task.paymentStateLabel}
-                                                    </span>
-                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-gray-600 text-xs font-bold border border-gray-200 uppercase">
-                                                        {task.currentDuePhase}
-                                                    </span>
+                                    {(details?.allocationPreview || []).map((item) => (
+                                        <div key={item.taskId} className="rounded-3xl border border-gray-100 bg-gray-50/80 p-5 space-y-3">
+                                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                                <p className="text-lg font-black text-gray-900">{item.taskName}</p>
+                                                <div className="text-2xl font-black text-gray-900">
+                                                    {formatCurrency(item.totalAmount || 0)}
                                                 </div>
                                             </div>
-
-                                            <div className="md:text-right space-y-3">
-                                                <div className="text-2xl font-black text-gray-900">
-                                                    {formatCurrency(task.currentDueAmount || 0)}
-                                                </div>
-                                                {isPortal && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => startCheckout({ mode: 'single', taskId: task.id })}
-                                                        disabled={isInitializing || isVerifying}
-                                                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-white border border-gray-200 text-gray-800 font-bold hover:bg-gray-100 disabled:opacity-60"
-                                                    >
-                                                        {(isInitializing && busyTaskId === task.id) || isVerifying
-                                                            ? <Loader2 size={16} className="animate-spin" />
-                                                            : <CreditCard size={16} />}
-                                                        {isVerifying ? 'Verifying...' : getActionLabel(task.currentDuePhase)}
-                                                    </button>
-                                                )}
+                                            <div className="flex flex-wrap gap-2">
+                                                {item.segments?.map((segment, index) => (
+                                                    <span key={`${item.taskId}-${segment.phase}-${index}`} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-gray-700 text-xs font-bold border border-gray-200 uppercase">
+                                                        {segment.phase} {formatCurrency(segment.amount || 0)}
+                                                    </span>
+                                                ))}
                                             </div>
                                         </div>
                                     ))}
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {tasks.map((task) => {
+                                        const displayAmount = isAllBalances ? task.remainingBalance : task.currentDueAmount;
+                                        return (
+                                            <div key={task.id} className="rounded-3xl border border-gray-100 bg-gray-50/80 p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                                                <div>
+                                                    <p className="text-lg font-black text-gray-900">{task.taskName}</p>
+                                                    <div className="flex flex-wrap gap-2 mt-3">
+                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
+                                                            {task.paymentStateLabel}
+                                                        </span>
+                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-gray-600 text-xs font-bold border border-gray-200 uppercase">
+                                                            {isAllBalances ? 'remaining' : task.currentDuePhase}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="md:text-right space-y-3">
+                                                    <div className="text-2xl font-black text-gray-900">
+                                                        {formatCurrency(displayAmount || 0)}
+                                                    </div>
+                                                    {isPortal && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => startCheckout({ mode: 'single', taskId: task.id })}
+                                                            disabled={isInitializing || isVerifying}
+                                                            className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-white border border-gray-200 text-gray-800 font-bold hover:bg-gray-100 disabled:opacity-60"
+                                                        >
+                                                            {(isInitializing && busyTaskId === task.id) || isVerifying
+                                                                ? <Loader2 size={16} className="animate-spin" />
+                                                                : <CreditCard size={16} />}
+                                                            {isVerifying ? 'Verifying...' : getActionLabel(task.currentDuePhase, collectionMode)}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>

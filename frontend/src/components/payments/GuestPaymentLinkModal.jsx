@@ -10,6 +10,7 @@ import {
     X
 } from 'lucide-react';
 import apiService from '../../services/api';
+import { formatCurrency } from '../../utils/formatters';
 
 const copyToClipboard = async (value) => {
     if (navigator.clipboard?.writeText) {
@@ -21,7 +22,19 @@ const copyToClipboard = async (value) => {
     return false;
 };
 
-const buildPayload = (target) => {
+const extractToken = (publicUrl) => {
+    if (!publicUrl) return '';
+
+    try {
+        const url = new URL(publicUrl);
+        const parts = url.pathname.split('/').filter(Boolean);
+        return decodeURIComponent(parts[parts.length - 1] || '');
+    } catch (_error) {
+        return decodeURIComponent(String(publicUrl).split('/').pop() || '');
+    }
+};
+
+const buildPayload = (target, collectionMode, fixedAmountUsd) => {
     if (!target) return null;
 
     if (target.scope === 'task') {
@@ -31,50 +44,111 @@ const buildPayload = (target) => {
         };
     }
 
-    return {
+    const payload = {
         scope: 'portal',
-        guestClientId: target.guest?.id
+        guestClientId: target.guest?.id,
+        collectionMode
     };
+
+    if (collectionMode === 'fixed_amount') {
+        payload.fixedAmountUsd = Number(fixedAmountUsd || 0);
+    }
+
+    return payload;
 };
+
+const MODE_OPTIONS = [
+    { value: 'all_balances', label: 'All Balances', hint: 'Collect the full remaining balance across all unpaid guest tasks.' },
+    { value: 'current_due', label: 'Current Due', hint: 'Only collect each task current due milestone, like the existing portal flow.' },
+    { value: 'fixed_amount', label: 'Fixed Amount', hint: 'Request one exact amount and apply it oldest-due-first across unpaid tasks.' }
+];
 
 const GuestPaymentLinkModal = ({ isOpen, target, onClose }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [linkData, setLinkData] = useState(null);
+    const [preview, setPreview] = useState(null);
+    const [previewLoading, setPreviewLoading] = useState(false);
     const [copied, setCopied] = useState(false);
     const [isRevoking, setIsRevoking] = useState(false);
     const [isRegenerating, setIsRegenerating] = useState(false);
+    const [collectionMode, setCollectionMode] = useState('all_balances');
+    const [fixedAmountUsd, setFixedAmountUsd] = useState('');
 
+    const isTaskLink = target?.scope === 'task';
     const targetLabel = useMemo(() => {
         if (!target) return '';
-        if (target.scope === 'task') {
+        if (isTaskLink) {
             return target.task?.task_name || `Task #${target.task?.id || ''}`;
         }
         return target.guest?.name || 'Guest Client';
-    }, [target]);
+    }, [isTaskLink, target]);
 
-    const title = target?.scope === 'task' ? 'Guest Task Payment Link' : 'Guest Payment Portal Link';
-    const description = target?.scope === 'task'
-        ? 'This link opens a payment page for the current due amount on this guest task.'
-        : 'This link opens a guest payment portal showing all currently payable tasks for this guest.';
+    const title = isTaskLink ? 'Guest Task Payment Link' : 'Guest Payment Portal Link';
+    const description = useMemo(() => {
+        if (isTaskLink) {
+            return 'This link opens a payment page for the current due amount on this guest task.';
+        }
 
-    const loadLink = async () => {
-        const payload = buildPayload(target);
+        if (collectionMode === 'fixed_amount') {
+            return 'This link requests one exact amount and applies it oldest-due-first across the guest unpaid tasks.';
+        }
+
+        if (collectionMode === 'current_due') {
+            return 'This portal shows only each task current due milestone, not the full outstanding balance.';
+        }
+
+        return 'This portal collects the full remaining balance across every currently payable guest task.';
+    }, [collectionMode, isTaskLink]);
+
+    const loadPreview = async (publicUrl) => {
+        const token = extractToken(publicUrl);
+        if (!token) {
+            setPreview(null);
+            return;
+        }
+
+        try {
+            setPreviewLoading(true);
+            const response = await apiService.getGuestPaymentLink(token);
+            if (!response?.success) {
+                throw new Error(response?.message || 'Failed to load link preview.');
+            }
+
+            setPreview(response.data || null);
+        } catch (err) {
+            setPreview(null);
+            setError(err.response?.data?.message || err.message || 'Failed to load payment link preview.');
+        } finally {
+            setPreviewLoading(false);
+        }
+    };
+
+    const loadLink = async (overrides = {}) => {
+        const nextMode = overrides.collectionMode ?? collectionMode;
+        const nextFixedAmount = overrides.fixedAmountUsd ?? fixedAmountUsd;
+        const payload = buildPayload(target, nextMode, nextFixedAmount);
         if (!payload) return;
 
         try {
             setLoading(true);
             setError('');
             setCopied(false);
+            setPreview(null);
 
             const response = await apiService.createGuestPaymentLink(payload);
             if (!response?.success) {
                 throw new Error(response?.message || 'Failed to prepare payment link.');
             }
 
-            setLinkData(response.data || null);
+            const nextLinkData = response.data || null;
+            setLinkData(nextLinkData);
+            if (nextLinkData?.publicUrl) {
+                await loadPreview(nextLinkData.publicUrl);
+            }
         } catch (err) {
             setLinkData(null);
+            setPreview(null);
             setError(err.response?.data?.message || err.message || 'Failed to prepare payment link.');
         } finally {
             setLoading(false);
@@ -83,11 +157,22 @@ const GuestPaymentLinkModal = ({ isOpen, target, onClose }) => {
 
     useEffect(() => {
         if (isOpen && target) {
-            loadLink();
+            const defaultMode = target.scope === 'task' ? 'current_due' : 'all_balances';
+            setCollectionMode(defaultMode);
+            setFixedAmountUsd('');
+            setLoading(false);
+            setPreview(null);
+            setError('');
+            setLinkData(null);
+            setCopied(false);
+            setIsRevoking(false);
+            setIsRegenerating(false);
+            loadLink({ collectionMode: defaultMode, fixedAmountUsd: '' });
         } else {
             setLoading(false);
             setError('');
             setLinkData(null);
+            setPreview(null);
             setCopied(false);
             setIsRevoking(false);
             setIsRegenerating(false);
@@ -99,6 +184,22 @@ const GuestPaymentLinkModal = ({ isOpen, target, onClose }) => {
         await copyToClipboard(linkData.publicUrl);
         setCopied(true);
         window.setTimeout(() => setCopied(false), 1800);
+    };
+
+    const handleModeChange = (event) => {
+        setCollectionMode(event.target.value);
+        setLinkData(null);
+        setPreview(null);
+        setError('');
+        setCopied(false);
+    };
+
+    const handleFixedAmountChange = (event) => {
+        setFixedAmountUsd(event.target.value);
+        setLinkData(null);
+        setPreview(null);
+        setError('');
+        setCopied(false);
     };
 
     const handleRevoke = async () => {
@@ -116,6 +217,7 @@ const GuestPaymentLinkModal = ({ isOpen, target, onClose }) => {
 
             setError('Link revoked. Generate again when you need a fresh URL.');
             setLinkData(null);
+            setPreview(null);
         } catch (err) {
             setError(err.response?.data?.message || err.message || 'Failed to revoke payment link.');
         } finally {
@@ -148,7 +250,7 @@ const GuestPaymentLinkModal = ({ isOpen, target, onClose }) => {
                     <div>
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-black uppercase tracking-[0.18em]">
                             <Link2 size={14} />
-                            {target?.scope === 'task' ? 'Single Task' : 'Portal'}
+                            {isTaskLink ? 'Single Task' : 'Portal'}
                         </div>
                         <h3 className="text-xl font-black text-gray-900 mt-3">{title}</h3>
                         <p className="text-sm text-gray-500 mt-1">{description}</p>
@@ -165,13 +267,65 @@ const GuestPaymentLinkModal = ({ isOpen, target, onClose }) => {
                 <div className="p-6 space-y-5">
                     <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-4">
                         <p className="text-xs uppercase tracking-[0.18em] font-black text-indigo-400">
-                            {target?.scope === 'task' ? 'Task' : 'Guest'}
+                            {isTaskLink ? 'Task' : 'Guest'}
                         </p>
                         <p className="text-base font-bold text-indigo-950 mt-1">{targetLabel}</p>
-                        {target?.scope === 'task' && target?.task?.display_client_name && (
+                        {isTaskLink && target?.task?.display_client_name && (
                             <p className="text-sm text-indigo-700 mt-1">{target.task.display_client_name}</p>
                         )}
                     </div>
+
+                    {!isTaskLink && (
+                        <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-4">
+                            <div>
+                                <label className="block text-xs uppercase tracking-[0.18em] font-black text-gray-400 mb-2">
+                                    Portal Mode
+                                </label>
+                                <select
+                                    value={collectionMode}
+                                    onChange={handleModeChange}
+                                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800"
+                                >
+                                    {MODE_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                                </select>
+                                <p className="text-sm text-gray-500 mt-2">
+                                    {MODE_OPTIONS.find((option) => option.value === collectionMode)?.hint}
+                                </p>
+                            </div>
+
+                            {collectionMode === 'fixed_amount' && (
+                                <div>
+                                    <label className="block text-xs uppercase tracking-[0.18em] font-black text-gray-400 mb-2">
+                                        Requested Amount (USD)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={fixedAmountUsd}
+                                        onChange={handleFixedAmountChange}
+                                        placeholder="0.00"
+                                        className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        This amount will be applied oldest-due-first across the guest unpaid tasks.
+                                    </p>
+                                </div>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={() => loadLink()}
+                                disabled={loading || previewLoading || (collectionMode === 'fixed_amount' && Number(fixedAmountUsd || 0) <= 0)}
+                                className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                                {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
+                                Prepare Link
+                            </button>
+                        </div>
+                    )}
 
                     {loading ? (
                         <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-8 text-center text-gray-500">
@@ -190,7 +344,7 @@ const GuestPaymentLinkModal = ({ isOpen, target, onClose }) => {
                             <div className="flex gap-3">
                                 <button
                                     type="button"
-                                    onClick={loadLink}
+                                    onClick={() => loadLink()}
                                     className="px-4 py-2 rounded-xl bg-white border border-red-200 text-red-700 font-bold hover:bg-red-50"
                                 >
                                     Retry
@@ -214,7 +368,7 @@ const GuestPaymentLinkModal = ({ isOpen, target, onClose }) => {
                                             {linkData.reused ? 'Existing link ready' : 'Fresh link ready'}
                                         </p>
                                         <p className="text-sm text-emerald-700 mt-1">
-                                            Anyone with this secure URL can open the guest payment page and pay the current due amount.
+                                            Anyone with this secure URL can open the guest payment page and make the payment configured here.
                                         </p>
                                     </div>
                                 </div>
@@ -242,6 +396,60 @@ const GuestPaymentLinkModal = ({ isOpen, target, onClose }) => {
                                     </a>
                                 </div>
                             </div>
+
+                            {(previewLoading || preview) && (
+                                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs uppercase tracking-[0.18em] font-black text-gray-400">Preview</p>
+                                            <p className="text-sm font-bold text-gray-900 mt-1">
+                                                {preview?.collectionMode === 'fixed_amount'
+                                                    ? 'Fixed amount checkout'
+                                                    : preview?.collectionMode === 'current_due'
+                                                        ? 'Current due portal'
+                                                        : preview?.scope === 'task'
+                                                            ? 'Single task checkout'
+                                                            : 'All balances portal'}
+                                            </p>
+                                        </div>
+                                        {previewLoading && <Loader2 size={16} className="animate-spin text-indigo-600" />}
+                                    </div>
+
+                                    {preview && (
+                                        <>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div className="rounded-2xl bg-white border border-gray-200 px-4 py-3">
+                                                    <p className="text-xs uppercase tracking-[0.18em] font-black text-gray-400">Charge</p>
+                                                    <p className="text-lg font-black text-gray-900 mt-1">{formatCurrency(preview.totalDue || 0)}</p>
+                                                </div>
+                                                <div className="rounded-2xl bg-white border border-gray-200 px-4 py-3">
+                                                    <p className="text-xs uppercase tracking-[0.18em] font-black text-gray-400">Outstanding</p>
+                                                    <p className="text-lg font-black text-gray-900 mt-1">{formatCurrency(preview.eligibleOutstandingTotal || 0)}</p>
+                                                </div>
+                                            </div>
+
+                                            {preview.collectionMode === 'fixed_amount' && preview.allocationPreview?.length > 0 && (
+                                                <div className="space-y-2">
+                                                    <p className="text-xs uppercase tracking-[0.18em] font-black text-gray-400">
+                                                        Allocation Preview
+                                                    </p>
+                                                    {preview.allocationPreview.map((item) => (
+                                                        <div key={item.taskId} className="rounded-2xl bg-white border border-gray-200 px-4 py-3">
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <p className="font-bold text-gray-900">{item.taskName}</p>
+                                                                <p className="font-black text-gray-900">{formatCurrency(item.totalAmount || 0)}</p>
+                                                            </div>
+                                                            <p className="text-xs text-gray-500 mt-2">
+                                                                {item.segments.map((segment) => `${segment.phase}: ${formatCurrency(segment.amount || 0)}`).join(' | ')}
+                                                            </p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            )}
 
                             <div className="flex flex-wrap gap-3">
                                 <button

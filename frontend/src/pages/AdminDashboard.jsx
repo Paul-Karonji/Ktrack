@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Users, FileText, CheckCircle, Clock, Plus, Search, HardDrive, Phone, Mail, Edit2, X } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { apiService } from '../services/api';
+import { getCollectedAmount } from '../utils/paymentSummary';
 import StatCard from '../components/dashboard/StatCard';
 import TaskTable from '../components/tasks/TaskTable';
 import TaskForm from '../components/tasks/TaskForm';
@@ -28,14 +29,6 @@ const isOverdueTask = (task) => {
 const getPendingQuoteWeight = (task) => {
     if (task.quote_status === 'quote_sent') return 2;
     if (task.quote_status === 'pending_quote') return 1;
-    return 0;
-};
-
-const getCollectedAmount = (task) => {
-    const projectTotal = Number(task.project_total || task.quoted_amount || task.expected_amount || 0);
-    const currentDue = Number(task.current_due_amount || 0);
-    if (Number(task.is_paid) === 1) return projectTotal;
-    if (Number(task.deposit_paid) === 1) return Math.max(projectTotal - currentDue, 0);
     return 0;
 };
 

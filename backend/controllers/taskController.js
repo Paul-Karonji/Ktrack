@@ -290,13 +290,6 @@ class TaskController {
       const isPaidInput = req.body.isPaid !== undefined ? req.body.isPaid : req.body.is_paid;
       const shouldRecordOfflinePayment = req.user.role === 'admin' && Boolean(isPaidInput) && !existingTask.is_paid;
 
-      if (shouldRecordOfflinePayment && Number(existingTask.deposit_paid) === 1) {
-        return res.status(400).json({
-          success: false,
-          message: 'Offline payment recording for remaining balances is not supported yet.'
-        });
-      }
-
       if (isPaidInput !== undefined) {
         if (shouldRecordOfflinePayment) {
           delete req.body.isPaid;
@@ -414,13 +407,6 @@ class TaskController {
         return res.status(400).json({
           success: false,
           message: 'This task is already fully paid.'
-        });
-      }
-
-      if (existingTask.current_due_phase === 'balance' || Number(existingTask.deposit_paid) === 1) {
-        return res.status(400).json({
-          success: false,
-          message: 'Offline payment recording for remaining balances is not supported yet.'
         });
       }
 

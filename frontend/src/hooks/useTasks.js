@@ -74,7 +74,7 @@ export const useTasks = () => {
             await loadTasks();
             return true;
         } catch (err) {
-            setError('Failed to record payment. Please try again.');
+            setError(err.response?.data?.message || 'Failed to record payment. Please try again.');
             console.error('Error recording offline payment:', err);
             return false;
         }

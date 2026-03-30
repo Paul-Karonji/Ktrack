@@ -1,184 +1,181 @@
-# K-Track | Advanced Task & Commission Management
+# K-Track
 
-**K-Track** is a professional task management platform designed to bridge the gap between service providers and their clients. It features real-time task tracking, secure file sharing (Cloudflare R2), per-task chat, commission/quote management, and a **Hybrid Client System** supporting both registered users and guest clients.
+K-Track is a task and client management platform for commission-based work. It combines client onboarding, task tracking, chat, file delivery, quoting, analytics, and Paystack-powered payments in a single app.
 
----
+## Stack
 
-## ✨ Key Features
+- Frontend: React 19, Vite, Tailwind, Axios, Socket.IO client
+- Backend: Node.js, Express 5, MySQL/TiDB, Socket.IO
+- Storage: Cloudflare R2 with local fallback
+- Payments: Paystack
+- Email: Resend / SMTP helpers
 
-### 👥 Hybrid Client System
-- **Registered Users** — full account with approval workflow and self-service dashboard
-- **Guest Clients** — admin-managed clients with no login required
-- **Account Merging** — seamlessly upgrade a guest client into a registered user, transferring all task history
+## Core Features
 
-### 💳 Milestone Payment System
-- **50% Deposit Workflow** — Optional upfront deposit requirement before work begins
-- **Paystack Integration** — Supports Cards and Mobile Money (M-Pesa), charged in KES
-- **Server-Side Payment Intents** — Amount and security nonce computed server-side before Paystack opens; clients cannot tamper with the charge amount
-- **USD → KES Conversion** — All USD task amounts are converted to KES using a configurable exchange rate (`EXCHANGE_RATE_USD_KES`) before charging
-- **Transaction Audit** — Dedicated admin Payments page for granular tracking of all deposits and final balances
-- **Anomaly Alerting** — Admin receives an email alert for any payment security event (amount mismatch, forged nonce, replay attempt)
+- Registered clients with approval workflow
+- Guest clients managed by admins
+- Task lifecycle tracking with quotes, deposits, and completion states
+- Per-task chat and general client chat
+- File uploads and deliverables
+- Payments, payment reminders, and audit history
+- Admin analytics and reporting
 
-### 📊 Analytics & Business Intelligence
-- **Executive KPIs** — Real-time Revenue, Quote Acceptance, Task Completion, and Client Growth with MoM trend analysis
-- **Financial Module** — Expected vs. actual revenue, payment status breakdown, and client revenue rankings
-- **Task Intelligence** — Status distribution, pipeline funnel, on-time rate, and average completion time
-- **Storage Analytics** — Cloudflare R2 utilization, file type breakdown, and storage growth trends
-- **Smart Charting** — Time-series with gap-filling logic to accurately represent zero-activity periods
+## Security Notes
 
-### 🛡️ Security
-- JWT authentication with HttpOnly cookie refresh tokens
-- CSRF protection on all mutation endpoints
-- Helmet security headers (CSP, HSTS, X-Frame-Options)
-- Rate limiting: 20 req/15min on auth routes, 1000 req/15min on API
-- bcrypt password hashing (10 rounds)
-- Role-based access control (`authenticate` + `requireAdmin` middleware) on all sensitive routes
-- **Secure file downloads** — uploaded files are served only through authenticated controller endpoints, never via a public static path
-- **Payment intent system** — server-issued nonces prevent webhook replay attacks and amount manipulation (F-08 / F-09 remediation)
+The current app behavior is:
 
-### ⚡ Task & Quote Workflow
+- Access tokens are kept in memory on the frontend, not in `localStorage`
+- Refresh tokens are stored in an HttpOnly cookie
+- Socket.IO requires an authenticated handshake and validates room access
+- Chat file uploads use the shared upload allowlist
+- Message downloads only render a small inline-safe image set; other files are forced to download
+- Email templates escape interpolated user content
+- Database dump files are ignored and should never be committed
+
+## Repository Layout
+
+```text
+my-task-tracker/
+|-- backend/
+|   |-- config/
+|   |-- controllers/
+|   |-- middleware/
+|   |-- models/
+|   |-- routes/
+|   |-- scripts/
+|   |-- services/
+|   `-- server.js
+|-- frontend/
+|   |-- src/
+|   |   |-- components/
+|   |   |-- context/
+|   |   |-- hooks/
+|   |   |-- pages/
+|   |   |-- services/
+|   |   `-- utils/
+|   `-- package.json
+`-- README.md
 ```
-Pending Quote → Quote Sent → Approved → Pending Deposit (opt.) → In Progress → Review → Completed
-```
-- Admin sends a quoted amount; client approves or rejects with one click
-- Priority levels: Low / Medium / High / Urgent
 
-### 💬 Contextual Chat
-- Private message thread per task with file attachment support
-- Unread message badges per task
+## Prerequisites
 
-### 📁 File Management
-- Secure uploads via **Cloudflare R2** (with local fallback)
-- Up to 10 files per upload, 10 MB per file
-- Files scoped to individual tasks; downloads require authentication
-
-### ⚙️ Reliability
-- **Fail-safe startup** — server blocks traffic until all DB schema patches are verified
-- **`DatabasePatchService`** — automatically applies schema migrations on every deploy (no manual SQL needed)
-- **Clock drift mitigation** — 24-hour end-date buffering on all time-range filters
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js v14+
+- Node.js 20+
 - MySQL 8+ or TiDB
+- A database created for the app, for example `ktrack`
 
-### 1. Backend Setup
+## Backend Setup
+
 ```bash
 cd backend
 npm install
 ```
 
-Create `backend/.env`:
+Create `backend/.env` with at least:
+
 ```env
 PORT=3001
 NODE_ENV=development
 
-# Database
 DB_HOST=localhost
 DB_USER=root
 DB_PASSWORD=your_password
 DB_NAME=ktrack
+DB_PORT=3306
 
-# Auth
-JWT_SECRET=your_jwt_secret_min_32_chars
-JWT_REFRESH_SECRET=your_refresh_secret
+JWT_SECRET=replace_with_a_strong_secret_at_least_32_chars_long
+GUEST_PAYMENT_LINK_SECRET=replace_with_a_long_random_secret
 
-# Cloudflare R2 (or AWS S3)
-R2_ACCOUNT_ID=your_r2_account_id
-R2_ACCESS_KEY_ID=your_access_key
-R2_SECRET_ACCESS_KEY=your_secret_key
-R2_BUCKET_NAME=your_bucket_name
+CLIENT_URL=http://localhost:5173
+CORS_ORIGIN=http://localhost:5173
 
-# Email (Resend)
-RESEND_API_KEY=re_your_key
-ADMIN_EMAIL=your@email.com
-FROM_EMAIL=noreply@yourdomain.com
+# Optional but recommended
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET_NAME=
 
-# Payments (Paystack)
-PAYSTACK_SECRET_KEY=sk_live_your_key
-EXCHANGE_RATE_USD_KES=135.00
+RESEND_API_KEY=
+ADMIN_EMAIL=
+FROM_EMAIL=
 
-# CORS
-CORS_ORIGIN=https://your-frontend-url.com
+PAYSTACK_SECRET_KEY=
+PAYSTACK_WEBHOOK_SECRET=
+EXCHANGE_RATE_USD_KES=135
 ```
 
-Start the server (schema patches apply automatically on first boot):
+Start the backend:
+
 ```bash
-npm run dev   # development (nodemon)
-npm start     # production
+npm run dev
 ```
 
-### 2. Frontend Setup
+Or:
+
+```bash
+npm start
+```
+
+Notes:
+
+- The server validates required environment variables on boot.
+- Schema patches are applied on startup by `DatabasePatchService`.
+- If R2 is not configured, uploads fall back to local storage.
+
+## Frontend Setup
+
 ```bash
 cd frontend
 npm install
-npm start     # opens at http://localhost:3000
 ```
 
 Create `frontend/.env`:
+
 ```env
 VITE_API_URL=http://localhost:3001
-VITE_PAYSTACK_PUBLIC_KEY=pk_live_your_key
+VITE_PAYSTACK_PUBLIC_KEY=
 VITE_EXCHANGE_RATE_USD_KES=135
 ```
 
----
-
-## 📂 Project Structure
-
-```
-my-task-tracker/
-├── backend/
-│   ├── config/          # DB connection, env validation
-│   ├── controllers/     # auth, tasks, files, payments, analytics, notifications
-│   ├── middleware/       # authenticate, requireAdmin, upload, CSRF, rate limit
-│   ├── models/          # User, Task, Message, Notification, GuestClient
-│   ├── routes/          # Express routers
-│   ├── scripts/         # Admin utilities
-│   ├── services/        # emailService, paystackService, r2Service, databasePatchService
-│   ├── utils/           # logger, helpers
-│   └── server.js        # App entry point
-└── frontend/
-    └── src/
-        ├── components/  # Badges, Cards, Chat, TaskRow, TaskCard, ClientProjectCard…
-        ├── context/     # AuthContext, AnalyticsContext
-        ├── hooks/       # useTasks, useOnlineStatus…
-        ├── pages/       # Dashboard, Projects, Files, Settings, Analytics, Payments…
-        └── services/    # Axios API client
-```
-
----
-
-## 🗄️ Database
-
-All tables are MySQL/TiDB. Schema is managed automatically by `DatabasePatchService` on server start — no manual migrations needed.
-
-| Table | Purpose |
-|---|---|
-| `users` | Registered accounts with role & approval status |
-| `tasks` | Core work items with full quote/payment lifecycle |
-| `messages` | Per-task chat with optional file attachments |
-| `task_files` | Files attached to tasks (R2/S3/local) |
-| `notifications` | User alerts |
-| `guest_clients` | Non-registered clients, upgradeable to full users |
-| `payments` | Payment transaction audit log |
-| `payment_intents` | Server-side payment sessions (nonce + expected amount) for secure Paystack integration |
-
----
-
-## 🛠️ Admin Utilities
+Start the frontend:
 
 ```bash
-node scripts/create_admin.js        # Create an admin account
-node scripts/list_all_users.js      # List all registered users
-node scripts/seed-users.js          # Seed test users
+npm run start
 ```
 
----
+Build for production:
 
-## 📄 License
+```bash
+npm run build
+```
 
-Private Property of K-Track Systems. All Rights Reserved.
+## Useful Scripts
+
+These scripts live under `backend/scripts/` and are mainly for local admin/debug work:
+
+- `node scripts/list_all_users.js`
+- `node scripts/reset_admin_password.js`
+- `node scripts/reset_client_password.js`
+- `node scripts/verify_admin.js`
+- `node scripts/debug_user_v2.js`
+
+Some older reproduction/debug scripts are still present in the repo. Treat them as local tooling, not production features.
+
+## File and Secret Hygiene
+
+- Do not commit `.env` files
+- Do not commit SQL dump files
+- Do not hardcode passwords in scripts
+- Rotate secrets immediately if they are exposed
+
+The repo ignores dump files such as `backend/*dump.sql`, so local database exports stay out of git by default.
+
+## Development Notes
+
+- Backend API runs on `http://localhost:3001`
+- Frontend Vite dev server typically runs on `http://localhost:5173`
+- Socket events depend on a valid access token and approved user account
+- Payments should be tested with sandbox credentials before production rollout
+
+## License
+
+Private project. All rights reserved.

@@ -1,11 +1,15 @@
 const { pool } = require('../config/database');
 const bcrypt = require('bcrypt');
 
-const EMAIL = 'removed-admin@example.invalid';
-const PASSWORD = 'REMOVED_PASSWORD';
+const EMAIL = process.env.DEBUG_USER_EMAIL;
+const PASSWORD = process.env.DEBUG_USER_PASSWORD;
 
 async function verifyUser() {
     try {
+        if (!EMAIL || !PASSWORD) {
+            console.error('Set DEBUG_USER_EMAIL and DEBUG_USER_PASSWORD before running this script.');
+            process.exit(1);
+        }
         console.log(`🔎 Checking database for ${EMAIL}...`);
         const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [EMAIL]);
 

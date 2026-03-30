@@ -7,7 +7,31 @@ const Notification = require('../models/Notification');
 const r2Service = require('../services/r2Service');
 const { getIo } = require('../services/socketService');
 
+const INLINE_SAFE_IMAGE_TYPES = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp'
+]);
+
 class MessageController {
+    static decorateMessage(message) {
+        if (!message?.file_url) {
+            return message;
+        }
+
+        return {
+            ...message,
+            file_url: `/api/messages/file/${message.id}`
+        };
+    }
+
+    static toDownloadFilename(value) {
+        return String(value || 'download')
+            .replace(/[\r\n"]/g, '_')
+            .trim() || 'download';
+    }
+
     static async getMessages(req, res) {
         try {
             const taskId = req.params.taskId;
@@ -25,15 +49,7 @@ class MessageController {
             const messages = await Message.findByTaskId(taskId, limit, offset);
 
             // Decorate messages with full file URL
-            const decoratedMessages = messages.map(msg => {
-                if (msg.file_url) {
-                    return {
-                        ...msg,
-                        file_url: `/api/messages/file/${msg.id}`
-                    };
-                }
-                return msg;
-            });
+            const decoratedMessages = messages.map((msg) => MessageController.decorateMessage(msg));
 
             res.json(decoratedMessages);
         } catch (error) {
@@ -65,16 +81,17 @@ class MessageController {
                 senderId,
                 message
             });
+            const decoratedMessage = MessageController.decorateMessage(newMessage);
 
             // Emit socket event
             try {
                 const io = getIo();
-                io.to(`task_${taskId}`).emit('new_message', newMessage);
+                io.to(`task_${taskId}`).emit('new_message', decoratedMessage);
             } catch (err) {
                 console.error('Socket error:', err.message);
             }
 
-            res.status(201).json(newMessage);
+            res.status(201).json(decoratedMessage);
 
             // Email Notifications
             try {
@@ -162,7 +179,7 @@ class MessageController {
             }
 
             // Upload to storage (R2/Local)
-            const { fileUrl, storedFilename } = await r2Service.uploadToStorage(file, taskId);
+            const { fileUrl } = await r2Service.uploadToStorage(file, taskId);
 
             // Create message with file
             const newMessage = await Message.create({
@@ -174,16 +191,17 @@ class MessageController {
                 fileSize: file.size,
                 fileType: file.mimetype
             });
+            const decoratedMessage = MessageController.decorateMessage(newMessage);
 
             // Emit socket event
             try {
                 const io = getIo();
-                io.to(`task_${taskId}`).emit('new_message', newMessage);
+                io.to(`task_${taskId}`).emit('new_message', decoratedMessage);
             } catch (err) {
                 console.error('Socket error:', err.message);
             }
 
-            res.status(201).json({ success: true, message: newMessage });
+            res.status(201).json({ success: true, message: decoratedMessage });
 
             // Send notifications (similar to text messages)
             try {
@@ -219,26 +237,40 @@ class MessageController {
             }
 
             // Security Check
-            const task = await Task.findById(message.task_id);
-            if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
+            if (message.task_id) {
+                const task = await Task.findById(message.task_id);
+                if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-            if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
-                return res.status(403).json({ success: false, message: 'Access denied' });
+                if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
+                    return res.status(403).json({ success: false, message: 'Access denied' });
+                }
+            } else if (message.client_id) {
+                if (req.user.role !== 'admin' && message.client_id !== req.user.id) {
+                    return res.status(403).json({ success: false, message: 'Access denied' });
+                }
+            } else {
+                return res.status(404).json({ success: false, message: 'File not found' });
             }
 
             // Get file from storage
             const fileStream = await r2Service.getFileStream(message.file_url);
 
-            // If it's an image, we want the browser to show it inline
-            const isImage = message.file_type && message.file_type.startsWith('image/');
+            const fileType = String(message.file_type || '').toLowerCase();
+            const safeFilename = MessageController.toDownloadFilename(message.file_name);
+            const isInlineSafeImage = INLINE_SAFE_IMAGE_TYPES.has(fileType);
 
-            if (isImage) {
-                res.setHeader('Content-Disposition', 'inline');
+            if (isInlineSafeImage) {
+                res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
             } else {
-                res.setHeader('Content-Disposition', `attachment; filename="${message.file_name}"`);
+                res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
             }
 
-            res.setHeader('Content-Type', message.file_type || 'application/octet-stream');
+            res.setHeader('Cache-Control', 'private, no-store');
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            res.setHeader(
+                'Content-Type',
+                isInlineSafeImage ? fileType : 'application/octet-stream'
+            );
 
             fileStream.pipe(res);
         } catch (error) {
@@ -261,15 +293,7 @@ class MessageController {
 
             const messages = await Message.findByClientId(clientId, limit, offset);
 
-            const decoratedMessages = messages.map(msg => {
-                if (msg.file_url) {
-                    return {
-                        ...msg,
-                        file_url: `/api/messages/file/${msg.id}`
-                    };
-                }
-                return msg;
-            });
+            const decoratedMessages = messages.map((msg) => MessageController.decorateMessage(msg));
 
             res.json(decoratedMessages);
         } catch (error) {
@@ -297,15 +321,16 @@ class MessageController {
                 senderId,
                 message
             });
+            const decoratedMessage = MessageController.decorateMessage(newMessage);
 
             try {
                 const io = getIo();
-                io.to(`general_${clientId}`).emit('new_message', newMessage);
+                io.to(`general_${clientId}`).emit('new_message', decoratedMessage);
             } catch (err) {
                 console.error('Socket error:', err.message);
             }
 
-            res.status(201).json(newMessage);
+            res.status(201).json(decoratedMessage);
 
             // Simple notification logic
             if (req.user.role === 'client') {
@@ -338,7 +363,7 @@ class MessageController {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
-            const { fileUrl, storedFilename } = await r2Service.uploadToStorage(file, `general_${clientId}`);
+            const { fileUrl } = await r2Service.uploadToStorage(file, `general_${clientId}`);
 
             const newMessage = await Message.create({
                 clientId,
@@ -349,15 +374,16 @@ class MessageController {
                 fileSize: file.size,
                 fileType: file.mimetype
             });
+            const decoratedMessage = MessageController.decorateMessage(newMessage);
 
             try {
                 const io = getIo();
-                io.to(`general_${clientId}`).emit('new_message', newMessage);
+                io.to(`general_${clientId}`).emit('new_message', decoratedMessage);
             } catch (err) {
                 console.error('Socket error:', err.message);
             }
 
-            res.status(201).json({ success: true, message: newMessage });
+            res.status(201).json({ success: true, message: decoratedMessage });
         } catch (error) {
             console.error('Error uploading general file:', error);
             res.status(500).json({ success: false, message: 'Failed to upload file' });

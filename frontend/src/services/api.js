@@ -10,9 +10,35 @@ export const API_BASE_URL = apiFunc(import.meta.env.VITE_API_URL || 'http://loca
 
 console.log('🔗 API Base URL:', API_BASE_URL);
 
+let accessToken = null;
+
+const redirectToLogin = () => {
+    setTimeout(() => {
+        window.location.replace('/login');
+    }, 100);
+};
+
+export const getAccessToken = () => accessToken;
+export const hasAccessToken = () => Boolean(accessToken);
+export const setAccessToken = (token) => {
+    accessToken = typeof token === 'string' && token.trim() ? token.trim() : null;
+    return accessToken;
+};
+export const clearAccessToken = () => {
+    accessToken = null;
+};
+
 const api = axios.create({
     baseURL: API_BASE_URL,
     withCredentials: true, // Important for cookies
+    headers: {
+        'Content-Type': 'application/json'
+    }
+});
+
+const refreshClient = axios.create({
+    baseURL: API_BASE_URL,
+    withCredentials: true,
     headers: {
         'Content-Type': 'application/json'
     }
@@ -37,7 +63,7 @@ const processQueue = (error, token = null) => {
 // Request interceptor to add access token
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('accessToken');
+        const token = getAccessToken();
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
@@ -51,32 +77,16 @@ api.interceptors.response.use(
     (response) => response,
     async (error) => {
         const originalRequest = error.config;
+        if (!originalRequest) {
+            return Promise.reject(error);
+        }
 
         // Don't try to refresh token for public endpoints or if user isn't logged in
         const isPublicEndpoint = originalRequest.url?.includes('/public/');
-        const hasToken = localStorage.getItem('accessToken');
-
-        // Prevent refresh endpoint from triggering itself
-        const isRefreshEndpoint = originalRequest.url?.includes('/auth/refresh');
+        const token = getAccessToken();
 
         // If error is 401 (Unauthorized) and not already retrying
-        if (error.response?.status === 401 && !originalRequest._retry && hasToken && !isPublicEndpoint) {
-
-            // If this IS the refresh endpoint failing, clear everything and redirect
-            if (isRefreshEndpoint) {
-                console.error('Refresh token expired or invalid');
-                localStorage.removeItem('accessToken');
-                isRefreshing = false;
-                processQueue(error, null);
-
-                // Use setTimeout to avoid race conditions
-                setTimeout(() => {
-                    window.location.replace('/login');
-                }, 100);
-
-                return Promise.reject(error);
-            }
-
+        if (error.response?.status === 401 && !originalRequest._retry && token && !isPublicEndpoint) {
             // If already refreshing, queue this request
             if (isRefreshing) {
                 return new Promise((resolve, reject) => {
@@ -94,27 +104,22 @@ api.interceptors.response.use(
 
             try {
                 // Try to refresh token
-                const response = await api.post('/auth/refresh');
-                const { accessToken } = response.data;
+                const response = await refreshClient.post('/auth/refresh');
+                const nextAccessToken = setAccessToken(response.data.accessToken);
 
                 // Save new token
-                localStorage.setItem('accessToken', accessToken);
                 isRefreshing = false;
-                processQueue(null, accessToken);
+                processQueue(null, nextAccessToken);
 
                 // Retry original request
-                originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+                originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`;
                 return api(originalRequest);
             } catch (refreshError) {
                 // Refresh failed (token expired or invalid)
                 isRefreshing = false;
                 processQueue(refreshError, null);
-                localStorage.removeItem('accessToken');
-
-                // Use setTimeout to avoid race conditions
-                setTimeout(() => {
-                    window.location.replace('/login');
-                }, 100);
+                clearAccessToken();
+                redirectToLogin();
 
                 return Promise.reject(refreshError);
             }
@@ -123,6 +128,16 @@ api.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+
+export const restoreSession = async () => {
+    try {
+        const response = await refreshClient.post('/auth/refresh');
+        return setAccessToken(response.data.accessToken);
+    } catch (_error) {
+        clearAccessToken();
+        return null;
+    }
+};
 
 // API Service object
 export const apiService = {

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import { getAccessToken } from '../services/api';
 
 const SocketContext = createContext(null);
 
@@ -25,7 +26,8 @@ export const SocketProvider = ({ children }) => {
         
         const newSocket = io(socketUrl, {
             withCredentials: true,
-            transports: ['websocket', 'polling']
+            transports: ['websocket', 'polling'],
+            auth: (cb) => cb({ token: getAccessToken() })
         });
 
         // Join general room based on role
@@ -36,6 +38,10 @@ export const SocketProvider = ({ children }) => {
             } else if (user.role === 'admin') {
                 // Admins might join multiple rooms or just listen when they open a chat
             }
+        });
+
+        newSocket.on('connect_error', (error) => {
+            console.error('Socket connection failed:', error.message);
         });
 
         setSocket(newSocket);

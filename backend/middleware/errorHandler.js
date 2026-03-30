@@ -1,5 +1,21 @@
+const multer = require('multer');
+
 const errorHandler = (err, req, res, next) => {
   console.error('Error:', err);
+
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+
+  if (err.message === 'Invalid file type' || err.message === 'Invalid file extension') {
+    return res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
 
   if (err.code === 'ER_DUP_ENTRY') {
     return res.status(400).json({

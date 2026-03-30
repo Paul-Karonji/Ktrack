@@ -2,14 +2,7 @@ const express = require('express');
 const router = express.Router();
 const MessageController = require('../controllers/messageController');
 const { authenticate: auth } = require('../middleware/auth');
-const { validateId } = require('../middleware/validation');
-const multer = require('multer');
-
-// Configure multer for file uploads
-const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
-});
+const upload = require('../middleware/upload');
 
 // Get messages for a task
 router.get('/tasks/:taskId', auth, MessageController.getMessages);

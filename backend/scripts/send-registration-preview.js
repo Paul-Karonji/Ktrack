@@ -16,8 +16,7 @@ async function sendPreview() {
         // Generate content using the actual template
         const { subject, html } = templates.newRegistration(dummyUser);
 
-        // Send to ADMIN_EMAIL (which is set to removed-admin@example.invalid or karonjipaul.w@gmail.com in .env)
-        // We can force it to send to the current configured user to be safe
+        // Send to the currently configured admin mailbox from the environment.
 
         const targetEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
         console.log(`📨 Sending to: ${targetEmail}`);

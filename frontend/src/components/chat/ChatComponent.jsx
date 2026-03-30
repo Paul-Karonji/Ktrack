@@ -4,6 +4,13 @@ import { apiService, API_BASE_URL } from '../../services/api';
 import { formatDate } from '../../utils/formatters';
 import { useSocket } from '../../context/SocketContext';
 
+const INLINE_SAFE_IMAGE_TYPES = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp'
+]);
+
 const ChatComponent = ({ taskId, clientId, user, onClose, isGeneralChat = false, hideHeader = false, fullHeight = false }) => {
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
@@ -28,11 +35,27 @@ const ChatComponent = ({ taskId, clientId, user, onClose, isGeneralChat = false,
     const { socket } = useSocket();
 
     const roomName = isGeneralChat ? `general_${clientId}` : `task_${taskId}`;
+    const apiOrigin = API_BASE_URL.replace(/\/api\/?$/, '');
 
     // Scroll to bottom
     const scrollToBottom = (behavior = 'smooth') => {
         messagesEndRef.current?.scrollIntoView({ behavior });
     };
+
+    const getMessageFileUrl = useCallback((fileUrl) => {
+        if (!fileUrl) return '';
+        if (/^https?:\/\//i.test(fileUrl)) return fileUrl;
+        if (fileUrl.startsWith('/')) return `${apiOrigin}${fileUrl}`;
+        return fileUrl;
+    }, [apiOrigin]);
+
+    const openFileInNewTab = useCallback((fileUrl) => {
+        const targetUrl = getMessageFileUrl(fileUrl);
+        const popup = window.open(targetUrl, '_blank', 'noopener,noreferrer');
+        if (popup) {
+            popup.opener = null;
+        }
+    }, [getMessageFileUrl]);
 
     // Load messages
     const loadMessages = useCallback(async (currentOffset = 0, append = false) => {
@@ -204,7 +227,7 @@ const ChatComponent = ({ taskId, clientId, user, onClose, isGeneralChat = false,
     };
 
     const isImageFile = (fileType) => {
-        return fileType && fileType.startsWith('image/');
+        return INLINE_SAFE_IMAGE_TYPES.has(String(fileType || '').toLowerCase());
     };
 
     return (
@@ -265,14 +288,14 @@ const ChatComponent = ({ taskId, clientId, user, onClose, isGeneralChat = false,
                                             <div className="mb-2">
                                                 {isImageFile(msg.file_type) ? (
                                                     <img
-                                                        src={msg.file_url.startsWith('http') ? msg.file_url : `${API_BASE_URL}${msg.file_url}`}
+                                                        src={getMessageFileUrl(msg.file_url)}
                                                         alt={msg.file_name}
                                                         className="max-w-xs rounded-lg cursor-pointer hover:opacity-90"
-                                                        onClick={() => window.open(msg.file_url.startsWith('http') ? msg.file_url : `${API_BASE_URL}${msg.file_url}`, '_blank')}
+                                                        onClick={() => openFileInNewTab(msg.file_url)}
                                                     />
                                                 ) : (
                                                     <a
-                                                        href={msg.file_url.startsWith('http') ? msg.file_url : `${API_BASE_URL}${msg.file_url}`}
+                                                        href={getMessageFileUrl(msg.file_url)}
                                                         download={msg.file_name}
                                                         className={`flex items-center gap-2 p-2 rounded-lg ${isMe ? 'bg-indigo-700' : 'bg-gray-100'
                                                             } hover:opacity-80 transition-opacity`}
@@ -373,7 +396,7 @@ const ChatComponent = ({ taskId, clientId, user, onClose, isGeneralChat = false,
                         type="file"
                         onChange={handleFileSelect}
                         className="hidden"
-                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                        accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip,.rar,.7z"
                     />
 
                     {/* Attachment button */}

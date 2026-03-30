@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { clearAccessToken } from '../../services/api';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -16,8 +17,7 @@ class ErrorBoundary extends React.Component {
     }
 
     handleReset = () => {
-        // Clear all cached data
-        localStorage.clear();
+        clearAccessToken();
         sessionStorage.clear();
         window.location.href = '/';
     };

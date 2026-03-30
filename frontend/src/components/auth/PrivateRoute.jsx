@@ -4,10 +4,10 @@ import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const PrivateRoute = ({ children, allowedRoles }) => {
-    const { user, loading, isAuthenticated } = useAuth();
+    const { user, initializing, loading, isAuthenticated } = useAuth();
     const location = useLocation();
 
-    if (loading) {
+    if (initializing || loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <LoadingSpinner />

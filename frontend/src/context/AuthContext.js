@@ -1,5 +1,10 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { apiService } from '../services/api';
+import {
+    apiService,
+    clearAccessToken,
+    restoreSession,
+    setAccessToken
+} from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -12,26 +17,26 @@ export const AuthProvider = ({ children }) => {
     // Check if user is logged in on mount
     useEffect(() => {
         const checkAuth = async () => {
-            const token = localStorage.getItem('accessToken');
-            if (token) {
-                try {
-                    // Add timeout to prevent hanging
-                    const timeoutPromise = new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('Auth check timeout')), 5000)
-                    );
-
-                    const authPromise = apiService.getCurrentUser();
-                    const userData = await Promise.race([authPromise, timeoutPromise]);
-
-                    setUser(userData.data);
-                } catch (err) {
-                    console.error('Auth check failed:', err);
-                    localStorage.removeItem('accessToken');
+            try {
+                const token = await restoreSession();
+                if (!token) {
                     setUser(null);
-                } finally {
-                    setInitializing(false);
+                    return;
                 }
-            } else {
+
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Auth check timeout')), 5000)
+                );
+
+                const authPromise = apiService.getCurrentUser();
+                const userData = await Promise.race([authPromise, timeoutPromise]);
+
+                setUser(userData.data);
+            } catch (err) {
+                console.error('Auth check failed:', err);
+                clearAccessToken();
+                setUser(null);
+            } finally {
                 setInitializing(false);
             }
         };
@@ -47,7 +52,7 @@ export const AuthProvider = ({ children }) => {
             const response = await apiService.login({ email, password });
             const { accessToken, user } = response.data;
 
-            localStorage.setItem('accessToken', accessToken);
+            setAccessToken(accessToken);
             setUser(user);
             return user;
         } catch (err) {
@@ -82,7 +87,7 @@ export const AuthProvider = ({ children }) => {
         } catch (err) {
             console.error('Logout error:', err);
         } finally {
-            localStorage.removeItem('accessToken');
+            clearAccessToken();
             setUser(null);
             window.location.href = '/login';
         }
@@ -98,6 +103,7 @@ export const AuthProvider = ({ children }) => {
 
     const value = {
         user,
+        initializing,
         loading,
         error,
         isAuthenticated: !!user,

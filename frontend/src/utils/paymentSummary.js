@@ -28,7 +28,7 @@ export const getRemainingBalance = (task) => {
     const projectTotal = getProjectTotal(task);
     const depositAmount = getDepositAmount(task);
 
-    return Number(task?.deposit_paid) === 1
+    return Number(task?.requires_deposit) === 1 && Number(task?.deposit_paid) === 1
         ? Math.max(projectTotal - depositAmount, 0)
         : projectTotal;
 };

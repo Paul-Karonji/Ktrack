@@ -15,7 +15,8 @@ const TaskPaymentSummary = ({ task, hideAmounts = false, compact = false }) => {
     const depositAmount = getDepositAmount(task);
     const remainingBalance = getRemainingBalance(task);
     const amountPaidTotal = getAmountPaidTotal(task);
-    const showDepositDetails = Number(task.requires_deposit) === 1 || Number(task.deposit_paid) === 1;
+    const hasDepositRequirement = Number(task.requires_deposit) === 1;
+    const depositReceived = hasDepositRequirement && Number(task.deposit_paid) === 1;
 
     return (
         <div className={`rounded-xl border border-gray-100 bg-gray-50/80 ${compact ? 'p-3' : 'p-4'} space-y-3`}>
@@ -30,7 +31,7 @@ const TaskPaymentSummary = ({ task, hideAmounts = false, compact = false }) => {
                     )}
                     {badge.label}
                 </span>
-                {task.deposit_paid_at && (
+                {hasDepositRequirement && task.deposit_paid_at && (
                     <span className="text-xs text-gray-500">
                         Deposit cleared {formatDate(task.deposit_paid_at)}
                     </span>
@@ -43,12 +44,12 @@ const TaskPaymentSummary = ({ task, hideAmounts = false, compact = false }) => {
                     <p className="text-sm font-bold text-gray-900">{formatCurrency(projectTotal, hideAmounts)}</p>
                 </div>
 
-                {showDepositDetails && (
+                {hasDepositRequirement && (
                     <div>
                         <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold">Deposit</p>
                         <p className="text-sm font-bold text-gray-900">
                             {formatCurrency(Number(task.deposit_paid_amount ?? depositAmount), hideAmounts)}
-                            {Number(task.deposit_paid) !== 1 && depositAmount > 0 && (
+                            {!depositReceived && depositAmount > 0 && (
                                 <span className="text-xs text-gray-500 font-medium"> / {formatCurrency(depositAmount, hideAmounts)}</span>
                             )}
                         </p>
@@ -66,7 +67,7 @@ const TaskPaymentSummary = ({ task, hideAmounts = false, compact = false }) => {
 
                 <div>
                     <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold">
-                        {Number(task.deposit_paid) === 1 && Number(task.is_paid) !== 1 ? 'Balance Left' : 'Current Due'}
+                        {depositReceived && Number(task.is_paid) !== 1 ? 'Balance Left' : 'Current Due'}
                     </p>
                     <p className="text-sm font-bold text-indigo-700">
                         {formatCurrency(Number(task.current_due_amount || remainingBalance || 0), hideAmounts)}
@@ -76,13 +77,13 @@ const TaskPaymentSummary = ({ task, hideAmounts = false, compact = false }) => {
 
             {Number(task.is_paid) !== 1 && amountPaidTotal > 0 && (
                 <p className="text-xs text-emerald-700 font-medium">
-                    {Number(task.deposit_paid) === 1
+                    {depositReceived
                         ? `Collected ${formatCurrency(amountPaidTotal, hideAmounts)} so far. Remaining balance: ${formatCurrency(remainingBalance, hideAmounts)}.`
                         : `Collected ${formatCurrency(amountPaidTotal, hideAmounts)} so far.`}
                 </p>
             )}
 
-            {Number(task.deposit_paid) === 1 && Number(task.is_paid) !== 1 && (
+            {depositReceived && Number(task.is_paid) !== 1 && (
                 <p className="text-xs text-blue-600 font-medium">
                     Deposit received. Remaining balance: {formatCurrency(remainingBalance, hideAmounts)}.
                 </p>

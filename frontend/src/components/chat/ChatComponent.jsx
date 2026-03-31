@@ -32,10 +32,18 @@ const ChatComponent = ({ taskId, clientId, user, onClose, isGeneralChat = false,
     const fileInputRef = useRef(null);
     const typingTimeoutRef = useRef(null);
     
-    const { socket } = useSocket();
+    const { socket, retainSocket, releaseSocket } = useSocket();
 
     const roomName = isGeneralChat ? `general_${clientId}` : `task_${taskId}`;
     const apiOrigin = API_BASE_URL.replace(/\/api\/?$/, '');
+
+    useEffect(() => {
+        retainSocket();
+
+        return () => {
+            releaseSocket();
+        };
+    }, [releaseSocket, retainSocket]);
 
     // Scroll to bottom
     const scrollToBottom = (behavior = 'smooth') => {

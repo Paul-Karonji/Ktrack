@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { getAccessToken } from '../services/api';
@@ -12,18 +12,41 @@ export const useSocket = () => {
 export const SocketProvider = ({ children }) => {
     const { user } = useAuth();
     const [socket, setSocket] = useState(null);
+    const socketRef = useRef(null);
+    const [socketDemand, setSocketDemand] = useState(0);
+
+    const disconnectSocket = useCallback(() => {
+        if (!socketRef.current) {
+            return;
+        }
+
+        socketRef.current.disconnect();
+        socketRef.current = null;
+        setSocket(null);
+    }, []);
+
+    const retainSocket = useCallback(() => {
+        setSocketDemand((count) => count + 1);
+    }, []);
+
+    const releaseSocket = useCallback(() => {
+        setSocketDemand((count) => Math.max(0, count - 1));
+    }, []);
 
     useEffect(() => {
-        if (!user) {
-            if (socket) {
-                socket.disconnect();
-                setSocket(null);
-            }
+        const shouldConnect = Boolean(user) && socketDemand > 0;
+
+        if (!shouldConnect) {
+            disconnectSocket();
+            return;
+        }
+
+        if (socketRef.current) {
             return;
         }
 
         const socketUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001';
-        
+
         const newSocket = io(socketUrl, {
             withCredentials: true,
             transports: ['websocket', 'polling'],
@@ -44,15 +67,16 @@ export const SocketProvider = ({ children }) => {
             console.error('Socket connection failed:', error.message);
         });
 
+        socketRef.current = newSocket;
         setSocket(newSocket);
+    }, [disconnectSocket, socketDemand, user]);
 
-        return () => {
-            newSocket.disconnect();
-        };
-    }, [user]);
+    useEffect(() => () => {
+        disconnectSocket();
+    }, [disconnectSocket]);
 
     return (
-        <SocketContext.Provider value={{ socket }}>
+        <SocketContext.Provider value={{ socket, retainSocket, releaseSocket }}>
             {children}
         </SocketContext.Provider>
     );

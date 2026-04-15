@@ -4,10 +4,10 @@ const authController = require('../controllers/authController');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const rateLimit = require('express-rate-limit');
 
-// Strict rate limiter for login/register only
+// Strict rate limiter for login only — skipSuccessfulRequests: true so legitimate users aren't locked out
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 20, // 20 attempts per 15 minutes
+    max: 10, // 10 failed attempts per 15 minutes
     skipSuccessfulRequests: true,
     message: {
         success: false,
@@ -17,8 +17,21 @@ const loginLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-// Public routes with strict rate limiting for login/register
-router.post('/register', loginLimiter, authController.register);
+// Strict rate limiter for registration — every successful registration counts (no skipSuccessfulRequests)
+const registerLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour window
+    max: 5,                    // max 5 registration attempts per IP per hour
+    skipSuccessfulRequests: false,
+    message: {
+        success: false,
+        error: 'Too many registration attempts from this IP. Please try again later.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Public routes with strict rate limiting
+router.post('/register', registerLimiter, authController.register);
 router.post('/login', loginLimiter, authController.login);
 router.all('/login', (req, res) => res.status(405).json({ message: 'Method Not Allowed' }));
 

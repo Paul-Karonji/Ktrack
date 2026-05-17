@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const paymentController = require('../controllers/paymentController');
 const { authenticate, requireAdmin, requireSuperadmin, requireClient } = require('../middleware/auth');
+const { paymentActivityLimiter } = require('../middleware/rateLimiters');
 
 /**
  * @route POST /api/payments/initialize
@@ -9,18 +10,18 @@ const { authenticate, requireAdmin, requireSuperadmin, requireClient } = require
  *        Returns a nonce + server-computed amount to embed in Paystack metadata.
  * @access Private (Client/Admin)
  */
-router.post('/initialize', authenticate, (req, res) => paymentController.initializePayment(req, res));
+router.post('/initialize', authenticate, paymentActivityLimiter, (req, res) => paymentController.initializePayment(req, res));
 
 /**
  * @route POST /api/payments/verify
  * @desc Verify a transaction after frontend completion
  * @access Private (Client/Admin)
  */
-router.post('/verify', authenticate, (req, res) => paymentController.verifyPayment(req, res));
+router.post('/verify', authenticate, paymentActivityLimiter, (req, res) => paymentController.verifyPayment(req, res));
 
 router.get('/outstanding-summary', authenticate, requireClient, (req, res) => paymentController.getOutstandingSummary(req, res));
-router.post('/initialize-bulk', authenticate, requireClient, (req, res) => paymentController.initializeBulkPayment(req, res));
-router.post('/verify-bulk', authenticate, requireClient, (req, res) => paymentController.verifyBulkPayment(req, res));
+router.post('/initialize-bulk', authenticate, requireClient, paymentActivityLimiter, (req, res) => paymentController.initializeBulkPayment(req, res));
+router.post('/verify-bulk', authenticate, requireClient, paymentActivityLimiter, (req, res) => paymentController.verifyBulkPayment(req, res));
 
 /**
  * @route POST /api/payments/webhook

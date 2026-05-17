@@ -6,6 +6,7 @@ const { validateTask, validateId } = require('../middleware/validation');
 const { authenticate: auth } = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const upload = require('../middleware/upload');
+const { fileUploadLimiter } = require('../middleware/rateLimiters');
 
 // Apply authentication to all routes
 router.use(auth);
@@ -21,7 +22,7 @@ router.post('/:id/quote/respond', validateId, TaskController.respondToQuote);
 router.patch('/:id/claim', authorize(['tutor', 'superadmin']), validateId, TaskController.claimTask);
 
 // File routes mounted under /api/tasks
-router.post('/:taskId/files', validateId, upload.array('files', 10), FileController.uploadFile);
+router.post('/:taskId/files', fileUploadLimiter, validateId, upload.array('files', 10), FileController.uploadFile);
 router.get('/:taskId/files', validateId, FileController.getTaskFiles);
 
 module.exports = router;

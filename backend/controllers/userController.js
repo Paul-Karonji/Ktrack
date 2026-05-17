@@ -191,6 +191,33 @@ module.exports = {
     deleteUser,
     getUserStats,
 
+    // Create a new tutor (superadmin only)
+    createTutor: async (req, res) => {
+        try {
+            const { email, full_name, password } = req.body;
+            if (!email || !full_name || !password) {
+                return res.status(400).json({ error: 'Email, full name, and password are required' });
+            }
+
+            const existingUser = await User.findByEmail(email);
+            if (existingUser) {
+                return res.status(400).json({ error: 'Email already exists' });
+            }
+
+            const newTutor = await User.create({
+                email,
+                password,
+                fullName: full_name,
+                role: 'tutor'
+            });
+
+            res.status(201).json({ message: 'Tutor created successfully', tutor: newTutor });
+        } catch (error) {
+            console.error('Create tutor error:', error);
+            res.status(500).json({ error: 'Failed to create tutor' });
+        }
+    },
+
     // Update user (admin)
     updateUser: async (req, res) => {
         try {

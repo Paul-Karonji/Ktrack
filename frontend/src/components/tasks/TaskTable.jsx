@@ -3,7 +3,7 @@ import { User, Plus } from 'lucide-react';
 import TaskRow from './TaskRow';
 import TaskCard from './TaskCard';
 
-const TaskTable = ({ tasks, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onAddTask, onDownloadFile, onDeliverWork, onUploadFile, onQuoteResponse, onSendQuote, onDuplicate, onPaymentSuccess, onGuestPaymentLink, user }) => {
+const TaskTable = ({ tasks, isOnline, hideAmounts, onEdit, onDelete, onTogglePayment, onAddTask, onDownloadFile, onDeliverWork, onUploadFile, onQuoteResponse, onSendQuote, onDuplicate, onPaymentSuccess, onGuestPaymentLink, onClaimTask, user }) => {
     const [isMobile, setIsMobile] = useState(false);
 
     useEffect(() => {
@@ -56,6 +56,7 @@ const TaskTable = ({ tasks, isOnline, hideAmounts, onEdit, onDelete, onTogglePay
                         onQuoteResponse={onQuoteResponse}
                         onPaymentSuccess={onPaymentSuccess}
                         onGuestPaymentLink={onGuestPaymentLink}
+                        onClaimTask={onClaimTask}
                         user={user}
                     />
                 ))}
@@ -108,6 +109,7 @@ const TaskTable = ({ tasks, isOnline, hideAmounts, onEdit, onDelete, onTogglePay
                                 onDuplicate={onDuplicate}
                                 onPaymentSuccess={onPaymentSuccess}
                                 onGuestPaymentLink={onGuestPaymentLink}
+                                onClaimTask={onClaimTask}
                                 user={user}
                             />
                         ))}

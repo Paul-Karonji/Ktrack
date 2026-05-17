@@ -38,10 +38,18 @@ const authenticate = async (req, res, next) => {
     }
 };
 
-// Require admin role
+// Require admin role (Tutor or Superadmin)
 const requireAdmin = (req, res, next) => {
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== 'tutor' && req.user.role !== 'superadmin') {
         return res.status(403).json({ error: 'Admin access required' });
+    }
+    next();
+};
+
+// Require superadmin role
+const requireSuperadmin = (req, res, next) => {
+    if (req.user.role !== 'superadmin') {
+        return res.status(403).json({ error: 'Superadmin access required' });
     }
     next();
 };
@@ -77,6 +85,7 @@ const optionalAuth = async (req, res, next) => {
 module.exports = {
     authenticate,
     requireAdmin,
+    requireSuperadmin,
     requireClient,
     optionalAuth
 };

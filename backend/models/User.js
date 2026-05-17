@@ -51,7 +51,7 @@ class User {
       `INSERT INTO users 
        (email, password_hash, role, full_name, phone_number, course, status) 
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [email, passwordHash, role, fullName, phoneNumber, course, role === 'admin' ? 'approved' : 'pending']
+      [email, passwordHash, role, fullName, phoneNumber, course, (role === 'tutor' || role === 'superadmin') ? 'approved' : 'pending']
     );
 
     return this.findById(result.insertId);
@@ -107,11 +107,11 @@ class User {
     return rows;
   }
 
-  // Find all admins
-  static async findAdmins() {
+  // Find all tutors
+  static async findTutors() {
     const [rows] = await pool.execute(
-      'SELECT id, email, full_name FROM users WHERE role = ?',
-      ['admin']
+      'SELECT id, email, full_name, role FROM users WHERE role IN (?, ?)',
+      ['tutor', 'superadmin']
     );
     return rows;
   }

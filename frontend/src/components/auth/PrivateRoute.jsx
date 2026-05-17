@@ -21,7 +21,10 @@ const PrivateRoute = ({ children, allowedRoles }) => {
 
     if (allowedRoles && !allowedRoles.includes(user.role)) {
         // Redirect to appropriate dashboard based on role
-        const redirectPath = user.role === 'admin' ? '/admin/dashboard' : '/client/dashboard';
+        const redirectPath =
+            user.role === 'superadmin' ? '/admin/dashboard' :
+            user.role === 'tutor' ? '/admin/dashboard' :
+            '/client/dashboard';
         return <Navigate to={redirectPath} replace />;
     }
 

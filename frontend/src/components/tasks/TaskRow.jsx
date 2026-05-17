@@ -35,6 +35,7 @@ const TaskRow = ({
     onDuplicate,
     onPaymentSuccess,
     onGuestPaymentLink,
+    onClaimTask,
     user
 }) => {
     const [showChat, setShowChat] = useState(false);
@@ -53,12 +54,14 @@ const TaskRow = ({
         event.target.value = '';
     };
 
+    const isAdminRole = user?.role === 'tutor' || user?.role === 'superadmin';
     const showPayButton = user?.role === 'client' && canTaskBePaid(task) && Number(task.is_paid) !== 1;
     const payLabel = getPaymentActionLabel(task);
-    const showGuestPaymentLink = user?.role === 'admin'
+    const showGuestPaymentLink = isAdminRole
         && Number(task?.guest_client_id) > 0
         && Number(task?.can_pay_now) === 1
         && Number(task?.current_due_amount) > 0;
+    const isPoolTask = task.assigned_tutor_id === null || task.assigned_tutor_id === undefined;
 
     return (
         <>
@@ -93,7 +96,7 @@ const TaskRow = ({
                             </button>
                         )}
 
-                        {(user.role === 'admin' || !task.has_file) && (
+                        {(isAdminRole || !task.has_file) && (
                             <button
                                 onClick={() => fileRef.current.click()}
                                 disabled={!isOnline}
@@ -104,7 +107,7 @@ const TaskRow = ({
                             </button>
                         )}
 
-                        {user.role === 'admin' && (
+                        {isAdminRole && (
                             <div className="mt-2 text-xs">
                                 <span className="text-gray-500 font-medium">{task.display_client_name || task.client_name}</span>
                                 {task.client_type === 'guest' && (
@@ -187,7 +190,7 @@ const TaskRow = ({
                             </div>
                         )}
 
-                        {user?.role === 'admin' && shouldShowSendQuote(task) && (
+                        {isAdminRole && shouldShowSendQuote(task) && (
                             <button
                                 onClick={() => onSendQuote(task)}
                                 className="text-xs bg-indigo-600 text-white px-3 py-1 rounded-full font-bold hover:bg-indigo-700"
@@ -206,12 +209,20 @@ const TaskRow = ({
                             </button>
                         )}
 
-                        {user?.role === 'admin' && (task.status === 'in_progress' || task.status === 'review') && (
+                        {isAdminRole && (task.status === 'in_progress' || task.status === 'review') && (
                             <button
                                 onClick={() => onDeliverWork(task.id)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-all shadow-sm"
                             >
                                 <CheckCircle size={14} /> Deliver Results
+                            </button>
+                        )}
+                        {isAdminRole && isPoolTask && onClaimTask && (
+                            <button
+                                onClick={() => onClaimTask(task.id)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-bold hover:bg-purple-700 transition-all shadow-sm"
+                            >
+                                ⚡ Claim Task
                             </button>
                         )}
                     </div>
@@ -250,7 +261,7 @@ const TaskRow = ({
                                 <Edit2 size={15} />
                             </button>
                         )}
-                        {user?.role === 'admin' && (
+                        {isAdminRole && (
                             <button
                                 onClick={() => onTogglePayment(task)}
                                 disabled={!isOnline}
@@ -262,7 +273,7 @@ const TaskRow = ({
                                 {Number(task.is_paid) === 1 ? 'Paid' : 'Record Paid'}
                             </button>
                         )}
-                        {onDelete && user?.role === 'admin' && (
+                        {onDelete && isAdminRole && (
                             <button
                                 onClick={() => onDelete(task.id)}
                                 disabled={!isOnline}

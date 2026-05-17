@@ -51,6 +51,7 @@ const AdminDashboard = ({
     onSendQuote,
     onDuplicate,
     onGuestPaymentLink,
+    onClaimTask,
     // ...
     // Form props
     showForm,
@@ -359,6 +360,7 @@ const AdminDashboard = ({
                             onSendQuote={onSendQuote}
                             onDuplicate={onDuplicate}
                             onGuestPaymentLink={onGuestPaymentLink}
+                            onClaimTask={onClaimTask}
                             user={user}
                         />
                     </div>

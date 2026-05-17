@@ -58,14 +58,15 @@ const canAccessRoom = async (user, parsedRoom) => {
     if (!user || !parsedRoom) return false;
 
     if (parsedRoom.type === 'general') {
-        return user.role === 'admin' || user.id === parsedRoom.id;
+        return user.role === 'tutor' || user.role === 'superadmin' || user.id === parsedRoom.id;
     }
 
     if (parsedRoom.type === 'task') {
-        if (user.role === 'admin') {
-            return true;
+        if (user.role === 'superadmin') return true;
+        if (user.role === 'tutor') {
+            const task = await Task.findById(parsedRoom.id, undefined, 0);
+            return !!task && (task.assigned_tutor_id === user.id || task.assigned_tutor_id === null);
         }
-
         const task = await Task.findById(parsedRoom.id, undefined, 0);
         return !!task && task.client_id === user.id;
     }

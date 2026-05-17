@@ -36,18 +36,28 @@ class Task {
   static async findAll(filters = {}, viewerId = null, executor = pool) {
     let query = BASE_SELECT;
     const params = [viewerId || 0];
+    let whereClauses = [];
 
     if (filters.clientId) {
-      query += ' WHERE t.client_id = ?';
+      whereClauses.push('t.client_id = ?');
       params.push(filters.clientId);
     } else if (filters.guestClientId) {
-      query += ' WHERE t.guest_client_id = ?';
+      whereClauses.push('t.guest_client_id = ?');
       params.push(filters.guestClientId);
     } else if (filters.hasAnyPayment) {
-      query += ' WHERE t.is_paid = 1 OR t.deposit_paid = 1 OR COALESCE(t.amount_paid_total, 0) > 0';
+      whereClauses.push('(t.is_paid = 1 OR t.deposit_paid = 1 OR COALESCE(t.amount_paid_total, 0) > 0)');
     } else if (filters.isPaid !== undefined) {
-      query += ' WHERE t.is_paid = ?';
+      whereClauses.push('t.is_paid = ?');
       params.push(filters.isPaid ? 1 : 0);
+    }
+
+    if (filters.tutorId) {
+      whereClauses.push('(t.assigned_tutor_id = ? OR t.assigned_tutor_id IS NULL)');
+      params.push(filters.tutorId);
+    }
+
+    if (whereClauses.length > 0) {
+      query += ' WHERE ' + whereClauses.join(' AND ');
     }
 
     query += ' ORDER BY t.created_at DESC';
@@ -99,7 +109,8 @@ class Task {
       taskOrigin = null,
       createdByUserId = null,
       paymentDueStartedAt = null,
-      lastPaymentReminderSentAt = null
+      lastPaymentReminderSentAt = null,
+      assignedTutorId = null
     } = taskData;
 
     const [result] = await executor.execute(
@@ -109,9 +120,9 @@ class Task {
          expected_amount, is_paid, priority, status, notes, quote_status, quoted_amount,
          quantity, client_id, guest_client_id, completed_at, paid_at,
          requires_deposit, deposit_paid, deposit_amount, amount_paid_total, deposit_paid_amount, deposit_ref, deposit_paid_at,
-         task_origin, created_by_user_id, payment_due_started_at, last_payment_reminder_sent_at
+         task_origin, created_by_user_id, payment_due_started_at, last_payment_reminder_sent_at, assigned_tutor_id
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
       [
         clientName || null,
         taskName || 'Untitled Task',
@@ -140,7 +151,8 @@ class Task {
         taskOrigin || null,
         createdByUserId || null,
         paymentDueStartedAt || null,
-        lastPaymentReminderSentAt || null
+        lastPaymentReminderSentAt || null,
+        assignedTutorId || null
       ]
     );
 
@@ -179,7 +191,8 @@ class Task {
       taskOrigin: 'task_origin',
       createdByUserId: 'created_by_user_id',
       paymentDueStartedAt: 'payment_due_started_at',
-      lastPaymentReminderSentAt: 'last_payment_reminder_sent_at'
+      lastPaymentReminderSentAt: 'last_payment_reminder_sent_at',
+      assignedTutorId: 'assigned_tutor_id'
     };
 
     for (const [key, value] of Object.entries(taskData)) {

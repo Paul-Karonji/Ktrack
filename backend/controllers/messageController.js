@@ -42,7 +42,7 @@ class MessageController {
             const task = await Task.findById(taskId);
             if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-            if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
+            if (req.user.role === 'client' && task.client_id !== req.user.id) {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
@@ -72,7 +72,7 @@ class MessageController {
             const task = await Task.findById(taskId);
             if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-            if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
+            if (req.user.role === 'client' && task.client_id !== req.user.id) {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
@@ -99,19 +99,22 @@ class MessageController {
                 if (req.user.role === 'client') {
                     // Client sent message -> Notify Admin
                     const { subject, html } = templates.newMessage(req.user.full_name, message, taskId);
-                    EmailService.notifyAdmin({ subject, html }).catch(e => console.error('Failed to notify admin of new message:', e));
+                    EmailService.notifyAdmin({ subject, html }).catch(e => console.error('Failed to notify tutor of new message:', e));
 
-                    // In-App for all Admins
-                    const admins = await User.findAdmins();
-                    for (const admin of admins) {
+                    // In-App: notify only assigned tutor or all tutors if general pool
+                    const task = await Task.findById(taskId);
+                    const tutors = task?.assigned_tutor_id
+                        ? [await User.findById(task.assigned_tutor_id)].filter(Boolean)
+                        : await User.findTutors();
+                    for (const tutor of tutors) {
                         Notification.create({
-                            recipientId: admin.id,
+                            recipientId: tutor.id,
                             recipientType: 'admin',
                             type: 'new_message',
                             message: `New message from ${req.user.full_name} on Task #${taskId}`
-                        }).catch(e => console.error('Failed to create admin notification:', e));
+                        }).catch(e => console.error('Failed to create tutor notification:', e));
                     }
-                } else if (req.user.role === 'admin') {
+                } else if (req.user.role === 'tutor' || req.user.role === 'superadmin') {
                     // Admin sent message -> Notify Client
                     const task = await Task.findById(taskId);
                     if (task && task.client_id) {
@@ -125,7 +128,7 @@ class MessageController {
                                 recipientId: client.id,
                                 recipientType: 'mentor',
                                 type: 'new_message',
-                                message: `New reply on Task #${taskId} from Admin`
+                                message: `New reply on Task #${taskId} from your Tutor`
                             }).catch(e => console.error('Failed to create client notification:', e));
                         }
                     }
@@ -148,7 +151,7 @@ class MessageController {
             const task = await Task.findById(taskId);
             if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-            if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
+            if (req.user.role === 'client' && task.client_id !== req.user.id) {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
@@ -174,7 +177,7 @@ class MessageController {
             const task = await Task.findById(taskId);
             if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-            if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
+            if (req.user.role === 'client' && task.client_id !== req.user.id) {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
@@ -208,7 +211,7 @@ class MessageController {
                 if (req.user.role === 'client') {
                     const { subject, html } = templates.newMessage(req.user.full_name, `Sent a file: ${file.originalname}`, taskId);
                     EmailService.notifyAdmin({ subject, html }).catch(e => console.error('Failed to notify admin:', e));
-                } else if (req.user.role === 'admin') {
+                } else if (req.user.role === 'tutor' || req.user.role === 'superadmin') {
                     const task = await Task.findById(taskId);
                     if (task && task.client_id) {
                         const client = await User.findById(task.client_id);
@@ -241,11 +244,11 @@ class MessageController {
                 const task = await Task.findById(message.task_id);
                 if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-                if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
+                if (req.user.role === 'client' && task.client_id !== req.user.id) {
                     return res.status(403).json({ success: false, message: 'Access denied' });
                 }
             } else if (message.client_id) {
-                if (req.user.role !== 'admin' && message.client_id !== req.user.id) {
+                if (req.user.role === 'client' && message.client_id !== req.user.id) {
                     return res.status(403).json({ success: false, message: 'Access denied' });
                 }
             } else {
@@ -287,7 +290,7 @@ class MessageController {
             const limit = parseInt(req.query.limit) || 50;
             const offset = parseInt(req.query.offset) || 0;
 
-            if (req.user.role !== 'admin' && req.user.id !== clientId) {
+            if (req.user.role === 'client' && req.user.id !== clientId) {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
@@ -312,7 +315,7 @@ class MessageController {
                 return res.status(400).json({ success: false, message: 'Message cannot be empty' });
             }
 
-            if (req.user.role !== 'admin' && req.user.id !== clientId) {
+            if (req.user.role === 'client' && req.user.id !== clientId) {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
@@ -336,7 +339,7 @@ class MessageController {
             if (req.user.role === 'client') {
                 const { subject, html } = templates.newMessage(req.user.full_name, message, 'General Info');
                 EmailService.notifyAdmin({ subject, html }).catch(e => console.error(e));
-            } else if (req.user.role === 'admin') {
+            } else if (req.user.role === 'tutor' || req.user.role === 'superadmin') {
                 const client = await User.findById(clientId);
                 if (client && client.email) {
                     const { subject, html } = templates.newMessageClient(client.full_name, message, 'General Info');
@@ -359,7 +362,7 @@ class MessageController {
                 return res.status(400).json({ success: false, message: 'No file provided' });
             }
 
-            if (req.user.role !== 'admin' && req.user.id !== clientId) {
+            if (req.user.role === 'client' && req.user.id !== clientId) {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 

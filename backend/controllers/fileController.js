@@ -168,8 +168,9 @@ const FileController = {
             // Check ownership (admins can upload to any, clients only to theirs)
             // F-06 fix: removed client_name string fallback — use immutable ID only
             const isOwner = task.client_id === req.user.id;
+            const isAdminRole = req.user.role === 'tutor' || req.user.role === 'superadmin';
 
-            if (req.user.role !== 'admin' && !isOwner) {
+            if (!isAdminRole && !isOwner) {
                 console.log('[FileController] Auth failed. isOwner:', isOwner);
                 return res.status(403).json({ error: 'Not authorized to upload files for this task' });
             }
@@ -181,7 +182,7 @@ const FileController = {
             let isDeliverable = req.body.isDeliverable === 'true' || req.body.isDeliverable === true;
 
             // Security: Only admins can mark files as deliverables
-            if (req.user.role !== 'admin') {
+            if (!isAdminRole) {
                 isDeliverable = false;
             }
 
@@ -218,7 +219,7 @@ const FileController = {
                             message: `${req.user.full_name} uploaded ${files.length} file(s) to Task #${taskId}`
                         }).catch(e => console.error('Failed to create admin notification:', e));
                     }
-                } else if (req.user.role === 'admin') {
+                } else if (req.user.role === 'tutor' || req.user.role === 'superadmin') {
                     // Admin uploaded -> Notify Client
                     if (task.client_id) {
                         const client = await User.findById(task.client_id);
@@ -260,7 +261,8 @@ const FileController = {
             const task = await Task.findById(taskId);
             if (!task) return res.status(404).json({ error: 'Task not found' });
 
-            if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
+            const isAdminRole = req.user.role === 'tutor' || req.user.role === 'superadmin';
+            if (!isAdminRole && task.client_id !== req.user.id) {
                 return res.status(403).json({ error: 'Access denied' });
             }
 
@@ -291,7 +293,8 @@ const FileController = {
             const task = await Task.findById(taskId);
             if (!task) return res.status(404).json({ error: 'Task not found' });
 
-            if (req.user.role !== 'admin' && task.client_id !== req.user.id) {
+            const isAdminRole = req.user.role === 'tutor' || req.user.role === 'superadmin';
+            if (!isAdminRole && task.client_id !== req.user.id) {
                 return res.status(403).json({ error: 'Access denied' });
             }
 
@@ -318,7 +321,8 @@ const FileController = {
 
             // Security Check: Admin or Task Owner
             const isOwner = task && task.client_id === req.user.id;
-            if (req.user.role !== 'admin' && !isOwner) {
+            const isAdminRole = req.user.role === 'tutor' || req.user.role === 'superadmin';
+            if (!isAdminRole && !isOwner) {
                 return res.status(403).json({ error: 'Access denied. Admin or Owner rights required.' });
             }
 

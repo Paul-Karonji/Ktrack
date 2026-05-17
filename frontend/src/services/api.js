@@ -178,6 +178,11 @@ export const apiService = {
     // Quotes
     sendQuote: (taskId, amount, requiresDeposit) => api.post(`/tasks/${taskId}/quote`, { amount, requiresDeposit }).then(res => res.data),
     respondToQuote: (taskId, action) => api.post(`/tasks/${taskId}/quote/respond`, { action }).then(res => res.data),
+    claimTask: (taskId) => api.patch(`/tasks/${taskId}/claim`).then(res => res.data),
+
+    // Tutors
+    getTutors: () => api.get('/users/tutors').then(res => res.data),
+    createTutor: (data) => api.post('/users/tutors', data).then(res => res.data),
 
     // Chat
     // Chat

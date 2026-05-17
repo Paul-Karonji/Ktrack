@@ -17,6 +17,7 @@ import ClientDashboard from './ClientDashboard';
 
 const Dashboard = () => {
     const { user, logout } = useAuth();
+    const isAdminRole = user?.role === 'tutor' || user?.role === 'superadmin';
     const [showQuoteModal, setShowQuoteModal] = useState(false);
     const [selectedTaskForQuote, setSelectedTaskForQuote] = useState(null);
 
@@ -315,6 +316,15 @@ const Dashboard = () => {
         });
     };
 
+    const handleClaimTask = async (taskId) => {
+        try {
+            await apiService.claimTask(taskId);
+            await loadTasks();
+        } catch (err) {
+            alert('Failed to claim task: ' + (err?.response?.data?.message || err.message));
+        }
+    };
+
 
     if (loading) return <LoadingSpinner message="Loading..." />;
 
@@ -326,8 +336,8 @@ const Dashboard = () => {
             {/* Main Content */}
             <div className="lg:ml-64 min-h-screen">
                 <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 md:space-y-8">
-                    {/* Header only shown for admin — clients have their own hero banner */}
-                    {user?.role === 'admin' && (
+                    {/* Header only shown for tutors/superadmin — clients have their own hero banner */}
+                    {isAdminRole && (
                         <Header
                             isOnline={isOnline}
                             hideAmounts={hideAmounts}
@@ -343,7 +353,7 @@ const Dashboard = () => {
 
                     <ErrorMessage error={error} />
 
-                    {user?.role === 'admin' ? (
+                    {isAdminRole ? (
                         <AdminDashboard
                             user={user}
                             tasks={tasks}
@@ -363,6 +373,7 @@ const Dashboard = () => {
                             onDuplicate={handleDuplicate}
                             onUploadFile={handleUploadFile}
                             onGuestPaymentLink={handleOpenGuestPaymentLink}
+                            onClaimTask={handleClaimTask}
                             // Form
                             showForm={showForm}
                             setShowForm={setShowForm}

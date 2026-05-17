@@ -14,6 +14,7 @@ import Analytics from './pages/Analytics';
 import Clients from './pages/admin/Clients';
 import Payments from './pages/admin/Payments';
 import PrivateRoute from './components/auth/PrivateRoute';
+import TutorManagement from './pages/admin/TutorManagement';
 import LandingPage from './pages/LandingPage';
 import MessagesPage from './pages/chat/MessagesPage';
 import WhatsAppButton from './components/common/WhatsAppButton';
@@ -54,9 +55,8 @@ const App = () => {
               <Route
                 path="/admin/dashboard"
                 element={
-                  <PrivateRoute allowedRoles={['admin']}>
+                  <PrivateRoute allowedRoles={['tutor', 'superadmin']}>
                     <Dashboard />
-                    {/* Note: This will be replaced with AdminDashboard later */}
                   </PrivateRoute>
                 }
               />
@@ -64,7 +64,7 @@ const App = () => {
               <Route
                 path="/admin/clients"
                 element={
-                  <PrivateRoute allowedRoles={['admin']}>
+                  <PrivateRoute allowedRoles={['tutor', 'superadmin']}>
                     <Clients />
                   </PrivateRoute>
                 }
@@ -72,8 +72,17 @@ const App = () => {
               <Route
                 path="/admin/payments"
                 element={
-                  <PrivateRoute allowedRoles={['admin']}>
+                  <PrivateRoute allowedRoles={['tutor', 'superadmin']}>
                     <Payments />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
+                path="/admin/tutors"
+                element={
+                  <PrivateRoute allowedRoles={['superadmin']}>
+                    <TutorManagement />
                   </PrivateRoute>
                 }
               />
@@ -108,7 +117,7 @@ const App = () => {
               <Route
                 path="/analytics"
                 element={
-                  <PrivateRoute allowedRoles={['admin']}>
+                  <PrivateRoute allowedRoles={['tutor', 'superadmin']}>
                     <Analytics />
                   </PrivateRoute>
                 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, FolderOpen, FileText, Settings, LogOut, X, BarChart3, Users, CreditCard, MessageSquare } from 'lucide-react';
+import { Home, FolderOpen, FileText, Settings, LogOut, X, BarChart3, Users, CreditCard, MessageSquare, ShieldCheck } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useNavigation } from '../../context/NavigationContext';
 
@@ -7,6 +7,7 @@ const Sidebar = ({ user, onLogout }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const { isSidebarOpen, closeSidebar } = useNavigation();
+    const isAdminRole = user?.role === 'tutor' || user?.role === 'superadmin';
 
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
@@ -16,13 +17,16 @@ const Sidebar = ({ user, onLogout }) => {
         { id: 'payments', label: 'Payments', icon: CreditCard, path: '/admin/payments', adminOnly: true },
         { id: 'files', label: 'Files', icon: FileText, path: '/files' },
         { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/analytics', adminOnly: true },
+        { id: 'tutors', label: 'Tutors', icon: ShieldCheck, path: '/admin/tutors', superadminOnly: true },
         { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
     ];
 
     // Filter nav items based on user role
-    const filteredNavItems = navItems.filter(item =>
-        !item.adminOnly || (item.adminOnly && user?.role === 'admin')
-    );
+    const filteredNavItems = navItems.filter(item => {
+        if (item.superadminOnly) return user?.role === 'superadmin';
+        if (item.adminOnly) return isAdminRole;
+        return true;
+    });
 
     const isActive = (path) => location.pathname === path;
 

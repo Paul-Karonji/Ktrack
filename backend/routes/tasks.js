@@ -16,8 +16,9 @@ router.put('/:id', validateId, validateTask, TaskController.updateTask);
 router.patch('/:id/toggle-payment', validateId, TaskController.togglePayment);
 router.post('/:id/record-payment', validateId, TaskController.recordOfflinePayment);
 router.delete('/:id', validateId, TaskController.deleteTask);
-router.post('/:id/quote', authorize(['admin']), validateId, TaskController.sendQuote);
+router.post('/:id/quote', authorize(['tutor', 'superadmin']), validateId, TaskController.sendQuote);
 router.post('/:id/quote/respond', validateId, TaskController.respondToQuote);
+router.patch('/:id/claim', authorize(['tutor', 'superadmin']), validateId, TaskController.claimTask);
 
 // File routes mounted under /api/tasks
 router.post('/:taskId/files', validateId, upload.array('files', 10), FileController.uploadFile);

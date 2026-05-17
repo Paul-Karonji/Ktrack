@@ -15,6 +15,8 @@ class TaskController {
       const filters = {};
       if (req.user && req.user.role === 'client') {
         filters.clientId = req.user.id;
+      } else if (req.user && req.user.role === 'tutor') {
+        filters.tutorId = req.user.id;
       }
 
       const tasks = await Task.findAll(filters, req.user?.id);
@@ -38,10 +40,11 @@ class TaskController {
         taskDescription,
         requiresDeposit,
         offlinePaymentReceivedAt,
+        assignedTutorId,
         ...otherFields
       } = req.body;
 
-      if (req.user && req.user.role !== 'admin') {
+      if (req.user && req.user.role === 'client') {
         otherFields.isPaid = false;
         otherFields.is_paid = false;
         otherFields.expectedAmount = 0;
@@ -60,7 +63,7 @@ class TaskController {
       if (req.user && req.user.role === 'client') {
         finalClientId = req.user.id;
         finalClientName = req.user.full_name;
-      } else if (req.user && req.user.role === 'admin') {
+      } else if (req.user && (req.user.role === 'tutor' || req.user.role === 'superadmin')) {
         const hasRegistered = !!finalClientId;
         const hasGuest = !!(finalGuestClientId || guestClientName);
 
@@ -97,7 +100,7 @@ class TaskController {
         });
       }
 
-      const isAdminOrigin = req.user.role === 'admin';
+      const isAdminOrigin = req.user.role === 'superadmin' || req.user.role === 'tutor';
       const taskOrigin = isAdminOrigin ? 'admin' : 'client';
       const numericAmount = roundMoney(otherFields.expectedAmount || otherFields.quotedAmount || 0);
       const directPricingRequiresDeposit = isAdminOrigin && numericAmount > 0 && Boolean(requiresDeposit);
@@ -131,6 +134,7 @@ class TaskController {
         clientId: finalClientId,
         guestClientId: finalGuestClientId,
         clientName: finalClientName,
+        assignedTutorId: assignedTutorId || null,
         status,
         taskOrigin,
         createdByUserId: req.user.id,
@@ -160,7 +164,7 @@ class TaskController {
         if (finalClientId) {
           const clientUser = await User.findById(finalClientId);
           if (clientUser && clientUser.email) {
-            if (req.user.role === 'admin') {
+            if (req.user.role === 'tutor' || req.user.role === 'superadmin') {
               const { subject: clientSubject, html: clientHtml } = templates.taskAssigned(clientUser.full_name, task);
               EmailService.sendEmail({ to: clientUser.email, subject: clientSubject, html: clientHtml }).catch((e) => console.error('Failed to notify client of assigned task:', e));
 
@@ -185,10 +189,11 @@ class TaskController {
         }
 
         if (req.user.role === 'client') {
-          const admins = await User.findAdmins();
-          for (const admin of admins) {
+          const tutors = await User.findTutors();
+          for (const tutor of tutors) {
+            if (assignedTutorId && tutor.id !== parseInt(assignedTutorId)) continue;
             Notification.create({
-              recipientId: admin.id,
+              recipientId: tutor.id,
               recipientType: 'admin',
               type: 'new_task',
               message: `New task from ${finalClientName}: ${taskDescription.substring(0, 50)}...`
@@ -220,14 +225,14 @@ class TaskController {
         });
       }
 
-      if (req.user.role !== 'admin' && existingTask.client_id !== req.user.id) {
+      if (req.user.role === 'client' && existingTask.client_id !== req.user.id) {
         return res.status(403).json({
           success: false,
           message: 'Access denied. You do not own this task.'
         });
       }
 
-      if (req.user.role !== 'admin') {
+      if (req.user.role === 'client') {
         const sensitiveFields = [
           'isPaid', 'is_paid',
           'expectedAmount', 'expected_amount',
@@ -250,7 +255,7 @@ class TaskController {
         || Boolean(existingTask.guest_client_id)
         || (existingTask.task_origin == null && !['pending_quote', 'quote_sent'].includes(existingTask.quote_status));
 
-      if (req.user.role === 'admin' && usesDirectPricing) {
+      if ((req.user.role === 'superadmin' || req.user.role === 'tutor') && usesDirectPricing) {
         const amount = roundMoney(
           req.body.expectedAmount !== undefined
             ? req.body.expectedAmount
@@ -288,7 +293,7 @@ class TaskController {
       }
 
       const isPaidInput = req.body.isPaid !== undefined ? req.body.isPaid : req.body.is_paid;
-      const shouldRecordOfflinePayment = req.user.role === 'admin' && Boolean(isPaidInput) && !existingTask.is_paid;
+      const shouldRecordOfflinePayment = (req.user.role === 'tutor' || req.user.role === 'superadmin') && Boolean(isPaidInput) && !existingTask.is_paid;
 
       if (isPaidInput !== undefined) {
         if (shouldRecordOfflinePayment) {
@@ -358,7 +363,7 @@ class TaskController {
         });
       }
 
-      if (req.user.role !== 'admin' && existingTask.client_id !== req.user.id) {
+      if (req.user.role === 'client' && existingTask.client_id !== req.user.id) {
         return res.status(403).json({
           success: false,
           message: 'Access denied. You do not own this task.'
@@ -396,7 +401,7 @@ class TaskController {
         });
       }
 
-      if (req.user.role !== 'admin') {
+      if (req.user.role === 'client') {
         return res.status(403).json({
           success: false,
           message: 'Access denied. Only administrators can update payment status.'
@@ -493,7 +498,7 @@ class TaskController {
         return res.status(404).json({ success: false, message: 'Task not found' });
       }
 
-      if (req.user.role !== 'admin' && existingTask.client_id !== req.user.id) {
+      if (req.user.role === 'client' && existingTask.client_id !== req.user.id) {
         return res.status(403).json({
           success: false,
           message: 'Access denied. You do not own this task.'
@@ -532,6 +537,48 @@ class TaskController {
     } catch (error) {
       console.error('Error responding to quote:', error);
       res.status(500).json({ success: false, message: 'Failed to respond to quote' });
+    }
+  }
+
+  static async claimTask(req, res) {
+    try {
+      const existingTask = await Task.findById(req.params.id);
+
+      if (!existingTask) {
+        return res.status(404).json({ success: false, message: 'Task not found' });
+      }
+
+      if (existingTask.assigned_tutor_id !== null) {
+        return res.status(400).json({
+          success: false,
+          message: 'This task has already been claimed by a tutor.'
+        });
+      }
+
+      const updatedTask = await Task.update(req.params.id, { assignedTutorId: req.user.id });
+
+      // Notify the client if registered
+      try {
+        if (existingTask.client_id) {
+          const client = await User.findById(existingTask.client_id);
+          if (client && client.email) {
+            Notification.create({
+              recipientId: client.id,
+              recipientType: 'mentor',
+              type: 'task_assigned',
+              message: `Your task "${existingTask.task_name || `#${existingTask.id}`}" has been picked up by a tutor.`
+            }).catch(e => console.error('Failed to create client notification:', e));
+          }
+        }
+      } catch (notifyError) {
+        console.error('Claim notification error:', notifyError);
+      }
+
+      invalidateCache('/analytics');
+      res.json(updatedTask);
+    } catch (error) {
+      console.error('Error claiming task:', error);
+      res.status(500).json({ success: false, message: 'Failed to claim task' });
     }
   }
 }

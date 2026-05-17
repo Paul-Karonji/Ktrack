@@ -60,7 +60,7 @@ export const AnalyticsProvider = ({ children }) => {
     }, []);
 
     const fetchAnalytics = useCallback(async () => {
-        if (!user || user.role !== 'admin') return;
+        if (!user || (user.role !== 'tutor' && user.role !== 'superadmin')) return;
 
         setLoading(true);
         setError(null);

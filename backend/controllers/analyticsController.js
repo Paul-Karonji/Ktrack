@@ -54,7 +54,7 @@ const fillGaps = (data, startPeriod, endPeriod, format = 'month') => {
 
 exports.getKPIs = async (req, res) => {
   try {
-    const data = await analyticsService.getKpis(req.query.startDate, req.query.endDate);
+    const data = await analyticsService.getKpis(req.query.startDate, req.query.endDate, req.user);
     res.json(data);
   } catch (error) {
     console.error('Get KPIs error:', error);
@@ -67,7 +67,7 @@ exports.getKPIs = async (req, res) => {
 exports.getRevenueAnalytics = async (req, res) => {
   try {
     const { startDate, endDate, groupBy = 'month' } = req.query;
-    const results = await analyticsService.getRevenue(startDate, endDate, groupBy);
+    const results = await analyticsService.getRevenue(startDate, endDate, groupBy, req.user);
     res.json(results);
   } catch (error) {
     console.error('Get revenue analytics error:', error);
@@ -78,7 +78,7 @@ exports.getRevenueAnalytics = async (req, res) => {
 // Task Pipeline
 exports.getTaskPipeline = async (req, res) => {
   try {
-    const results = await analyticsService.getPipeline();
+    const results = await analyticsService.getPipeline(req.user);
     res.json(results);
   } catch (error) {
     console.error('Get task pipeline error:', error);
@@ -89,6 +89,9 @@ exports.getTaskPipeline = async (req, res) => {
 // Client Growth
 exports.getClientGrowth = async (req, res) => {
   try {
+    if (req.user && req.user.role === 'tutor') {
+      return res.json([]);
+    }
     const { startDate, endDate } = req.query;
     const end = endDate ? new Date(endDate) : new Date();
     const endBuffered = new Date(end.getTime() + 24 * 60 * 60 * 1000);
@@ -143,7 +146,7 @@ exports.getClientGrowth = async (req, res) => {
 // Task Status Distribution
 exports.getTaskStatus = async (req, res) => {
   try {
-    const results = await analyticsService.getTaskStatus(req.query.startDate, req.query.endDate);
+    const results = await analyticsService.getTaskStatus(req.query.startDate, req.query.endDate, req.user);
     res.json(results);
   } catch (error) {
     console.error('Get task status error:', error);
@@ -154,7 +157,7 @@ exports.getTaskStatus = async (req, res) => {
 // Detailed Financial Stats
 exports.getFinancialStats = async (req, res) => {
   try {
-    const results = await analyticsService.getFinancialStats(req.query.startDate, req.query.endDate);
+    const results = await analyticsService.getFinancialStats(req.query.startDate, req.query.endDate, req.user);
     res.json(results);
   } catch (error) {
     console.error('Get financial stats error:', error);
@@ -165,7 +168,7 @@ exports.getFinancialStats = async (req, res) => {
 // Detailed Client Stats
 exports.getClientStats = async (req, res) => {
   try {
-    const results = await analyticsService.getClientStats(req.query.startDate, req.query.endDate);
+    const results = await analyticsService.getClientStats(req.query.startDate, req.query.endDate, req.user);
     res.json(results);
   } catch (error) {
     console.error('Get client stats error:', error);
@@ -180,7 +183,7 @@ exports.getProjectTimeline = async (req, res) => {
     const start = startDate ? new Date(startDate) : new Date(new Date().setMonth(new Date().getMonth() - 3));
     const end = endDate ? new Date(endDate) : new Date();
 
-    const query = `
+    let query = `
       SELECT 
         t.id,
         t.task_name as name,
@@ -193,11 +196,17 @@ exports.getProjectTimeline = async (req, res) => {
       LEFT JOIN users u ON t.client_id = u.id
       LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id
       WHERE t.date_commissioned BETWEEN ? AND ?
-      ORDER BY t.date_commissioned DESC
-      LIMIT 20
     `;
+    let params = [start, end];
 
-    const [projects] = await pool.query(query, [start, end]);
+    if (req.user && req.user.role === 'tutor') {
+      query += ` AND t.assigned_tutor_id = ?`;
+      params.push(req.user.id);
+    }
+    
+    query += ` ORDER BY t.date_commissioned DESC LIMIT 20`;
+
+    const [projects] = await pool.query(query, params);
 
     // Format dates and handle nulls
     const timeline = projects.map(p => ({
@@ -220,17 +229,23 @@ exports.getActivityHeatmap = async (req, res) => {
     const start = new Date(new Date().setFullYear(new Date().getFullYear() - 1));
     const end = new Date();
 
-    const query = `
+    let query = `
       SELECT 
         DATE(created_at) as date,
         COUNT(*) as count
       FROM tasks
       WHERE created_at BETWEEN ? AND ?
-      GROUP BY DATE(created_at)
-      ORDER BY date ASC
     `;
+    let params = [start, end];
 
-    const [rows] = await pool.query(query, [start, end]);
+    if (req.user && req.user.role === 'tutor') {
+      query += ` AND assigned_tutor_id = ?`;
+      params.push(req.user.id);
+    }
+    
+    query += ` GROUP BY DATE(created_at) ORDER BY date ASC`;
+
+    const [rows] = await pool.query(query, params);
 
     // Format for react-calendar-heatmap: { date: 'yyyy-mm-dd', count: 12 }
     const heatmap = rows.map(r => ({
@@ -255,40 +270,56 @@ exports.getStorageAnalytics = async (req, res) => {
     // 1. Storage Stats (Utilization)
     // Assuming 5GB limit for now (5 * 1024 * 1024 * 1024)
     const limit = 5 * 1024 * 1024 * 1024; // 5GB
+    let taskJoin = '';
+    let whereClause = '';
+    let params = [];
+    let dateParams = [start, end];
+
+    if (req.user && req.user.role === 'tutor') {
+      taskJoin = ` JOIN tasks t ON task_files.task_id = t.id`;
+      whereClause = ` WHERE t.assigned_tutor_id = ?`;
+      params.push(req.user.id);
+      dateParams = [start, end, req.user.id];
+    }
+
     const statsQuery = `
       SELECT 
         COUNT(*) as total_files,
-        COALESCE(SUM(file_size), 0) as used_storage
+        COALESCE(SUM(task_files.file_size), 0) as used_storage
       FROM task_files
+      ${taskJoin}
+      ${whereClause}
     `;
 
-    // 2. File Type Distribution
     const typesQuery = `
       SELECT 
-        file_type,
+        task_files.file_type,
         COUNT(*) as count,
-        SUM(file_size) as size
+        SUM(task_files.file_size) as size
       FROM task_files
-      GROUP BY file_type
+      ${taskJoin}
+      ${whereClause}
+      GROUP BY task_files.file_type
       ORDER BY size DESC
       LIMIT 5
     `;
 
-    // 3. Storage Growth Trend
     const growthQuery = `
       SELECT 
-        DATE_FORMAT(uploaded_at, '%Y-%m') as period,
+        DATE_FORMAT(task_files.uploaded_at, '%Y-%m') as period,
         COUNT(*) as count,
-        SUM(file_size) as size
+        SUM(task_files.file_size) as size
       FROM task_files
-      WHERE uploaded_at BETWEEN ? AND ?
+      ${taskJoin}
+      WHERE task_files.uploaded_at BETWEEN ? AND ?
+      ${req.user && req.user.role === 'tutor' ? ' AND t.assigned_tutor_id = ?' : ''}
       GROUP BY period
       ORDER BY period
     `;
 
-    const [[stats]] = await pool.query(statsQuery);
-    const [types] = await pool.query(typesQuery);
-    const [growth] = await pool.query(growthQuery, [start, end]);
+    const [[stats]] = await pool.query(statsQuery, params);
+    const [types] = await pool.query(typesQuery, params);
+    const [growth] = await pool.query(growthQuery, dateParams);
 
     // Calculate cumulative growth
     let cumulativeSize = 0;

@@ -1339,8 +1339,7 @@ class PaymentController {
 
     async getPayments(req, res) {
         try {
-            const [rows] = await pool.execute(
-                `SELECT p.*,
+            let query = `SELECT p.*,
                         t.task_name,
                         COALESCE(u.full_name, gc.name, t.client_name) as display_client_name,
                         t.status as current_task_status,
@@ -1349,9 +1348,17 @@ class PaymentController {
                  JOIN tasks t ON p.task_id = t.id
                  LEFT JOIN users u ON t.client_id = u.id
                  LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id
-                 LEFT JOIN users admin ON p.recorded_by = admin.id
-                 ORDER BY COALESCE(p.received_at, p.created_at) DESC, p.id DESC`
-            );
+                 LEFT JOIN users admin ON p.recorded_by = admin.id`;
+            
+            let params = [];
+            if (req.user && req.user.role === 'tutor') {
+                query += ` WHERE t.assigned_tutor_id = ?`;
+                params.push(req.user.id);
+            }
+            
+            query += ` ORDER BY COALESCE(p.received_at, p.created_at) DESC, p.id DESC`;
+
+            const [rows] = await pool.execute(query, params);
 
             return res.status(200).json({ success: true, count: rows.length, data: rows });
         } catch (error) {

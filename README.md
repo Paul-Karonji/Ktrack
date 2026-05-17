@@ -1,6 +1,6 @@
-# K-Track
+# K-Track (Multi-Tutor Agency Platform)
 
-K-Track is a task and client management platform for commission-based work. It combines client onboarding, task tracking, chat, file delivery, quoting, analytics, and Paystack-powered payments in a single app.
+K-Track is a multi-tutor task and client management platform for commission-based work. It combines client onboarding, task pooling and claiming, multi-role access (superadmin, tutor, client), chat, file delivery, quoting, analytics, and Paystack-powered payments in a single app.
 
 ## Stack
 
@@ -12,13 +12,15 @@ K-Track is a task and client management platform for commission-based work. It c
 
 ## Core Features
 
+- Multi-tier role system: `superadmin` (platform owner), `tutor` (staff), and `client` (customers)
+- Task Pooling System: Tutors can self-assign (claim) unassigned tasks from a general pool
 - Registered clients with approval workflow
-- Guest clients managed by admins
+- Guest clients managed by superadmins/tutors
 - Task lifecycle tracking with quotes, deposits, and completion states
 - Per-task chat and general client chat
 - File uploads and deliverables
 - Payments, payment reminders, and audit history
-- Admin analytics and reporting
+- Role-scoped analytics and reporting (superadmins see global stats, tutors see their own performance)
 
 ## Security Notes
 

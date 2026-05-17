@@ -115,23 +115,28 @@ function daysBetween(later, earlier) {
     return Math.round((laterDate.getTime() - earlierDate.getTime()) / DAY_MS);
 }
 
-async function fetchAnalyticsTasks() {
-    const [rows] = await pool.execute(
-        `SELECT t.*,
+async function fetchAnalyticsTasks(user) {
+    let query = `SELECT t.*,
                 u.full_name AS registered_client_name,
                 gc.name AS guest_client_name,
                 COALESCE(u.full_name, gc.name, t.client_name) AS display_client_name
          FROM tasks t
          LEFT JOIN users u ON t.client_id = u.id
-         LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id`
-    );
+         LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id`;
+    
+    let params = [];
+    if (user && user.role === 'tutor') {
+        query += ` WHERE t.assigned_tutor_id = ?`;
+        params.push(user.id);
+    }
+
+    const [rows] = await pool.execute(query, params);
 
     return rows.map((task) => augmentTask(task));
 }
 
-async function fetchAnalyticsPayments() {
-    const [rows] = await pool.execute(
-        `SELECT p.*,
+async function fetchAnalyticsPayments(user) {
+    let query = `SELECT p.*,
                 t.client_id,
                 t.guest_client_id,
                 t.client_name,
@@ -143,8 +148,15 @@ async function fetchAnalyticsPayments() {
          FROM payments p
          JOIN tasks t ON p.task_id = t.id
          LEFT JOIN users u ON t.client_id = u.id
-         LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id`
-    );
+         LEFT JOIN guest_clients gc ON t.guest_client_id = gc.id`;
+
+    let params = [];
+    if (user && user.role === 'tutor') {
+        query += ` WHERE t.assigned_tutor_id = ?`;
+        params.push(user.id);
+    }
+
+    const [rows] = await pool.execute(query, params);
 
     return rows.map((payment) => ({
         ...payment,
@@ -661,39 +673,39 @@ function buildClientStats(tasks, payments, range) {
 }
 
 class AnalyticsService {
-    async getKpis(startDate, endDate) {
+    async getKpis(startDate, endDate, user) {
         const range = buildRange(startDate, endDate, (end) => new Date(end.getTime() - 30 * DAY_MS));
         const previousRange = getPreviousRange(range.start, range.end);
-        const [tasks, payments] = await Promise.all([fetchAnalyticsTasks(), fetchAnalyticsPayments()]);
+        const [tasks, payments] = await Promise.all([fetchAnalyticsTasks(user), fetchAnalyticsPayments(user)]);
         return computeKpis(tasks, payments, range, previousRange);
     }
 
-    async getRevenue(startDate, endDate, groupBy = 'month') {
+    async getRevenue(startDate, endDate, groupBy = 'month', user) {
         const range = buildRange(startDate, endDate, (end) => new Date(end.getTime() - 180 * DAY_MS));
-        const [tasks, payments] = await Promise.all([fetchAnalyticsTasks(), fetchAnalyticsPayments()]);
+        const [tasks, payments] = await Promise.all([fetchAnalyticsTasks(user), fetchAnalyticsPayments(user)]);
         return buildRevenueSeries(tasks, payments, range, groupBy === 'day' ? 'day' : 'month');
     }
 
-    async getPipeline() {
-        const tasks = await fetchAnalyticsTasks();
+    async getPipeline(user) {
+        const tasks = await fetchAnalyticsTasks(user);
         return buildPipeline(tasks);
     }
 
-    async getTaskStatus(startDate, endDate) {
+    async getTaskStatus(startDate, endDate, user) {
         const range = buildRange(startDate, endDate, (end) => new Date(end.getTime() - 30 * DAY_MS));
-        const tasks = await fetchAnalyticsTasks();
+        const tasks = await fetchAnalyticsTasks(user);
         return buildTaskStatus(tasks, range);
     }
 
-    async getFinancialStats(startDate, endDate) {
+    async getFinancialStats(startDate, endDate, user) {
         const range = buildRange(startDate, endDate, (end) => new Date(end.getTime() - 180 * DAY_MS));
-        const [tasks, payments] = await Promise.all([fetchAnalyticsTasks(), fetchAnalyticsPayments()]);
+        const [tasks, payments] = await Promise.all([fetchAnalyticsTasks(user), fetchAnalyticsPayments(user)]);
         return buildFinancialStats(tasks, payments, range);
     }
 
-    async getClientStats(startDate, endDate) {
+    async getClientStats(startDate, endDate, user) {
         const range = buildRange(startDate, endDate, (end) => new Date(end.getTime() - 365 * DAY_MS));
-        const [tasks, payments] = await Promise.all([fetchAnalyticsTasks(), fetchAnalyticsPayments()]);
+        const [tasks, payments] = await Promise.all([fetchAnalyticsTasks(user), fetchAnalyticsPayments(user)]);
         return buildClientStats(tasks, payments, range);
     }
 }

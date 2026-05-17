@@ -28,6 +28,7 @@ const notificationRoutes = require('./routes/notifications');
 const messageRoutes = require('./routes/messages');
 const analyticsRoutes = require('./routes/analytics');
 const paymentRoutes = require('./routes/payments');
+const payoutRoutes = require('./routes/payouts');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const requestIdMiddleware = require('./middleware/requestId');
 const DatabasePatchService = require('./services/databasePatchService');
@@ -183,6 +184,7 @@ app.use('/api/public', require('./routes/public')); // No rate limit for public 
 app.use('/api/files', apiLimiter, filesRoutes);
 app.use('/api/notifications', apiLimiter, notificationRoutes);
 app.use('/api/payments', apiLimiter, paymentRoutes);
+app.use('/api/payouts', apiLimiter, payoutRoutes);
 app.use('/api/guest-clients', apiLimiter, require('./routes/guestClients')); // Guest Client Routes
 // (F-10 fix: second /uploads static middleware also removed)
 

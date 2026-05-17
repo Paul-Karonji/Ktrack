@@ -221,6 +221,12 @@ export const apiService = {
     changePassword: (data) => api.put('/auth/password', data).then(res => res.data),
     updateEmail: (data) => api.put('/auth/email', data).then(res => res.data),
 
+    // Payouts
+    getPayoutHistory: () => api.get('/payouts/my-requests').then(res => res.data),
+    requestPayout: (data) => api.post('/payouts/request', data).then(res => res.data),
+    adminGetPayoutRequests: (params) => api.get('/payouts/admin/all', { params }).then(res => res.data),
+    adminResolvePayoutRequest: (id, data) => api.patch(`/payouts/admin/${id}/resolve`, data).then(res => res.data),
+
     // Public
     getPublicStats: () => api.get('/public/stats').then(res => res.data),
     getGuestPaymentLink: (token) => api.get(`/public/payments/guest/${encodeURIComponent(token)}`).then(res => res.data),

@@ -20,7 +20,9 @@ K-Track is a multi-tutor task and client management platform for commission-base
 - Per-task chat and general client chat
 - File uploads and deliverables
 - Payments, payment reminders, and audit history
+- Tutor Payout Ledger: Double-entry secure withdrawal system with automatic available balance enforcement and manual superadmin approval tracking
 - Role-scoped analytics and reporting (superadmins see global stats, tutors see their own performance)
+- Scoped File Protection: Tutors can only view and manage file deliverables for tasks assigned directly to them
 
 ## Security Notes
 
@@ -28,6 +30,8 @@ The current app behavior is:
 
 - Access tokens are kept in memory on the frontend, not in `localStorage`
 - Refresh tokens are stored in an HttpOnly cookie
+- Advanced API Rate Limiting: Sensitive endpoints (chat messaging, file uploads, checkout initialization/verification) are hardened with custom rate limiters to prevent brute-force login, memory exhaustion, and spamming
+- Timing-Safe Guest Payments: HMAC-SHA256 authenticated links coupled with timing-safe comparison logic prevent side-channel URL guessing attacks
 - Socket.IO requires an authenticated handshake and validates room access
 - Chat file uploads use the shared upload allowlist
 - Message downloads only render a small inline-safe image set; other files are forced to download

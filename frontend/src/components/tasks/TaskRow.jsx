@@ -57,7 +57,7 @@ const TaskRow = ({
     const isAdminRole = user?.role === 'tutor' || user?.role === 'superadmin';
     const showPayButton = user?.role === 'client' && canTaskBePaid(task) && Number(task.is_paid) !== 1;
     const payLabel = getPaymentActionLabel(task);
-    const showGuestPaymentLink = isAdminRole
+    const showGuestPaymentLink = user?.role === 'superadmin'
         && Number(task?.guest_client_id) > 0
         && Number(task?.can_pay_now) === 1
         && Number(task?.current_due_amount) > 0;

@@ -15,6 +15,7 @@ const Sidebar = ({ user, onLogout }) => {
         { id: 'messages', label: 'Messages', icon: MessageSquare, path: '/messages' },
         { id: 'clients', label: 'Clients', icon: Users, path: '/admin/clients', adminOnly: true },
         { id: 'payments', label: 'Payments', icon: CreditCard, path: '/admin/payments', adminOnly: true },
+        { id: 'payouts', label: 'Payouts', icon: CreditCard, path: '/payouts', adminOnly: true },
         { id: 'files', label: 'Files', icon: FileText, path: '/files' },
         { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/analytics', adminOnly: true },
         { id: 'tutors', label: 'Tutors', icon: ShieldCheck, path: '/admin/tutors', superadminOnly: true },

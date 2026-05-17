@@ -13,6 +13,7 @@ import Settings from './pages/Settings';
 import Analytics from './pages/Analytics';
 import Clients from './pages/admin/Clients';
 import Payments from './pages/admin/Payments';
+import Payouts from './pages/Payouts';
 import PrivateRoute from './components/auth/PrivateRoute';
 import TutorManagement from './pages/admin/TutorManagement';
 import LandingPage from './pages/LandingPage';
@@ -74,6 +75,15 @@ const App = () => {
                 element={
                   <PrivateRoute allowedRoles={['tutor', 'superadmin']}>
                     <Payments />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
+                path="/payouts"
+                element={
+                  <PrivateRoute allowedRoles={['tutor', 'superadmin']}>
+                    <Payouts />
                   </PrivateRoute>
                 }
               />

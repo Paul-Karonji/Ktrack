@@ -672,6 +672,26 @@ const DatabasePatchService = {
                 ['ER_DUP_FIELDNAME', 'ER_NO_SUCH_TABLE']
             );
 
+            await safeExecute(
+                `CREATE TABLE IF NOT EXISTS tutor_payout_requests (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    tutor_id INT NOT NULL,
+                    amount DECIMAL(10, 2) NOT NULL,
+                    payment_method VARCHAR(100) NOT NULL,
+                    payment_details TEXT NOT NULL,
+                    status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+                    admin_notes TEXT NULL,
+                    resolved_by INT NULL,
+                    resolved_at DATETIME NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_tutor_payouts_tutor_status (tutor_id, status),
+                    CONSTRAINT fk_tutor_payouts_tutor FOREIGN KEY (tutor_id) REFERENCES users(id) ON DELETE CASCADE,
+                    CONSTRAINT fk_tutor_payouts_resolved FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+                'tutor_payout_requests table patch warning'
+            );
+
             await backfillLegacyOfflinePayments();
             await backfillTaskPaymentProgress();
             await logSchemaStatus();

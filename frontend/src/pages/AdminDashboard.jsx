@@ -73,6 +73,7 @@ const AdminDashboard = ({
     const [activeTab, setActiveTab] = useState('tasks'); // 'tasks', 'users', 'analytics', 'files'
     const [searchTerm, setSearchTerm] = useState('');
     const [sortBy, setSortBy] = useState('created_newest');
+    const [tutorTaskFilter, setTutorTaskFilter] = useState('all');
 
     // Calculate file statistics
     const totalFiles = tasks.reduce((sum, t) => sum + (t.file_count || 0), 0);
@@ -81,7 +82,7 @@ const AdminDashboard = ({
 
     const filteredTasks = useMemo(() => {
         const normalizedSearch = searchTerm.trim().toLowerCase();
-        const searchedTasks = normalizedSearch
+        let searchedTasks = normalizedSearch
             ? tasks.filter((task) =>
                 task.task_name?.toLowerCase().includes(normalizedSearch) ||
                 task.task_description?.toLowerCase().includes(normalizedSearch) ||
@@ -89,6 +90,14 @@ const AdminDashboard = ({
                 task.client_name?.toLowerCase().includes(normalizedSearch)
             )
             : tasks;
+
+        if (user?.role === 'tutor') {
+            if (tutorTaskFilter === 'mine') {
+                searchedTasks = searchedTasks.filter(t => t.assigned_tutor_id === user.id);
+            } else if (tutorTaskFilter === 'pool') {
+                searchedTasks = searchedTasks.filter(t => !t.assigned_tutor_id && !['completed', 'cancelled'].includes(t.status));
+            }
+        }
 
         return [...searchedTasks].sort((left, right) => {
             switch (sortBy) {
@@ -123,7 +132,7 @@ const AdminDashboard = ({
                     return new Date(right.created_at || 0).getTime() - new Date(left.created_at || 0).getTime();
             }
         });
-    }, [searchTerm, sortBy, tasks]);
+    }, [searchTerm, sortBy, tasks, tutorTaskFilter, user?.id, user?.role]);
 
     // Load extra admin data
     useEffect(() => {
@@ -210,33 +219,73 @@ const AdminDashboard = ({
                 </div>
             </div>
 
-            {/* Admin Stats Row */}
+            {/* Admin / Tutor Stats Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                <StatCard
-                    title="Pending"
-                    value={pendingUsers.length}
-                    icon={Users}
-                    color="bg-orange-500"
-                    onClick={() => window.location.href = '/admin/clients'}
-                />
-                <StatCard
-                    title="Clients"
-                    value={stats?.total_clients || 0}
-                    icon={CheckCircle}
-                    color="bg-green-500"
-                />
-                <StatCard
-                    title="Tasks"
-                    value={tasks.length}
-                    icon={FileText}
-                    color="bg-blue-500"
-                />
-                <StatCard
-                    title="Revenue"
-                    value={formatCurrency(tasks.reduce((sum, task) => sum + getCollectedAmount(task), 0))}
-                    icon={Clock}
-                    color="bg-purple-500"
-                />
+                {user.role === 'tutor' ? (
+                    <>
+                        <StatCard
+                            title="General Pool"
+                            value={tasks.filter(t => !t.assigned_tutor_id && !['completed', 'cancelled'].includes(t.status)).length}
+                            icon={Users}
+                            color="bg-orange-500"
+                            onClick={() => {
+                                setTutorTaskFilter('pool');
+                                document.getElementById('tasks-table-section')?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                        />
+                        <StatCard
+                            title="My Clients"
+                            value={stats?.total_clients || 0}
+                            icon={CheckCircle}
+                            color="bg-green-500"
+                            onClick={() => window.location.href = '/admin/clients'}
+                        />
+                        <StatCard
+                            title="My Active Tasks"
+                            value={tasks.filter(t => t.assigned_tutor_id === user.id && t.status !== 'completed' && t.status !== 'cancelled').length}
+                            icon={FileText}
+                            color="bg-blue-500"
+                            onClick={() => {
+                                setTutorTaskFilter('mine');
+                                document.getElementById('tasks-table-section')?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                        />
+                        <StatCard
+                            title="My Revenue"
+                            value={formatCurrency(tasks.filter(t => t.assigned_tutor_id === user.id).reduce((sum, task) => sum + getCollectedAmount(task), 0))}
+                            icon={Clock}
+                            color="bg-purple-500"
+                        />
+                    </>
+                ) : (
+                    <>
+                        <StatCard
+                            title="Pending"
+                            value={pendingUsers.length}
+                            icon={Users}
+                            color="bg-orange-500"
+                            onClick={() => window.location.href = '/admin/clients'}
+                        />
+                        <StatCard
+                            title="Clients"
+                            value={stats?.total_clients || 0}
+                            icon={CheckCircle}
+                            color="bg-green-500"
+                        />
+                        <StatCard
+                            title="Tasks"
+                            value={tasks.length}
+                            icon={FileText}
+                            color="bg-blue-500"
+                        />
+                        <StatCard
+                            title="Revenue"
+                            value={formatCurrency(tasks.reduce((sum, task) => sum + getCollectedAmount(task), 0))}
+                            icon={Clock}
+                            color="bg-purple-500"
+                        />
+                    </>
+                )}
             </div>
 
             {/* File Stats Row */}
@@ -314,13 +363,33 @@ const AdminDashboard = ({
                         </div>
                     )}
 
-                    <div className="bg-white rounded-xl shadow overflow-hidden">
+                    <div id="tasks-table-section" className="bg-white rounded-xl shadow overflow-hidden">
                         <div className="p-3 md:p-4 border-b flex flex-wrap justify-between items-center gap-2 bg-gray-50">
                             <div>
-                                <h3 className="font-bold text-gray-700">All Tasks</h3>
-                                <p className="text-xs text-gray-500 mt-1">
-                                    Sort by payment urgency, quotes, priority, or client name.
-                                </p>
+                                <h3 className="font-bold text-gray-700">
+                                    {user.role === 'tutor' ? 'Tasks Pool' : 'All Tasks'}
+                                </h3>
+                                {user.role === 'tutor' ? (
+                                    <div className="flex gap-1.5 mt-2">
+                                        {[
+                                            { key: 'all', label: 'All Tasks' },
+                                            { key: 'mine', label: 'My Tasks' },
+                                            { key: 'pool', label: 'General Pool' }
+                                        ].map(opt => (
+                                            <button
+                                                key={opt.key}
+                                                onClick={() => setTutorTaskFilter(opt.key)}
+                                                className={`px-3 py-1 rounded-full text-xs font-black transition-all ${tutorTaskFilter === opt.key ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Sort by payment urgency, quotes, priority, or client name.
+                                    </p>
+                                )}
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
                                 <select

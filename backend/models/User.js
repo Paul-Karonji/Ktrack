@@ -92,6 +92,11 @@ class User {
       params.push(filters.role);
     }
 
+    if (filters.tutorId) {
+      query += ' AND u.id IN (SELECT DISTINCT client_id FROM tasks WHERE assigned_tutor_id = ? AND client_id IS NOT NULL)';
+      params.push(filters.tutorId);
+    }
+
     query += ' ORDER BY created_at DESC';
 
     const [rows] = await pool.execute(query, params);
@@ -211,7 +216,30 @@ class User {
   }
 
   // Get user stats
-  static async getStats() {
+  static async getStats(tutorId = null) {
+    if (tutorId) {
+      const [regClientStats] = await pool.execute(`
+        SELECT COUNT(DISTINCT client_id) as active_reg_clients
+        FROM tasks
+        WHERE assigned_tutor_id = ? AND client_id IS NOT NULL
+      `, [tutorId]);
+      
+      const [guestClientStats] = await pool.execute(`
+        SELECT COUNT(DISTINCT guest_client_id) as active_guest_clients
+        FROM tasks
+        WHERE assigned_tutor_id = ? AND guest_client_id IS NOT NULL
+      `, [tutorId]);
+
+      const totalClients = (regClientStats[0]?.active_reg_clients || 0) + (guestClientStats[0]?.active_guest_clients || 0);
+
+      return {
+        total_users: regClientStats[0]?.active_reg_clients || 0,
+        pending_users: 0,
+        approved_users: regClientStats[0]?.active_reg_clients || 0,
+        total_clients: totalClients
+      };
+    }
+
     const [stats] = await pool.execute(`
       SELECT 
         (SELECT COUNT(*) FROM users) as total_users,

@@ -38,12 +38,14 @@ const FileController = {
 
             const params = [];
 
-            // Role-based filtering — ID only (F-05 fix: removed mutable client_name fallback)
+            // Role-based filtering
             if (userRole === 'client') {
                 query += ' AND t.client_id = ?';
                 params.push(userId);
+            } else if (userRole === 'tutor') {
+                query += ' AND t.assigned_tutor_id = ?';
+                params.push(userId);
             }
-            // Admins see all files
 
             // Search filter
             if (search) {
@@ -94,6 +96,9 @@ const FileController = {
             if (userRole === 'client') {
                 whereClause = 'WHERE t.client_id = ?';
                 params.push(userId);
+            } else if (userRole === 'tutor') {
+                whereClause = 'WHERE t.assigned_tutor_id = ?';
+                params.push(userId);
             }
 
             // Total files and storage
@@ -111,7 +116,7 @@ const FileController = {
                 SELECT COUNT(*) as files_this_month
                 FROM task_files tf
                 LEFT JOIN tasks t ON tf.task_id = t.id
-                ${whereClause ? 'AND' : 'WHERE'} tf.uploaded_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                ${whereClause} ${whereClause ? 'AND' : 'WHERE'} tf.uploaded_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
             `, params);
 
             // Most used file type
@@ -165,12 +170,13 @@ const FileController = {
             console.log('[FileController] Task found:', { id: task.id, client_id: task.client_id, client_name: task.client_name });
             console.log('[FileController] User:', { id: req.user.id, role: req.user.role, name: req.user.full_name });
 
-            // Check ownership (admins can upload to any, clients only to theirs)
-            // F-06 fix: removed client_name string fallback — use immutable ID only
+            // Check ownership & role constraints
             const isOwner = task.client_id === req.user.id;
-            const isAdminRole = req.user.role === 'tutor' || req.user.role === 'superadmin';
+            const isSuperadmin = req.user.role === 'superadmin';
+            const isAssignedTutor = req.user.role === 'tutor' && task.assigned_tutor_id === req.user.id;
+            const isAdminRole = isSuperadmin || req.user.role === 'tutor';
 
-            if (!isAdminRole && !isOwner) {
+            if (!isSuperadmin && !isAssignedTutor && !isOwner) {
                 console.log('[FileController] Auth failed. isOwner:', isOwner);
                 return res.status(403).json({ error: 'Not authorized to upload files for this task' });
             }
@@ -261,8 +267,11 @@ const FileController = {
             const task = await Task.findById(taskId);
             if (!task) return res.status(404).json({ error: 'Task not found' });
 
-            const isAdminRole = req.user.role === 'tutor' || req.user.role === 'superadmin';
-            if (!isAdminRole && task.client_id !== req.user.id) {
+            const isSuperadmin = req.user.role === 'superadmin';
+            const isAssignedTutor = req.user.role === 'tutor' && (task.assigned_tutor_id === req.user.id || task.assigned_tutor_id === null);
+            const isOwner = task.client_id === req.user.id;
+
+            if (!isSuperadmin && !isAssignedTutor && !isOwner) {
                 return res.status(403).json({ error: 'Access denied' });
             }
 
@@ -293,8 +302,11 @@ const FileController = {
             const task = await Task.findById(taskId);
             if (!task) return res.status(404).json({ error: 'Task not found' });
 
-            const isAdminRole = req.user.role === 'tutor' || req.user.role === 'superadmin';
-            if (!isAdminRole && task.client_id !== req.user.id) {
+            const isSuperadmin = req.user.role === 'superadmin';
+            const isAssignedTutor = req.user.role === 'tutor' && (task.assigned_tutor_id === req.user.id || task.assigned_tutor_id === null);
+            const isOwner = task.client_id === req.user.id;
+
+            if (!isSuperadmin && !isAssignedTutor && !isOwner) {
                 return res.status(403).json({ error: 'Access denied' });
             }
 
@@ -321,8 +333,10 @@ const FileController = {
 
             // Security Check: Admin or Task Owner
             const isOwner = task && task.client_id === req.user.id;
-            const isAdminRole = req.user.role === 'tutor' || req.user.role === 'superadmin';
-            if (!isAdminRole && !isOwner) {
+            const isSuperadmin = req.user.role === 'superadmin';
+            const isAssignedTutor = req.user.role === 'tutor' && task && task.assigned_tutor_id === req.user.id;
+
+            if (!isSuperadmin && !isAssignedTutor && !isOwner) {
                 return res.status(403).json({ error: 'Access denied. Admin or Owner rights required.' });
             }
 
@@ -345,9 +359,17 @@ const FileController = {
         try {
             const { fileId } = req.params;
 
-            // Security Check: Only admin can toggle deliverable status
-            if (req.user.role !== 'admin') {
-                return res.status(403).json({ success: false, message: 'Only admins can mark files as deliverables' });
+            // Security Check: Superadmin or Tutor assigned to task
+            const { pool } = require('../config/database');
+            const [rows] = await pool.execute('SELECT task_id FROM task_files WHERE id = ?', [fileId]);
+            if (rows.length === 0) return res.status(404).json({ error: 'File not found' });
+            
+            const task = await Task.findById(rows[0].task_id);
+            const isSuperadmin = req.user.role === 'superadmin';
+            const isAssignedTutor = req.user.role === 'tutor' && task && task.assigned_tutor_id === req.user.id;
+
+            if (!isSuperadmin && !isAssignedTutor) {
+                return res.status(403).json({ success: false, message: 'Only authorized tutors or superadmins can mark files as deliverables' });
             }
 
             await R2Service.toggleDeliverable(fileId);

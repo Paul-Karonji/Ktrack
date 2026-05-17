@@ -41,7 +41,8 @@ const TaskCard = ({
 
     const showPayButton = user?.role === 'client' && canTaskBePaid(task) && Number(task.is_paid) !== 1;
     const actionLabel = getPaymentActionLabel(task);
-    const showGuestPaymentLink = user?.role === 'admin'
+    const isAdminRole = user?.role === 'tutor' || user?.role === 'superadmin';
+    const showGuestPaymentLink = user?.role === 'superadmin'
         && Number(task?.guest_client_id) > 0
         && Number(task?.can_pay_now) === 1
         && Number(task?.current_due_amount) > 0;
@@ -97,7 +98,7 @@ const TaskCard = ({
                     )}
                 </button>
 
-                {onEdit && (
+                {onEdit && user?.role === 'superadmin' && (
                     <button
                         onClick={() => onEdit(task)}
                         disabled={!isOnline}
@@ -118,7 +119,7 @@ const TaskCard = ({
                     </button>
                 )}
 
-                {onDeliverWork && user?.role === 'admin' && (task.status === 'in_progress' || task.status === 'review') && (
+                {onDeliverWork && isAdminRole && (task.status === 'in_progress' || task.status === 'review') && (
                     <button
                         onClick={() => onDeliverWork(task.id)}
                         className="flex-1 px-3 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-sm"
@@ -128,7 +129,7 @@ const TaskCard = ({
                     </button>
                 )}
 
-                {onDelete && user?.role === 'admin' && (
+                {onDelete && user?.role === 'superadmin' && (
                     <button
                         onClick={() => onDelete(task.id)}
                         disabled={!isOnline}
@@ -138,7 +139,7 @@ const TaskCard = ({
                     </button>
                 )}
 
-                {user?.role === 'admin' && onTogglePayment && (
+                {user?.role === 'superadmin' && onTogglePayment && (
                     <button
                         onClick={() => onTogglePayment(task)}
                         disabled={!isOnline || Number(task.is_paid) === 1}
@@ -151,7 +152,7 @@ const TaskCard = ({
                     </button>
                 )}
 
-                {user?.role === 'admin' && shouldShowSendQuote(task) && (
+                {isAdminRole && shouldShowSendQuote(task) && (
                     <button
                         onClick={() => onSendQuote(task)}
                         className="flex-1 px-3 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-all shadow-sm transform active:scale-95"

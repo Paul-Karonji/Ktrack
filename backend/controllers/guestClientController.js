@@ -6,7 +6,8 @@ const bcrypt = require('bcrypt');
 // GET /api/guest-clients - Get all guest clients
 exports.getAllGuestClients = async (req, res) => {
     try {
-        const guests = await GuestClient.findAll();
+        const tutorId = req.user && req.user.role === 'tutor' ? req.user.id : null;
+        const guests = await GuestClient.findAll(tutorId);
         res.json({ success: true, guests });
     } catch (error) {
         console.error('Error fetching guest clients:', error);

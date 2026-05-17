@@ -230,13 +230,15 @@ const TaskRow = ({
 
                 <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-2 flex-wrap">
-                        <button
-                            onClick={() => onDuplicate(task)}
-                            className="px-3 py-2 bg-gray-50 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"
-                            title="Duplicate"
-                        >
-                            <Copy size={15} />
-                        </button>
+                        {user?.role === 'superadmin' && (
+                            <button
+                                onClick={() => onDuplicate(task)}
+                                className="px-3 py-2 bg-gray-50 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"
+                                title="Duplicate"
+                            >
+                                <Copy size={15} />
+                            </button>
+                        )}
                         <button
                             onClick={() => setShowChat(!showChat)}
                             className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${showChat
@@ -252,7 +254,7 @@ const TaskRow = ({
                                 </span>
                             )}
                         </button>
-                        {onEdit && (
+                        {onEdit && user?.role === 'superadmin' && (
                             <button
                                 onClick={() => onEdit(task)}
                                 disabled={!isOnline}
@@ -261,7 +263,7 @@ const TaskRow = ({
                                 <Edit2 size={15} />
                             </button>
                         )}
-                        {isAdminRole && (
+                        {user?.role === 'superadmin' && (
                             <button
                                 onClick={() => onTogglePayment(task)}
                                 disabled={!isOnline}
@@ -273,7 +275,7 @@ const TaskRow = ({
                                 {Number(task.is_paid) === 1 ? 'Paid' : 'Record Paid'}
                             </button>
                         )}
-                        {onDelete && isAdminRole && (
+                        {onDelete && user?.role === 'superadmin' && (
                             <button
                                 onClick={() => onDelete(task.id)}
                                 disabled={!isOnline}

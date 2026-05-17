@@ -555,7 +555,21 @@ class TaskController {
         });
       }
 
-      const updatedTask = await Task.update(req.params.id, { assignedTutorId: req.user.id });
+      // Atomic update to prevent race conditions
+      const { pool } = require('../config/database');
+      const [result] = await pool.execute(
+        'UPDATE tasks SET assigned_tutor_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND assigned_tutor_id IS NULL',
+        [req.user.id, req.params.id]
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(409).json({
+          success: false,
+          message: 'Conflict: This task has just been claimed by another tutor.'
+        });
+      }
+
+      const updatedTask = await Task.findById(req.params.id);
 
       // Notify the client if registered
       try {

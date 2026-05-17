@@ -472,51 +472,53 @@ const Clients = () => {
                                                             <td className="p-4 text-center">
                                                                 <StatusBadge status={u.status} />
                                                             </td>
-                                                            <td className="p-4 text-right">
-                                                                {actionLoading === u.id ? <RefreshCw className="animate-spin ml-auto text-indigo-400" size={18} /> : (
-                                                                    <div className="flex items-center justify-end gap-1">
-                                                                        {u.status === 'pending' && (
-                                                                            <>
-                                                                                <ActionBtn icon={<Check size={16} />} label="Approve" color="green" onClick={() => handleApprove(u)} showLabel />
-                                                                                {!u.is_merged && (
-                                                                                    <ActionBtn
-                                                                                        icon={<Merge size={16} />}
-                                                                                        label="Merge"
-                                                                                        color={u.potential_guest_matches > 0 ? "indigo_active" : "indigo"}
-                                                                                        onClick={() => checkMatches(u)}
-                                                                                        showLabel
-                                                                                    />
-                                                                                )}
-                                                                                <ActionBtn icon={<X size={16} />} label="Reject" color="red" onClick={() => handleReject(u.id)} />
-                                                                            </>
-                                                                        )}
-                                                                        {u.status === 'approved' && u.role !== 'admin' && (
-                                                                            <>
-                                                                                {!u.is_merged && (
-                                                                                    <ActionBtn
-                                                                                        icon={<Merge size={16} />}
-                                                                                        label="Merge"
-                                                                                        color={u.potential_guest_matches > 0 ? "indigo_active" : "indigo"}
-                                                                                        onClick={() => checkMatches(u)}
-                                                                                        showLabel
-                                                                                    />
-                                                                                )}
-                                                                                <ActionBtn icon={<Shield size={16} />} label="Suspend" color="orange" onClick={() => handleSuspend(u.id)} />
+                                                            {user.role !== 'tutor' && (
+                                                                <td className="p-4 text-right">
+                                                                    {actionLoading === u.id ? <RefreshCw className="animate-spin ml-auto text-indigo-400" size={18} /> : (
+                                                                        <div className="flex items-center justify-end gap-1">
+                                                                            {u.status === 'pending' && (
+                                                                                <>
+                                                                                    <ActionBtn icon={<Check size={16} />} label="Approve" color="green" onClick={() => handleApprove(u)} showLabel />
+                                                                                    {!u.is_merged && (
+                                                                                        <ActionBtn
+                                                                                            icon={<Merge size={16} />}
+                                                                                            label="Merge"
+                                                                                            color={u.potential_guest_matches > 0 ? "indigo_active" : "indigo"}
+                                                                                            onClick={() => checkMatches(u)}
+                                                                                            showLabel
+                                                                                        />
+                                                                                    )}
+                                                                                    <ActionBtn icon={<X size={16} />} label="Reject" color="red" onClick={() => handleReject(u.id)} />
+                                                                                </>
+                                                                            )}
+                                                                            {u.status === 'approved' && u.role !== 'admin' && (
+                                                                                <>
+                                                                                    {!u.is_merged && (
+                                                                                        <ActionBtn
+                                                                                            icon={<Merge size={16} />}
+                                                                                            label="Merge"
+                                                                                            color={u.potential_guest_matches > 0 ? "indigo_active" : "indigo"}
+                                                                                            onClick={() => checkMatches(u)}
+                                                                                            showLabel
+                                                                                        />
+                                                                                    )}
+                                                                                    <ActionBtn icon={<Shield size={16} />} label="Suspend" color="orange" onClick={() => handleSuspend(u.id)} />
+                                                                                    <ActionBtn icon={<Trash2 size={16} />} label="Delete" color="red" onClick={() => handleDeleteUser(u)} />
+                                                                                </>
+                                                                            )}
+                                                                            {u.status === 'suspended' && (
+                                                                                <>
+                                                                                    <ActionBtn icon={<ShieldOff size={16} />} label="Restore" color="green" onClick={() => handleUnsuspend(u.id)} showLabel />
+                                                                                    <ActionBtn icon={<Trash2 size={16} />} label="Delete" color="red" onClick={() => handleDeleteUser(u)} />
+                                                                                </>
+                                                                            )}
+                                                                            {u.status === 'rejected' && (
                                                                                 <ActionBtn icon={<Trash2 size={16} />} label="Delete" color="red" onClick={() => handleDeleteUser(u)} />
-                                                                            </>
-                                                                        )}
-                                                                        {u.status === 'suspended' && (
-                                                                            <>
-                                                                                <ActionBtn icon={<ShieldOff size={16} />} label="Restore" color="green" onClick={() => handleUnsuspend(u.id)} showLabel />
-                                                                                <ActionBtn icon={<Trash2 size={16} />} label="Delete" color="red" onClick={() => handleDeleteUser(u)} />
-                                                                            </>
-                                                                        )}
-                                                                        {u.status === 'rejected' && (
-                                                                            <ActionBtn icon={<Trash2 size={16} />} label="Delete" color="red" onClick={() => handleDeleteUser(u)} />
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                            </td>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                            )}
                                                         </tr>
                                                     ))
                                                 )}
@@ -542,13 +544,15 @@ const Clients = () => {
                                         className="w-full pl-11 p-3.5 bg-white border border-gray-100 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                                     />
                                 </div>
-                                <button
-                                    onClick={() => setShowGuestForm(!showGuestForm)}
-                                    className="px-6 py-3.5 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition shadow-lg shadow-indigo-100"
-                                >
-                                    <Plus size={20} />
-                                    {showGuestForm ? 'Close' : 'Add Guest'}
-                                </button>
+                                {user.role !== 'tutor' && (
+                                    <button
+                                        onClick={() => setShowGuestForm(!showGuestForm)}
+                                        className="px-6 py-3.5 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition shadow-lg shadow-indigo-100"
+                                    >
+                                        <Plus size={20} />
+                                        {showGuestForm ? 'Close' : 'Add Guest'}
+                                    </button>
+                                )}
                             </div>
 
                             {showGuestForm && (
@@ -636,10 +640,12 @@ const Clients = () => {
                                                 <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center font-black">
                                                     {guest.name.charAt(0)}
                                                 </div>
-                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => handleEditGuest(guest)} className="p-2 text-indigo-400 hover:bg-indigo-50 rounded-xl transition"><Edit2 size={16} /></button>
-                                                    <button onClick={() => handleDeleteGuest(guest.id)} className="p-2 text-red-300 hover:bg-red-50 hover:text-red-500 rounded-xl transition"><Trash2 size={16} /></button>
-                                                </div>
+                                                {user.role !== 'tutor' && (
+                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button onClick={() => handleEditGuest(guest)} className="p-2 text-indigo-400 hover:bg-indigo-50 rounded-xl transition"><Edit2 size={16} /></button>
+                                                        <button onClick={() => handleDeleteGuest(guest.id)} className="p-2 text-red-300 hover:bg-red-50 hover:text-red-500 rounded-xl transition"><Trash2 size={16} /></button>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <h3 className="text-xl font-bold text-gray-900 mb-1">{guest.name}</h3>

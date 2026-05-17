@@ -2,17 +2,28 @@ const { pool } = require('../config/database');
 
 class GuestClient {
   // Get all guest clients with task counts
-  static async findAll() {
-    const [rows] = await pool.execute(`
+  static async findAll(tutorId = null) {
+    let query = `
       SELECT gc.*, 
              COUNT(t.id) as task_count,
              SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) as completed_tasks
       FROM guest_clients gc
       LEFT JOIN tasks t ON t.guest_client_id = gc.id
       WHERE gc.upgraded_to_user_id IS NULL
+    `;
+    const params = [];
+
+    if (tutorId) {
+      query += ` AND gc.id IN (SELECT DISTINCT guest_client_id FROM tasks WHERE assigned_tutor_id = ? AND guest_client_id IS NOT NULL) `;
+      params.push(tutorId);
+    }
+
+    query += `
       GROUP BY gc.id
       ORDER BY gc.created_at DESC
-    `);
+    `;
+
+    const [rows] = await pool.execute(query, params);
     return rows;
   }
 

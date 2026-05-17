@@ -52,7 +52,7 @@ class Task {
     }
 
     if (filters.tutorId) {
-      whereClauses.push('(t.assigned_tutor_id = ? OR t.assigned_tutor_id IS NULL)');
+      whereClauses.push('(t.assigned_tutor_id = ? OR (t.assigned_tutor_id IS NULL AND t.status NOT IN (\'completed\', \'cancelled\')))');
       params.push(filters.tutorId);
     }
 

@@ -5,7 +5,13 @@ const { invalidateCache } = require('../middleware/cache');
 const getAllUsers = async (req, res) => {
     try {
         const { status, role } = req.query;
-        const users = await User.findAll({ status, role });
+        const filters = { status, role };
+        
+        if (req.user && req.user.role === 'tutor') {
+            filters.tutorId = req.user.id;
+        }
+
+        const users = await User.findAll(filters);
         res.json(users);
     } catch (error) {
         console.error('Get all users error:', error);
@@ -173,7 +179,8 @@ const deleteUser = async (req, res) => {
 // Get user stats (admin only)
 const getUserStats = async (req, res) => {
     try {
-        const stats = await User.getStats();
+        const tutorId = req.user.role === 'tutor' ? req.user.id : null;
+        const stats = await User.getStats(tutorId);
         res.json(stats);
     } catch (error) {
         console.error('Get user stats error:', error);

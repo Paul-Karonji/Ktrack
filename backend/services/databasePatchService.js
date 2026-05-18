@@ -766,11 +766,26 @@ const DatabasePatchService = {
             );
 
             await safeExecute(
-                `ALTER TABLE users
-                 ADD COLUMN referral_code VARCHAR(20) UNIQUE NULL,
-                 ADD COLUMN referred_by INT NULL,
-                 ADD COLUMN referral_discount_balance DECIMAL(10,2) DEFAULT 0.00`,
-                'users referral columns patch warning',
+                `ALTER TABLE users ADD COLUMN referral_code VARCHAR(20) NULL`,
+                'users.referral_code column patch warning',
+                ['ER_DUP_FIELDNAME']
+            );
+
+            await safeExecute(
+                `ALTER TABLE users ADD UNIQUE INDEX idx_referral_code (referral_code)`,
+                'users.referral_code index patch warning',
+                ['ER_DUP_KEYNAME', 'ER_DUP_KEY']
+            );
+
+            await safeExecute(
+                `ALTER TABLE users ADD COLUMN referred_by INT NULL`,
+                'users.referred_by column patch warning',
+                ['ER_DUP_FIELDNAME']
+            );
+
+            await safeExecute(
+                `ALTER TABLE users ADD COLUMN referral_discount_balance DECIMAL(10,2) DEFAULT 0.00`,
+                'users.referral_discount_balance column patch warning',
                 ['ER_DUP_FIELDNAME']
             );
 

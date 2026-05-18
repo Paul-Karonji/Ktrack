@@ -112,7 +112,8 @@ const ClientDashboard = ({
     // Mobile sidebar toggle
     const { openSidebar } = useNavigation?.() || {};
 
-    const firstName = user?.full_name?.split(' ')[0] || 'there';
+    const fullName = user?.full_name || user?.fullName || 'there';
+    const firstName = fullName.split(' ')[0];
 
     // ── Stats ─────────────────────────────────────────────────────────────────
     const pendingQuotes = tasks.filter(t => t.quote_status === 'quote_sent').length;
@@ -162,11 +163,11 @@ const ClientDashboard = ({
     return (
         <div className="space-y-4 md:space-y-6 bg-mesh min-h-screen pb-16">
 
-            {/* ── 1. Glassmorphism Hero ─────────────────────────────────────── */}
-            <div className="relative overflow-hidden rounded-2xl md:rounded-3xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 p-5 md:p-8 shadow-2xl">
-                {/* Animated floating orbs — hidden on mobile for perf */}
-                <div className="absolute top-4 right-16 w-32 h-32 bg-white/10 rounded-full animate-float blur-sm pointer-events-none hidden sm:block" />
-                <div className="absolute -bottom-8 right-4 w-48 h-48 bg-purple-400/20 rounded-full animate-float-slow blur-md pointer-events-none hidden sm:block" />
+            {/* ── 1. Glassmorphism Hero (Enterprise Slate Theme) ───────────────────────── */}
+            <div className="relative overflow-hidden rounded-2xl md:rounded-3xl bg-slate-900 border border-slate-800 p-5 md:p-8 shadow-xl">
+                {/* Subtle gradient glow */}
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/3 hidden md:block" />
+                <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-slate-400/5 rounded-full blur-2xl pointer-events-none translate-y-1/3 -translate-x-1/4 hidden md:block" />
 
                 <div className="relative flex flex-col gap-4">
                     {/* Top row: hamburger (mobile) + avatar + greeting */}
@@ -175,61 +176,61 @@ const ClientDashboard = ({
                             {/* Mobile menu button */}
                             {openSidebar && (
                                 <button onClick={openSidebar}
-                                    className="lg:hidden glass p-2 rounded-xl text-white flex-shrink-0">
+                                    className="lg:hidden bg-slate-800/80 border border-slate-700/50 p-2 rounded-xl text-slate-300 flex-shrink-0">
                                     <Menu size={20} />
                                 </button>
                             )}
                             {/* Avatar */}
-                            <div className="glass w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg">
-                                <span className="text-white text-xl md:text-2xl font-extrabold">
+                            <div className="bg-slate-800/80 backdrop-blur-md border border-slate-700/50 w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg">
+                                <span className="text-slate-100 text-xl md:text-2xl font-bold tracking-tight">
                                     {firstName.charAt(0).toUpperCase()}
                                 </span>
                             </div>
                             <div className="min-w-0">
-                                <p className="text-indigo-200 text-xs md:text-sm font-medium">{getGreeting()} 👋</p>
-                                <h1 className="text-2xl md:text-4xl font-extrabold text-white tracking-tight truncate">{firstName}</h1>
+                                <p className="text-slate-400 text-xs md:text-sm font-medium">{getGreeting()}</p>
+                                <h1 className="text-2xl md:text-4xl font-semibold text-white tracking-tight truncate">{firstName}</h1>
                             </div>
                         </div>
 
                         {/* Completion arc — desktop only */}
-                        <div className="glass rounded-2xl p-3 text-center hidden md:block flex-shrink-0">
+                        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-3 text-center hidden md:block flex-shrink-0">
                             <svg width="56" height="56" viewBox="0 0 64 64">
-                                <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="5" />
-                                <circle cx="32" cy="32" r="26" fill="none" stroke="white" strokeWidth="5"
+                                <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="4" />
+                                <circle cx="32" cy="32" r="26" fill="none" stroke="#6366f1" strokeWidth="4"
                                     strokeDasharray={`${2 * Math.PI * 26 * (tasks.length > 0 ? completedCount / tasks.length : 0)} ${2 * Math.PI * 26}`}
                                     strokeLinecap="round" transform="rotate(-90 32 32)"
                                     style={{ transition: 'stroke-dasharray 0.8s ease' }} />
-                                <text x="32" y="32" textAnchor="middle" dominantBaseline="central" fontSize="13" fontWeight="800" fill="white">
+                                <text x="32" y="32" textAnchor="middle" dominantBaseline="central" fontSize="13" fontWeight="600" fill="#f8fafc">
                                     {tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0}%
                                 </text>
                             </svg>
-                            <p className="text-white/70 text-[10px] font-semibold mt-1">Done</p>
+                            <p className="text-slate-400 text-[10px] font-medium mt-1 uppercase tracking-wider">Done</p>
                         </div>
                     </div>
 
                     {/* Quick stats chips */}
                     <div className="flex flex-wrap gap-2">
-                        <span className="glass text-white text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5">
-                            <Sparkles size={11} /> {activeCount} active
+                        <span className="bg-slate-800/60 border border-slate-700/50 text-slate-300 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-sm">
+                            <Sparkles size={12} className="text-indigo-400" /> {activeCount} active
                         </span>
                         {pendingQuotes > 0 && (
-                            <span className="bg-orange-400/30 border border-orange-300/40 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse-ring">
-                                <AlertCircle size={11} /> {pendingQuotes} quote{pendingQuotes > 1 ? 's' : ''}
+                            <span className="bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                                <AlertCircle size={12} /> {pendingQuotes} quote{pendingQuotes > 1 ? 's' : ''}
                             </span>
                         )}
-                        <span className="glass text-white text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5">
-                            <DollarSign size={11} /> {fmt(totalValue)}
+                        <span className="bg-slate-800/60 border border-slate-700/50 text-slate-300 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-sm">
+                            <DollarSign size={12} className="text-emerald-400" /> {fmt(totalValue)}
                         </span>
                     </div>
 
                     {/* Action buttons — full width on mobile */}
                     <div className="flex gap-2">
                         <button onClick={() => setShowHelp(true)}
-                            className="glass hover:bg-white/25 text-white px-3 md:px-4 py-2 rounded-xl font-medium transition-all text-sm flex items-center gap-2">
+                            className="bg-slate-800/80 hover:bg-slate-700 border border-slate-700/50 text-slate-300 px-3 md:px-4 py-2 rounded-xl font-medium transition-colors duration-200 text-sm flex items-center gap-2 backdrop-blur-sm">
                             <HelpCircle size={15} /> <span className="hidden sm:inline">Help</span>
                         </button>
                         <button onClick={() => { resetForm(); setShowForm(true); }}
-                            className="flex-1 md:flex-none bg-white text-indigo-700 px-4 py-2 rounded-xl font-bold hover:shadow-lg hover:bg-indigo-50 transition-all text-sm flex items-center justify-center gap-2">
+                            className="flex-1 md:flex-none bg-indigo-600 text-white px-5 py-2 rounded-xl font-medium hover:bg-indigo-500 hover:shadow-[0_0_20px_rgba(79,70,229,0.3)] transition-all duration-200 text-sm flex items-center justify-center gap-2 border border-indigo-500/50">
                             <Plus size={15} /> New Project
                         </button>
                     </div>

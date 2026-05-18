@@ -176,7 +176,9 @@ const login = async (req, res) => {
                 role: user.role,
                 fullName: user.full_name,
                 phoneNumber: user.phone_number,
-                course: user.course
+                course: user.course,
+                status: user.status,
+                createdAt: user.created_at
             }
         });
     } catch (error) {
@@ -205,7 +207,8 @@ const getCurrentUser = async (req, res) => {
             fullName: user.full_name,
             phoneNumber: user.phone_number,
             course: user.course,
-            status: user.status
+            status: user.status,
+            createdAt: user.created_at
         });
     } catch (error) {
         console.error('Get current user error:', error);

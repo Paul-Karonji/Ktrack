@@ -30,6 +30,7 @@ const AccountInfo = ({ user }) => {
     };
 
     const getStatusBadge = (status) => {
+        const safeStatus = status || 'pending';
         const badges = {
             approved: 'bg-green-100 text-green-800',
             pending: 'bg-yellow-100 text-yellow-800',
@@ -37,8 +38,8 @@ const AccountInfo = ({ user }) => {
             suspended: 'bg-gray-100 text-gray-800'
         };
         return (
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${badges[status] || badges.pending}`}>
-                {status?.charAt(0).toUpperCase() + status?.slice(1)}
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${badges[safeStatus] || badges.pending}`}>
+                {safeStatus.charAt(0).toUpperCase() + safeStatus.slice(1)}
             </span>
         );
     };
@@ -88,17 +89,17 @@ const AccountInfo = ({ user }) => {
                     <Calendar className="text-blue-600 mt-1" size={20} />
                     <div className="flex-1">
                         <p className="text-sm font-semibold text-gray-500 mb-1">Member Since</p>
-                        <p className="text-lg font-semibold text-gray-900">{formatDate(user?.created_at)}</p>
+                        <p className="text-lg font-semibold text-gray-900">{formatDate(user?.created_at || user?.createdAt)}</p>
                     </div>
                 </div>
 
                 {/* Last Updated */}
-                {user?.updated_at && (
+                {(user?.updated_at || user?.updatedAt) && (
                     <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl">
                         <Clock className="text-orange-600 mt-1" size={20} />
                         <div className="flex-1">
                             <p className="text-sm font-semibold text-gray-500 mb-1">Last Updated</p>
-                            <p className="text-lg font-semibold text-gray-900">{formatDate(user?.updated_at)}</p>
+                            <p className="text-lg font-semibold text-gray-900">{formatDate(user?.updated_at || user?.updatedAt)}</p>
                         </div>
                     </div>
                 )}

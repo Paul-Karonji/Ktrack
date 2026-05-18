@@ -316,6 +316,12 @@ const DatabasePatchService = {
             );
 
             await safeExecute(
+                `UPDATE users SET role = 'superadmin' WHERE role = 'admin'`,
+                'users.role update patch warning',
+                ['ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
                 `ALTER TABLE tasks ADD COLUMN assigned_tutor_id INT NULL`,
                 'tasks.assigned_tutor_id column patch warning',
                 ['ER_DUP_FIELDNAME']

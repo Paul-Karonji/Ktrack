@@ -90,6 +90,11 @@ const Clients = () => {
     const [usersLoading, setUsersLoading] = useState(true);
     const [userFilter, setUserFilter] = useState('all');
 
+    // Invited Clients State
+    const [referredClients, setReferredClients] = useState([]);
+    const [referredClientsLoading, setReferredClientsLoading] = useState(true);
+    const [inviteCopied, setInviteCopied] = useState(false);
+
     // Guest Clients State
     const [guests, setGuests] = useState([]);
     const [guestsLoading, setGuestsLoading] = useState(true);
@@ -137,10 +142,30 @@ const Clients = () => {
         }
     }, []);
 
+    const fetchReferredClients = useCallback(async () => {
+        try {
+            setReferredClientsLoading(true);
+            const response = await api.get('/users/me/referrals');
+            setReferredClients(response.data.referrals || []);
+        } catch (error) {
+            console.error('Failed to fetch referrals', error);
+        } finally {
+            setReferredClientsLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
         if (activeTab === 'registered') fetchUsers();
-        else fetchGuests();
-    }, [activeTab, fetchUsers, fetchGuests]);
+        else if (activeTab === 'guests') fetchGuests();
+        else if (activeTab === 'invites') fetchReferredClients();
+    }, [activeTab, fetchUsers, fetchGuests, fetchReferredClients]);
+
+    const inviteLink = `${window.location.origin}/register?ref=${user?.referralCode || ''}`;
+    const handleCopyInvite = () => {
+        navigator.clipboard.writeText(inviteLink);
+        setInviteCopied(true);
+        setTimeout(() => setInviteCopied(false), 2000);
+    };
 
     // ── Registered Users Actions ──────────────────────────────────────────────
     const runUserAction = async (userId, apiFn, successStatus) => {
@@ -409,6 +434,12 @@ const Clients = () => {
                                 className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'guests' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-gray-600 hover:bg-gray-50'}`}
                             >
                                 Guest Clients
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('invites')}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'invites' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-gray-600 hover:bg-gray-50'}`}
+                            >
+                                Invite Clients
                             </button>
                         </div>
                     </div>
@@ -687,6 +718,108 @@ const Clients = () => {
                                 </div>
                             )}
                         </>
+                    )}
+
+                    {/* INVITE CLIENTS VIEW */}
+                    {activeTab === 'invites' && (
+                        <div className="space-y-8 animate-in fade-in duration-200">
+                            {/* Invite Card */}
+                            <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-8 relative overflow-hidden">
+                                <div className="absolute right-0 top-0 w-64 h-64 bg-indigo-50/50 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+                                <div className="absolute left-0 bottom-0 w-64 h-64 bg-purple-50/30 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20"></div>
+
+                                <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-8">
+                                    <div className="flex-1 space-y-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center">
+                                            <Sparkles className="w-6 h-6 text-indigo-600" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-gray-900">Invite Your Clients</h2>
+                                            <p className="text-gray-500 mt-1 max-w-xl text-sm leading-relaxed">
+                                                Onboard clients directly to your dashboard. When they sign up using your unique invite link, they are automatically connected as your referred clients, letting you view their details and claim their tasks instantly.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="w-full md:w-auto bg-gray-50 rounded-2xl p-6 border border-gray-100 min-w-[320px] md:min-w-[400px]">
+                                        <label className="block text-xs font-black uppercase text-gray-400 mb-2 ml-1">Your Unique Invite Link</label>
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="text"
+                                                readOnly
+                                                value={inviteLink}
+                                                className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-600 font-medium focus:outline-none"
+                                            />
+                                            <button
+                                                onClick={handleCopyInvite}
+                                                className="flex items-center gap-2 px-5 py-3 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-md shadow-indigo-100"
+                                            >
+                                                {inviteCopied ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
+                                                {inviteCopied ? 'Copied!' : 'Copy'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Referrals List */}
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                    <Users className="w-5 h-5 text-indigo-600" />
+                                    Your Invited Clients ({referredClients.length})
+                                </h3>
+
+                                {referredClientsLoading ? <LoadingSpinner /> : referredClients.length === 0 ? (
+                                    <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
+                                        <Users size={48} className="mx-auto text-gray-200 mb-4" />
+                                        <p className="text-gray-400 font-bold">You haven't referred any clients yet.</p>
+                                        <p className="text-sm text-gray-400 mt-1">Share your link above to get started!</p>
+                                    </div>
+                                ) : (
+                                    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left">
+                                                <thead className="bg-gray-50 border-b border-gray-100">
+                                                    <tr>
+                                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Client Name</th>
+                                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Contact Info</th>
+                                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-center">Joined Date</th>
+                                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-center">Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-50">
+                                                    {referredClients.map(ref => (
+                                                        <tr key={ref.id} className="hover:bg-gray-50/50 transition-colors">
+                                                            <td className="p-4">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                                                                        {ref.full_name?.charAt(0).toUpperCase()}
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="font-bold text-gray-900">{ref.full_name}</div>
+                                                                        <div className="text-xs text-gray-400 font-medium">{ref.course || 'No Program'}</div>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <div className="text-sm font-semibold text-gray-700">{ref.email}</div>
+                                                                <div className="text-xs text-gray-400">{ref.phone_number || 'No Phone'}</div>
+                                                            </td>
+                                                            <td className="p-4 text-sm text-gray-500 font-medium text-center">
+                                                                {new Date(ref.created_at).toLocaleDateString()}
+                                                            </td>
+                                                            <td className="p-4 text-center">
+                                                                <StatusBadge status={ref.status} />
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     )}
                 </div>
 

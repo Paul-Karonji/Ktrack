@@ -1383,7 +1383,8 @@ class PaymentController {
                 depositRemindersEnabled,
                 depositReminderIntervalHours,
                 balanceRemindersEnabled,
-                balanceReminderIntervalDays
+                balanceReminderIntervalDays,
+                referralDiscountAmount
             } = req.body;
 
             if (!Number.isInteger(Number(depositReminderIntervalHours)) || Number(depositReminderIntervalHours) < 1 || Number(depositReminderIntervalHours) > 168) {
@@ -1394,11 +1395,16 @@ class PaymentController {
                 return res.status(400).json({ success: false, message: 'Balance reminder interval must be an integer between 1 and 90 days.' });
             }
 
+            if (referralDiscountAmount !== undefined && (isNaN(Number(referralDiscountAmount)) || Number(referralDiscountAmount) < 0)) {
+                return res.status(400).json({ success: false, message: 'Referral discount amount must be a positive number.' });
+            }
+
             const settings = await PaymentSettings.update({
                 depositRemindersEnabled,
                 depositReminderIntervalHours,
                 balanceRemindersEnabled,
-                balanceReminderIntervalDays
+                balanceReminderIntervalDays,
+                referralDiscountAmount
             }, req.user.id);
 
             return res.status(200).json({ success: true, data: settings });

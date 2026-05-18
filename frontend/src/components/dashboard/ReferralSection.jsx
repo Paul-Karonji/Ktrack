@@ -10,8 +10,8 @@ const ReferralSection = ({ user }) => {
     useEffect(() => {
         const fetchReferrals = async () => {
             try {
-                const response = await api.get('/users/me/referrals');
-                setReferrals(response.data.referrals || []);
+                const data = await api.getMyReferrals();
+                setReferrals(data.referrals || []);
             } catch (error) {
                 console.error('Failed to fetch referrals:', error);
             } finally {

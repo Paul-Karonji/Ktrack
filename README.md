@@ -44,12 +44,13 @@ To avoid unnecessary overhead, email dispatch is optimized down to exactly **5 e
 
 *All generic event notifications (like new task uploads or payments) have been replaced with efficient, in-app `Notification` models and Socket.IO events.*
 
-### 4. Client Referral Program
+### 4. Client & Tutor Referral Program
 A fully integrated, dynamic referral tracking system to incentivize word-of-mouth client acquisition:
-*   **Unique Code Generation**: Every registered user is automatically assigned a unique 8-character uppercase referral code generated on signup (e.g., `KTR-X9Y1Z`).
-*   **Personalized Referral Links**: Clients can copy their pre-formatted invite link (`/register?ref=CODE`) in one click from their dashboard's **Refer & Earn** section.
-*   **Referral Table**: Clients can track their referred users and their account verification status in real-time.
-*   **Discount Balances**: The database tracks `referral_discount_balance` for each client. Integrated hooks (`User.addReferralDiscount` and `User.consumeReferralDiscount`) allow seamless reward allocation and consumption during checkouts.
+*   **Unique Code Generation**: Every registered user and tutor is automatically assigned a unique 8-character uppercase referral code generated on signup (e.g., `KTR-X9Y1Z`).
+*   **Personalized Referral Links**: Clients and tutors can copy their pre-formatted invite link (`/register?ref=CODE`) in one click from their dashboard's **Refer & Earn** or **Invite Clients** section.
+*   **Tutor Scoped Invitations**: Tutors can invite their clients and maintain a real-time tracking list of their invited clients. Tutors can see their clients' details if they are the ones who referred them.
+*   **Superadmin Configurable Rewards**: Superadmins can dynamically adjust the referral discount amount directly from the **Payments Settings** dashboard.
+*   **Dynamic Balances & Crediting**: The database tracks `referral_discount_balance` for each client. When a referred client is approved, K-Track automatically retrieves the configured reward amount and dynamically credits the referrer's balance. Integrated hooks allow seamless discount consumption during checkout.
 
 ### 5. Automated Database Patch Service (`databasePatchService.js`)
 *   **Idempotency**: A fully robust startup patcher scans the database, adding missing tables (`guest_clients`, `notifications`), executing column migrations (e.g., auth tokens and referral properties), and modifying role ENUMs dynamically on boot.
@@ -160,11 +161,13 @@ my-task-tracker/
 
 ## 🛠️ Administrative & Helper Scripts
 
-All administrative helpers reside in `backend/scripts/` and should be executed with Node:
+All administrative helpers reside in `backend/scripts/` or `backend/scratch/` and should be executed with Node:
 *   `node scripts/list_all_users.js` — Quick console dump of all users, roles, and verification states.
 *   `node scripts/reset_admin_password.js` — Reset password for the main admin.
 *   `node scripts/reset_client_password.js` — Hard reset client accounts.
 *   `node scripts/verify_admin.js` — Manually trigger a mock verification callback.
+*   `node scratch/verify_referral_rewards.js` — Runs programmatic end-to-end verification assertions for referral settings and balance-crediting hooks.
+*   `node scratch/reset_password.js` — Reset local development credentials to a known value for testing.
 
 ---
 

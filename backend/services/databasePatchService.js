@@ -576,6 +576,12 @@ const DatabasePatchService = {
             );
 
             await safeExecute(
+                `ALTER TABLE payment_settings ADD COLUMN referral_discount_amount DECIMAL(10, 2) NOT NULL DEFAULT 10.00`,
+                'payment_settings.referral_discount_amount column patch warning',
+                ['ER_DUP_FIELDNAME', 'ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
                 `CREATE TABLE IF NOT EXISTS bulk_payment_intents (
                     id INT PRIMARY KEY AUTO_INCREMENT,
                     client_id INT NOT NULL,

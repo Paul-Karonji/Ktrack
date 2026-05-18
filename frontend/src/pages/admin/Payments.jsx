@@ -50,7 +50,8 @@ const Payments = () => {
         depositRemindersEnabled: true,
         depositReminderIntervalHours: 24,
         balanceRemindersEnabled: true,
-        balanceReminderIntervalDays: 7
+        balanceReminderIntervalDays: 7,
+        referralDiscountAmount: 10.00
     });
     const [savingSettings, setSavingSettings] = useState(false);
     const [sendingAll, setSendingAll] = useState(false);
@@ -74,7 +75,8 @@ const Payments = () => {
                     depositRemindersEnabled: Boolean(settingsResponse.data.deposit_reminders_enabled),
                     depositReminderIntervalHours: Number(settingsResponse.data.deposit_reminder_interval_hours || 24),
                     balanceRemindersEnabled: Boolean(settingsResponse.data.balance_reminders_enabled),
-                    balanceReminderIntervalDays: Number(settingsResponse.data.balance_reminder_interval_days || 7)
+                    balanceReminderIntervalDays: Number(settingsResponse.data.balance_reminder_interval_days || 7),
+                    referralDiscountAmount: Number(settingsResponse.data.referral_discount_amount || 10.00)
                 });
             }
 
@@ -276,7 +278,7 @@ const Payments = () => {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <label className="rounded-2xl border border-gray-100 p-4 bg-gray-50 space-y-3">
                                     <div className="flex items-center justify-between gap-4">
                                         <span className="font-bold text-gray-800">Deposit Reminders</span>
@@ -321,6 +323,25 @@ const Payments = () => {
                                             max="90"
                                             name="balanceReminderIntervalDays"
                                             value={settings.balanceReminderIntervalDays}
+                                            onChange={handleSettingsChange}
+                                            className="w-full rounded-xl border border-gray-200 px-3 py-2 font-semibold"
+                                        />
+                                    </div>
+                                </label>
+
+                                <label className="rounded-2xl border border-gray-100 p-4 bg-gray-50 space-y-3">
+                                    <div className="flex items-center justify-between gap-4">
+                                        <span className="font-bold text-gray-800">Referral Reward</span>
+                                        <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">USD Amount</span>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs uppercase tracking-[0.18em] font-black text-gray-400 mb-2">Discount Reward ($)</p>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            name="referralDiscountAmount"
+                                            value={settings.referralDiscountAmount || 0}
                                             onChange={handleSettingsChange}
                                             className="w-full rounded-xl border border-gray-200 px-3 py-2 font-semibold"
                                         />

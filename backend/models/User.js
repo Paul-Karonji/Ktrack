@@ -145,8 +145,8 @@ class User {
     }
 
     if (filters.tutorId) {
-      query += ' AND u.id IN (SELECT DISTINCT client_id FROM tasks WHERE assigned_tutor_id = ? AND client_id IS NOT NULL)';
-      params.push(filters.tutorId);
+      query += ' AND (u.id IN (SELECT DISTINCT client_id FROM tasks WHERE assigned_tutor_id = ? AND client_id IS NOT NULL) OR u.referred_by = ?)';
+      params.push(filters.tutorId, filters.tutorId);
     }
 
     query += ' ORDER BY created_at DESC';
@@ -175,10 +175,25 @@ class User {
 
   // Approve user
   static async approve(userId, approvedBy) {
-    await pool.execute(
-      'UPDATE users SET status = ?, approved_at = CURRENT_TIMESTAMP, approved_by = ? WHERE id = ?',
-      ['approved', approvedBy, userId]
-    );
+    const user = await this.findById(userId);
+    if (user && user.status !== 'approved') {
+      await pool.execute(
+        'UPDATE users SET status = ?, approved_at = CURRENT_TIMESTAMP, approved_by = ? WHERE id = ?',
+        ['approved', approvedBy, userId]
+      );
+      
+      // Credit referrer client if applicable
+      if (user.referred_by) {
+        const referrer = await this.findById(user.referred_by);
+        if (referrer && referrer.role === 'client') {
+          const PaymentSettings = require('./PaymentSettings');
+          const settings = await PaymentSettings.get();
+          const rewardAmount = settings.referral_discount_amount !== undefined ? Number(settings.referral_discount_amount) : 10.00;
+          await this.addReferralDiscount(user.referred_by, rewardAmount);
+          console.log(`[Referral] Credited client ${user.referred_by} with $${rewardAmount} for referring user ${userId}`);
+        }
+      }
+    }
     return this.findById(userId);
   }
 
@@ -286,13 +301,36 @@ class User {
 
   // Mark email as verified and auto-approve account
   static async markEmailVerified(userId) {
-    await pool.execute(
-      `UPDATE users 
-       SET email_verified = 1, status = 'approved', approved_at = CURRENT_TIMESTAMP,
-           email_verification_token = NULL, email_verification_token_expires = NULL
-       WHERE id = ?`,
-      [userId]
-    );
+    const user = await this.findById(userId);
+    if (user && user.status !== 'approved') {
+      await pool.execute(
+        `UPDATE users 
+         SET email_verified = 1, status = 'approved', approved_at = CURRENT_TIMESTAMP,
+             email_verification_token = NULL, email_verification_token_expires = NULL
+         WHERE id = ?`,
+        [userId]
+      );
+      
+      // Credit referrer client if applicable
+      if (user.referred_by) {
+        const referrer = await this.findById(user.referred_by);
+        if (referrer && referrer.role === 'client') {
+          const PaymentSettings = require('./PaymentSettings');
+          const settings = await PaymentSettings.get();
+          const rewardAmount = settings.referral_discount_amount !== undefined ? Number(settings.referral_discount_amount) : 10.00;
+          await this.addReferralDiscount(user.referred_by, rewardAmount);
+          console.log(`[Referral] Credited client ${user.referred_by} with $${rewardAmount} for referring user ${userId}`);
+        }
+      }
+    } else if (user) {
+      await pool.execute(
+        `UPDATE users 
+         SET email_verified = 1,
+             email_verification_token = NULL, email_verification_token_expires = NULL
+         WHERE id = ?`,
+        [userId]
+      );
+    }
     return this.findById(userId);
   }
 
@@ -325,10 +363,11 @@ class User {
   static async getStats(tutorId = null) {
     if (tutorId) {
       const [regClientStats] = await pool.execute(`
-        SELECT COUNT(DISTINCT client_id) as active_reg_clients
-        FROM tasks
-        WHERE assigned_tutor_id = ? AND client_id IS NOT NULL
-      `, [tutorId]);
+        SELECT COUNT(DISTINCT id) as active_reg_clients
+        FROM users
+        WHERE id IN (SELECT DISTINCT client_id FROM tasks WHERE assigned_tutor_id = ? AND client_id IS NOT NULL)
+           OR referred_by = ?
+      `, [tutorId, tutorId]);
       
       const [guestClientStats] = await pool.execute(`
         SELECT COUNT(DISTINCT guest_client_id) as active_guest_clients

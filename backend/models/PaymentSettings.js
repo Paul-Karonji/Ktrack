@@ -6,6 +6,7 @@ const DEFAULT_SETTINGS = {
     deposit_reminder_interval_hours: 24,
     balance_reminders_enabled: 1,
     balance_reminder_interval_days: 7,
+    referral_discount_amount: 10.00,
     updated_by: null,
     updated_at: null
 };
@@ -27,18 +28,20 @@ class PaymentSettings {
             depositRemindersEnabled: settings.depositRemindersEnabled ? 1 : 0,
             depositReminderIntervalHours: Number(settings.depositReminderIntervalHours),
             balanceRemindersEnabled: settings.balanceRemindersEnabled ? 1 : 0,
-            balanceReminderIntervalDays: Number(settings.balanceReminderIntervalDays)
+            balanceReminderIntervalDays: Number(settings.balanceReminderIntervalDays),
+            referralDiscountAmount: settings.referralDiscountAmount !== undefined ? Number(settings.referralDiscountAmount) : 10.00
         };
 
         await executor.execute(
             `INSERT INTO payment_settings
-                (id, deposit_reminders_enabled, deposit_reminder_interval_hours, balance_reminders_enabled, balance_reminder_interval_days, updated_by)
-             VALUES (1, ?, ?, ?, ?, ?)
+                (id, deposit_reminders_enabled, deposit_reminder_interval_hours, balance_reminders_enabled, balance_reminder_interval_days, referral_discount_amount, updated_by)
+             VALUES (1, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                 deposit_reminders_enabled = VALUES(deposit_reminders_enabled),
                 deposit_reminder_interval_hours = VALUES(deposit_reminder_interval_hours),
                 balance_reminders_enabled = VALUES(balance_reminders_enabled),
                 balance_reminder_interval_days = VALUES(balance_reminder_interval_days),
+                referral_discount_amount = VALUES(referral_discount_amount),
                 updated_by = VALUES(updated_by),
                 updated_at = CURRENT_TIMESTAMP`,
             [
@@ -46,6 +49,7 @@ class PaymentSettings {
                 payload.depositReminderIntervalHours,
                 payload.balanceRemindersEnabled,
                 payload.balanceReminderIntervalDays,
+                payload.referralDiscountAmount,
                 adminId || null
             ]
         );

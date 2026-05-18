@@ -19,8 +19,8 @@ const AdminReferrals = () => {
     const fetchReferrals = async () => {
         try {
             setLoading(true);
-            const response = await apiService.api.get('/users/all/referrals');
-            setReferrals(response.data.referrals || []);
+            const data = await apiService.getAllReferrals();
+            setReferrals(data.referrals || []);
         } catch (error) {
             console.error('Failed to fetch referrals:', error);
         } finally {

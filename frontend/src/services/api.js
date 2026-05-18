@@ -141,11 +141,14 @@ export const restoreSession = async () => {
 
 // API Service object
 export const apiService = {
+    api,
     // Auth
     login: (credentials) => api.post('/auth/login', credentials),
     register: (userData) => api.post('/auth/register', userData),
     logout: () => api.post('/auth/logout'),
     getCurrentUser: () => api.get('/auth/me'),
+    getMyReferrals: () => api.get('/users/me/referrals').then(res => res.data),
+    getAllReferrals: () => api.get('/users/all/referrals').then(res => res.data),
 
     // Tasks
     getTasks: () => api.get('/tasks').then(res => res.data),

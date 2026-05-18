@@ -11,6 +11,7 @@ erDiagram
     USERS ||--o{ MESSAGES : "sends"
     USERS ||--o{ TASK_FILES : "uploads"
     USERS ||--o{ USERS : "approves (admin -> client)"
+    USERS ||--o{ USERS : "refers (referrer -> referee)"
     TASKS ||--o{ MESSAGES : "has"
     TASKS ||--o{ TASK_FILES : "contains"
 
@@ -22,6 +23,9 @@ erDiagram
         enum status "pending, approved, rejected, suspended"
         string course "Educational context"
         int approved_by FK
+        string referral_code UK "Unique referral code"
+        int referred_by FK "Referrer user ID"
+        decimal referral_discount_balance "Available referral discount balance"
     }
 
     TASKS {
@@ -86,6 +90,7 @@ The database shows a clear progression from a basic tracker to a complex managem
 4.  **Phase 4: Communication Layer**: Built the `messages` system to consolidate project discussions.
 5.  **Phase 5: User Engagement**: Added `notifications` to alert users of task updates or new messages.
 6.  **Phase 6: UI Refinement**: Added `task_name` to improve the clarity of task lists in the dashboards.
+7.  **Phase 7: Referral Program**: Integrated a client referral program tracking unique referral codes, referrer relationships (`referred_by`), and manual discount balances (`referral_discount_balance`).
 
 ---
 

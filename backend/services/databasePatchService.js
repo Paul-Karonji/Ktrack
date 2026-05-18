@@ -267,6 +267,79 @@ const DatabasePatchService = {
         console.log('[DatabasePatch] Checking for required schema updates...');
 
         try {
+            // --- Legacy Migration Consolidation: Phases 1 to 6 ---
+            await safeExecute(
+                `CREATE TABLE IF NOT EXISTS guest_clients (
+                  id INT PRIMARY KEY AUTO_INCREMENT,
+                  name VARCHAR(255) NOT NULL,
+                  email VARCHAR(255),
+                  phone VARCHAR(50),
+                  course VARCHAR(255),
+                  notes TEXT,
+                  password_hash VARCHAR(255),
+                  has_login_access BOOLEAN DEFAULT FALSE,
+                  upgraded_to_user_id INT NULL,
+                  upgraded_at TIMESTAMP NULL,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  FOREIGN KEY (upgraded_to_user_id) REFERENCES users(id) ON DELETE SET NULL
+                )`,
+                'guest_clients table creation warning'
+            );
+
+            await safeExecute(
+                `CREATE TABLE IF NOT EXISTS notifications (
+                  id INT PRIMARY KEY AUTO_INCREMENT,
+                  user_id INT NOT NULL,
+                  type VARCHAR(50) NOT NULL,
+                  title VARCHAR(255) NOT NULL,
+                  message TEXT NOT NULL,
+                  is_read BOOLEAN DEFAULT FALSE,
+                  reference_id INT,
+                  reference_type VARCHAR(50),
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )`,
+                'notifications table creation warning'
+            );
+
+            await safeExecute(
+                `ALTER TABLE users ADD COLUMN phone VARCHAR(50)`,
+                'users.phone column patch warning',
+                ['ER_DUP_FIELDNAME']
+            );
+
+            await safeExecute(
+                `ALTER TABLE users MODIFY COLUMN role ENUM('superadmin', 'tutor', 'client', 'admin') NOT NULL DEFAULT 'client'`,
+                'users.role enum patch warning',
+                ['ER_NO_SUCH_TABLE']
+            );
+
+            await safeExecute(
+                `ALTER TABLE tasks ADD COLUMN assigned_tutor_id INT NULL`,
+                'tasks.assigned_tutor_id column patch warning',
+                ['ER_DUP_FIELDNAME']
+            );
+
+            await safeExecute(
+                `ALTER TABLE tasks ADD CONSTRAINT fk_task_assigned_tutor FOREIGN KEY (assigned_tutor_id) REFERENCES users(id) ON DELETE SET NULL`,
+                'tasks.assigned_tutor_id foreign key patch warning',
+                ['ER_DUP_KEY', 'ER_CANT_CREATE_TABLE', 'ER_FK_DUP_NAME']
+            );
+
+            await safeExecute(
+                `ALTER TABLE tasks ADD COLUMN guest_client_id INT NULL`,
+                'tasks.guest_client_id column patch warning',
+                ['ER_DUP_FIELDNAME']
+            );
+
+            await safeExecute(
+                `ALTER TABLE tasks ADD CONSTRAINT fk_task_guest_client FOREIGN KEY (guest_client_id) REFERENCES guest_clients(id) ON DELETE SET NULL`,
+                'tasks.guest_client_id foreign key patch warning',
+                ['ER_DUP_KEY', 'ER_CANT_CREATE_TABLE', 'ER_FK_DUP_NAME', 'ER_KEY_COLUMN_DOES_NOT_EXITS']
+            );
+            // --- End Legacy Consolidation ---
+
             await safeExecute(
                 `ALTER TABLE messages MODIFY COLUMN file_type VARCHAR(255)`,
                 'messages.file_type patch warning',
@@ -691,6 +764,47 @@ const DatabasePatchService = {
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
                 'tutor_payout_requests table patch warning'
             );
+
+            await safeExecute(
+                `ALTER TABLE users
+                 ADD COLUMN referral_code VARCHAR(20) UNIQUE NULL,
+                 ADD COLUMN referred_by INT NULL,
+                 ADD COLUMN referral_discount_balance DECIMAL(10,2) DEFAULT 0.00`,
+                'users referral columns patch warning',
+                ['ER_DUP_FIELDNAME']
+            );
+
+            await safeExecute(
+                `ALTER TABLE users
+                 ADD CONSTRAINT fk_referred_by
+                 FOREIGN KEY (referred_by) REFERENCES users(id) ON DELETE SET NULL`,
+                'users referral foreign key patch warning',
+                ['ER_DUP_KEY', 'ER_CANT_CREATE_TABLE', 'ER_FK_DUP_NAME']
+            );
+
+            // Generate referral codes for existing users who don't have one
+            try {
+                const [existingNullUsers] = await pool.execute(`SELECT id FROM users WHERE referral_code IS NULL`);
+                if (existingNullUsers.length > 0) {
+                    console.log(`[DatabasePatch] Generating referral codes for ${existingNullUsers.length} existing users...`);
+                    const generateReferralCode = () => Math.random().toString(36).substring(2, 10).toUpperCase();
+                    for (const u of existingNullUsers) {
+                        let uniqueCode = false;
+                        let code = '';
+                        while (!uniqueCode) {
+                            code = generateReferralCode();
+                            const [existing] = await pool.execute(`SELECT id FROM users WHERE referral_code = ?`, [code]);
+                            if (existing.length === 0) {
+                                uniqueCode = true;
+                            }
+                        }
+                        await pool.execute(`UPDATE users SET referral_code = ? WHERE id = ?`, [code, u.id]);
+                    }
+                    console.log(`[DatabasePatch] Generated referral codes successfully.`);
+                }
+            } catch (err) {
+                console.warn('[DatabasePatch] Referral codes generation warning:', err.message);
+            }
 
             await backfillLegacyOfflinePayments();
             await backfillTaskPaymentProgress();

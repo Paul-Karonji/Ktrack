@@ -15,6 +15,9 @@ router.get('/tutors', authenticate, authorize(['client', 'tutor', 'superadmin'])
     }
 });
 
+// My Referrals - accessible to any authenticated user
+router.get('/me/referrals', authenticate, userController.getMyReferrals);
+
 // All remaining routes require authentication and admin role
 router.use(authenticate, requireAdmin);
 
@@ -35,5 +38,8 @@ router.post('/tutors', requireSuperadmin, userController.createTutor);
 router.get('/guests/search', requireSuperadmin, userController.searchGuests);
 router.get('/:id/matches', requireSuperadmin, userController.findPotentialGuestMatches);
 router.post('/:id/merge/:guestId', requireSuperadmin, userController.mergeGuestIntoUser);
+
+// Referral routes
+router.get('/all/referrals', requireSuperadmin, userController.getAllReferrals);
 
 module.exports = router;

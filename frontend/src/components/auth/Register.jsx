@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Link } from 'react-router-dom';
-import { UserPlus, User, Mail, Lock, Phone, BookOpen, AlertCircle, Eye, EyeOff, CheckCircle, Clock, ArrowRight, ChevronRight } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { UserPlus, User, Mail, Lock, Phone, BookOpen, AlertCircle, Eye, EyeOff, CheckCircle, Clock, ArrowRight, ChevronRight, Gift } from 'lucide-react';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 import ktrackLogo from '../../assets/images/ktrack_logo.png';
@@ -37,8 +37,20 @@ const Register = () => {
         password: '',
         confirmPassword: '',
         phoneNumber: '',
-        course: ''
+        phoneNumber: '',
+        course: '',
+        referralCode: ''
     });
+    
+    // Parse referral code from URL if present
+    const location = useLocation();
+    React.useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const ref = params.get('ref');
+        if (ref) {
+            setFormData(prev => ({ ...prev, referralCode: ref }));
+        }
+    }, [location]);
     const [localError, setLocalError] = useState('');
     const [success, setSuccess] = useState(false);
     const [registeredEmail, setRegisteredEmail] = useState('');
@@ -269,6 +281,24 @@ const Register = () => {
                                         placeholder="Computer Science"
                                     />
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Referral Code */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Referral Code (Optional)</label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Gift className="h-5 w-5 text-gray-400" />
+                                </div>
+                                <input
+                                    type="text"
+                                    name="referralCode"
+                                    value={formData.referralCode}
+                                    onChange={handleChange}
+                                    className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500"
+                                    placeholder="e.g. A1B2C3D4"
+                                />
                             </div>
                         </div>
 

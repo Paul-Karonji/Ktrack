@@ -16,6 +16,7 @@ import Payments from './pages/admin/Payments';
 import Payouts from './pages/Payouts';
 import PrivateRoute from './components/auth/PrivateRoute';
 import TutorManagement from './pages/admin/TutorManagement';
+import AdminReferrals from './pages/admin/AdminReferrals';
 import LandingPage from './pages/LandingPage';
 import MessagesPage from './pages/chat/MessagesPage';
 import WhatsAppButton from './components/common/WhatsAppButton';
@@ -93,6 +94,15 @@ const App = () => {
                 element={
                   <PrivateRoute allowedRoles={['superadmin']}>
                     <TutorManagement />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
+                path="/admin/referrals"
+                element={
+                  <PrivateRoute allowedRoles={['superadmin']}>
+                    <AdminReferrals />
                   </PrivateRoute>
                 }
               />

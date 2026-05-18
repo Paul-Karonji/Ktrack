@@ -15,6 +15,7 @@ class User {
   static async findById(id) {
     const [rows] = await pool.execute(`
       SELECT u.id, u.email, u.role, u.full_name, u.phone_number, u.course, u.status, u.created_at,
+             u.referral_code, u.referred_by, u.referral_discount_balance,
              (SELECT COUNT(*) FROM guest_clients gc 
               WHERE gc.upgraded_to_user_id IS NULL 
                 AND (
@@ -40,21 +41,70 @@ class User {
       fullName,
       phoneNumber = null,
       course = null,
-      role = 'client'
+      role = 'client',
+      referredBy = null
     } = userData;
 
     // Hash password
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
+    // Generate unique referral code
+    const generateReferralCode = () => Math.random().toString(36).substring(2, 10).toUpperCase();
+    let referralCode = '';
+    let isUnique = false;
+    while (!isUnique) {
+      referralCode = generateReferralCode();
+      const [existing] = await pool.execute('SELECT id FROM users WHERE referral_code = ?', [referralCode]);
+      if (existing.length === 0) {
+        isUnique = true;
+      }
+    }
+
     const [result] = await pool.execute(
       `INSERT INTO users 
-       (email, password_hash, role, full_name, phone_number, course, status) 
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [email, passwordHash, role, fullName, phoneNumber, course, (role === 'tutor' || role === 'superadmin') ? 'approved' : 'pending']
+       (email, password_hash, role, full_name, phone_number, course, status, referral_code, referred_by) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [email, passwordHash, role, fullName, phoneNumber, course, (role === 'tutor' || role === 'superadmin') ? 'approved' : 'pending', referralCode, referredBy]
     );
 
     return this.findById(result.insertId);
+  }
+
+  // Find user by referral code
+  static async findByReferralCode(code) {
+    const [rows] = await pool.execute(
+      'SELECT id, email, full_name, role FROM users WHERE referral_code = ?',
+      [code]
+    );
+    return rows[0];
+  }
+
+  // Get users referred by a specific user
+  static async getReferredUsers(userId) {
+    const [rows] = await pool.execute(
+      'SELECT id, email, full_name, status, created_at FROM users WHERE referred_by = ? ORDER BY created_at DESC',
+      [userId]
+    );
+    return rows;
+  }
+
+  // Add discount balance to a user
+  static async addReferralDiscount(userId, amount) {
+    await pool.execute(
+      'UPDATE users SET referral_discount_balance = referral_discount_balance + ? WHERE id = ?',
+      [amount, userId]
+    );
+    return this.findById(userId);
+  }
+
+  // Consume discount balance from a user
+  static async consumeReferralDiscount(userId, amount) {
+    await pool.execute(
+      'UPDATE users SET referral_discount_balance = referral_discount_balance - ? WHERE id = ? AND referral_discount_balance >= ?',
+      [amount, userId, amount]
+    );
+    return this.findById(userId);
   }
 
   // Verify password
@@ -66,6 +116,7 @@ class User {
   static async findAll(filters = {}) {
     let query = `
       SELECT u.id, u.email, u.role, u.full_name, u.phone_number, u.course, u.status, u.created_at,
+             u.referral_code, u.referred_by, u.referral_discount_balance,
              (SELECT COUNT(*) FROM guest_clients gc 
               WHERE gc.upgraded_to_user_id IS NULL 
                 AND (

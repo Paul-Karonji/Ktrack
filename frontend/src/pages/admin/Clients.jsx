@@ -436,13 +436,14 @@ const Clients = () => {
                                                     <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-widest">User</th>
                                                     <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Contact</th>
                                                     <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-center">Status</th>
+                                                    <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Referral Info</th>
                                                     <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-50">
                                                 {users.length === 0 ? (
                                                     <tr>
-                                                        <td colSpan="4" className="p-10 text-center text-gray-400">No registered users found.</td>
+                                                        <td colSpan="5" className="p-10 text-center text-gray-400">No registered users found.</td>
                                                     </tr>
                                                 ) : (
                                                     users.map(u => (
@@ -471,6 +472,16 @@ const Clients = () => {
                                                             </td>
                                                             <td className="p-4 text-center">
                                                                 <StatusBadge status={u.status} />
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <div className="text-xs text-gray-600 font-medium">
+                                                                    Code: <span className="text-indigo-600 font-bold">{u.referral_code || 'N/A'}</span>
+                                                                </div>
+                                                                {u.referred_by && (
+                                                                    <div className="text-[10px] text-gray-400 mt-0.5 uppercase tracking-widest font-bold flex items-center gap-1">
+                                                                        <Sparkles size={10} className="text-orange-400" /> Referred
+                                                                    </div>
+                                                                )}
                                                             </td>
                                                             {user.role !== 'tutor' && (
                                                                 <td className="p-4 text-right">

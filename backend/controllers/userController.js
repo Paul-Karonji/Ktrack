@@ -348,5 +348,37 @@ module.exports = {
             console.error('Error searching guests:', error);
             res.status(500).json({ error: 'Failed to search guests' });
         }
+    },
+
+    // Get referrals for the current user
+    getMyReferrals: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const referrals = await User.getReferredUsers(userId);
+            res.json({ success: true, referrals });
+        } catch (error) {
+            console.error('Error fetching referrals:', error);
+            res.status(500).json({ error: 'Failed to fetch referrals' });
+        }
+    },
+
+    // Get all referrals system-wide (admin only)
+    getAllReferrals: async (req, res) => {
+        try {
+            // Re-using findAll logic but could optimize if needed
+            const users = await User.findAll({});
+            const referrals = users.filter(u => u.referred_by !== null).map(u => {
+                const referrer = users.find(r => r.id === u.referred_by);
+                return {
+                    ...u,
+                    referrer_name: referrer ? referrer.full_name : 'Unknown',
+                    referrer_email: referrer ? referrer.email : 'Unknown'
+                };
+            });
+            res.json({ success: true, referrals });
+        } catch (error) {
+            console.error('Error fetching all referrals:', error);
+            res.status(500).json({ error: 'Failed to fetch all referrals' });
+        }
     }
 };

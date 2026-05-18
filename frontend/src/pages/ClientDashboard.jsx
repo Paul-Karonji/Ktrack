@@ -13,6 +13,7 @@ import ClientProjectCard from '../components/projects/ClientProjectCard';
 import { useNavigation } from '../context/NavigationContext';
 import BulkPaymentCard from '../components/payments/BulkPaymentCard';
 import useBulkPayment from '../hooks/useBulkPayment';
+import ReferralSection from '../components/dashboard/ReferralSection';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const getGreeting = () => {
@@ -357,6 +358,9 @@ const ClientDashboard = ({
                     </div>
                 </div>
             )}
+
+            {/* ── Referral Program ─────────────────────────────────────────── */}
+            <ReferralSection user={user} />
 
             {/* ── 5. Main Content ───────────────────────────────────────────── */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">

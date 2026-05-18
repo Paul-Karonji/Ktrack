@@ -5,7 +5,7 @@ const { generateTokens } = require('../utils/jwt');
 const register = async (req, res) => {
     const requestId = req.requestId || 'unknown';
     try {
-        const { email, password, fullName, phoneNumber, course } = req.body;
+        const { email, password, fullName, phoneNumber, course, referralCode } = req.body;
 
         // Validation
         if (!email || !password || !fullName) {
@@ -40,6 +40,18 @@ const register = async (req, res) => {
             console.log(`[${requestId}] [Auth] Potential guest match found for registration: ${email}`);
         }
 
+        // Handle Referral Code
+        let referredBy = null;
+        if (referralCode) {
+            const referrer = await User.findByReferralCode(referralCode);
+            if (referrer) {
+                referredBy = referrer.id;
+                console.log(`[${requestId}] [Auth] User referred by: ${referrer.id}`);
+            } else {
+                console.log(`[${requestId}] [Auth] Invalid referral code provided: ${referralCode}`);
+            }
+        }
+
         // Create user
         const user = await User.create({
             email,
@@ -47,7 +59,8 @@ const register = async (req, res) => {
             fullName,
             phoneNumber,
             course,
-            role: 'client'
+            role: 'client',
+            referredBy
         });
 
         console.log(`[${requestId}] [Auth] ✅ User registered successfully: ${user.id} (${email})`);
@@ -85,7 +98,9 @@ const register = async (req, res) => {
                 id: user.id,
                 email: user.email,
                 fullName: user.full_name,
-                status: user.status
+                status: user.status,
+                referralCode: user.referral_code,
+                referralDiscountBalance: user.referral_discount_balance
             }
         });
     } catch (error) {
@@ -178,7 +193,9 @@ const login = async (req, res) => {
                 phoneNumber: user.phone_number,
                 course: user.course,
                 status: user.status,
-                createdAt: user.created_at
+                createdAt: user.created_at,
+                referralCode: user.referral_code,
+                referralDiscountBalance: user.referral_discount_balance
             }
         });
     } catch (error) {
@@ -208,7 +225,9 @@ const getCurrentUser = async (req, res) => {
             phoneNumber: user.phone_number,
             course: user.course,
             status: user.status,
-            createdAt: user.created_at
+            createdAt: user.created_at,
+            referralCode: user.referral_code,
+            referralDiscountBalance: user.referral_discount_balance
         });
     } catch (error) {
         console.error('Get current user error:', error);
@@ -309,7 +328,9 @@ const updateProfile = async (req, res) => {
                 role: updatedUser.role,
                 fullName: updatedUser.full_name,
                 phoneNumber: updatedUser.phone_number,
-                course: updatedUser.course
+                course: updatedUser.course,
+                referralCode: updatedUser.referral_code,
+                referralDiscountBalance: updatedUser.referral_discount_balance
             }
         });
     } catch (error) {
@@ -418,7 +439,9 @@ const updateEmail = async (req, res) => {
                 role: updatedUser.role,
                 fullName: updatedUser.full_name,
                 phoneNumber: updatedUser.phone_number,
-                course: updatedUser.course
+                course: updatedUser.course,
+                referralCode: updatedUser.referral_code,
+                referralDiscountBalance: updatedUser.referral_discount_balance
             }
         });
     } catch (error) {

@@ -49,10 +49,11 @@ const StatusBadge = ({ status }) => {
         suspended: 'bg-orange-100 text-orange-800',
         rejected: 'bg-red-100 text-red-800',
     };
+    const label = status === 'pending' ? 'Awaiting Verification' : status.charAt(0).toUpperCase() + status.slice(1);
     return (
         <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${styles[status] || 'bg-gray-100 text-gray-700'}`}>
             {status === 'pending' && <Clock size={11} />}
-            {status.charAt(0).toUpperCase() + status.slice(1)}
+            {label}
         </span>
     );
 };
@@ -391,7 +392,7 @@ const Clients = () => {
                                 <h1 className="text-3xl md:text-4xl font-bold text-gray-800">Client Management</h1>
                             </div>
                             <p className="text-gray-500 ml-10 lg:ml-0">
-                                {activeTab === 'registered' ? 'Manage registered accounts and approvals' : 'Manage guest records and tracking'}
+                                {activeTab === 'registered' ? 'Manage registered accounts — approve, suspend, or remove clients' : 'Manage guest records and tracking'}
                             </p>
                         </div>
 

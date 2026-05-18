@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Mail, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import LoadingSpinner from '../common/LoadingSpinner';
+import { API_BASE_URL } from '../../services/api';
 
 import ktrackLogo from '../../assets/images/ktrack_logo.png';
 
@@ -11,9 +12,10 @@ const Login = () => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [localError, setLocalError] = useState('');
+    const [pendingVerification, setPendingVerification] = useState(false);
+    const [resendStatus, setResendStatus] = useState('');
     const { login, loading, error } = useAuth();
     const navigate = useNavigate();
-    // const location = useLocation();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -32,7 +34,9 @@ const Login = () => {
                 navigate('/client/dashboard');
             }
         } catch (err) {
-            // Error is handled by context
+            if (err?.requiresVerification) {
+                setPendingVerification(true);
+            }
         }
     };
 
@@ -54,6 +58,30 @@ const Login = () => {
                                 <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
                                 <p className="text-red-700 text-sm">{localError || error}</p>
                             </div>
+                            {pendingVerification && (
+                                <div className="mt-3">
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            setResendStatus('sending');
+                                            try {
+                                                await fetch(`${API_BASE_URL}/auth/resend-verification`, {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ email })
+                                                });
+                                                setResendStatus('sent');
+                                            } catch {
+                                                setResendStatus('error');
+                                            }
+                                        }}
+                                        disabled={resendStatus === 'sending' || resendStatus === 'sent'}
+                                        className="text-sm text-indigo-600 hover:text-indigo-500 font-medium underline disabled:opacity-60"
+                                    >
+                                        {resendStatus === 'sending' ? 'Sending...' : resendStatus === 'sent' ? 'Verification email sent!' : 'Resend verification email'}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -129,6 +157,11 @@ const Login = () => {
                                 Register here
                             </Link>
                         </p>
+                        <div className="mt-3">
+                            <Link to="/forgot-password" className="text-sm text-indigo-600 hover:text-indigo-500 font-medium">
+                                Forgot your password?
+                            </Link>
+                        </div>
                         <div className="mt-4 pt-4 border-t border-gray-100">
                             <Link to="/" className="text-sm font-medium text-gray-500 hover:text-gray-900 flex items-center justify-center gap-2 transition-colors">
                                 ← Back to Home

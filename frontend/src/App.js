@@ -21,6 +21,9 @@ import LandingPage from './pages/LandingPage';
 import MessagesPage from './pages/chat/MessagesPage';
 import WhatsAppButton from './components/common/WhatsAppButton';
 import GuestPaymentPage from './pages/GuestPaymentPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 const App = () => {
   return (
@@ -33,6 +36,9 @@ const App = () => {
               {/* Public Routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/guest/pay/:token" element={<GuestPaymentPage />} />
 
               {/* Protected Routes */}

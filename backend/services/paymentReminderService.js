@@ -1,7 +1,6 @@
 const { pool } = require('../config/database');
 const logger = require('../utils/logger');
-const EmailService = require('./emailService');
-const templates = require('../templates/emailTemplates');
+const Notification = require('../models/Notification');
 const PaymentSettings = require('../models/PaymentSettings');
 const { augmentTask, isReminderEligible, roundMoney } = require('./taskPaymentStateService');
 
@@ -122,8 +121,8 @@ class PaymentReminderService {
     }
 
     async sendReminderGroup(group, { source, triggeredBy = null, updateScheduledAt = false }) {
-        if (!group.email) {
-            return { success: false, reason: 'missing_email' };
+        if (!group.clientId) {
+            return { success: false, reason: 'missing_client_id' };
         }
 
         const totalDue = group.tasks.reduce(
@@ -131,21 +130,17 @@ class PaymentReminderService {
             0
         );
 
-        const { subject, html } = templates.paymentReminderSummary(
-            group.clientName,
-            group.tasks,
-            totalDue
-        );
-
-        const result = await EmailService.notifyClient({
-            to: group.email,
-            subject,
-            html
-        });
-
-        if (!result?.success) {
-            logger.warn(`Payment reminder email failed for client ${group.clientId}`);
-            return { success: false, reason: 'email_failed' };
+        // Create in-app notification instead of sending email
+        try {
+            await Notification.create({
+                recipientId: group.clientId,
+                recipientType: 'mentor',
+                type: 'payment_reminder',
+                message: `You have $${roundMoney(totalDue).toFixed(2)} outstanding across ${group.tasks.length} task(s). Please log in to clear your balance.`
+            });
+        } catch (notifError) {
+            logger.warn(`Payment reminder notification failed for client ${group.clientId}: ${notifError.message}`);
+            return { success: false, reason: 'notification_failed' };
         }
 
         await this.logReminderDispatch({

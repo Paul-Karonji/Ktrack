@@ -1,8 +1,6 @@
 const R2Service = require('../services/r2Service');
 const Task = require('../models/Task');
 const User = require('../models/User');
-const EmailService = require('../services/emailService');
-const templates = require('../templates/emailTemplates');
 const Notification = require('../models/Notification');
 const { invalidateCache } = require('../middleware/cache');
 
@@ -207,16 +205,10 @@ const FileController = {
                 files: results
             });
 
-            // Email Notifications
+            // In-App Notifications
             try {
-                // Determine notification direction
                 if (req.user.role === 'client') {
-                    // Client uploaded -> Notify Admin (Email + In-App)
-                    const { subject, html } = templates.newFileAdmin(req.user.full_name, files[0].originalname + (files.length > 1 ? ` (+${files.length - 1} others)` : ''), taskId, task.task_name);
-                    EmailService.notifyAdmin({ subject, html }).catch(e => console.error('Failed to notify admin of file upload:', e));
-
-                    // In-App for all Admins
-                    const admins = await User.findAdmins();
+                    const admins = await User.findTutors();
                     for (const admin of admins) {
                         Notification.create({
                             recipientId: admin.id,
@@ -226,25 +218,17 @@ const FileController = {
                         }).catch(e => console.error('Failed to create admin notification:', e));
                     }
                 } else if (req.user.role === 'tutor' || req.user.role === 'superadmin') {
-                    // Admin uploaded -> Notify Client
                     if (task.client_id) {
-                        const client = await User.findById(task.client_id);
-                        if (client && client.email) {
-                            const { subject, html } = templates.newFileClient(client.full_name, files[0].originalname + (files.length > 1 ? ` (+${files.length - 1} others)` : ''), taskId);
-                            EmailService.sendEmail({ to: client.email, subject, html }).catch(e => console.error('Failed to notify client of file upload:', e));
-
-                            // In-App
-                            Notification.create({
-                                recipientId: client.id,
-                                recipientType: 'mentor',
-                                type: 'new_file',
-                                message: `New file(s) uploaded to Task #${taskId}: ${files[0].originalname}${files.length > 1 ? '...' : ''}`
-                            }).catch(e => console.error('Failed to create client notification:', e));
-                        }
+                        Notification.create({
+                            recipientId: task.client_id,
+                            recipientType: 'mentor',
+                            type: 'new_file',
+                            message: `New file(s) uploaded to Task #${taskId}: ${files[0].originalname}${files.length > 1 ? '...' : ''}`
+                        }).catch(e => console.error('Failed to create client notification:', e));
                     }
                 }
-            } catch (emailError) {
-                console.error('File upload email error:', emailError);
+            } catch (notifError) {
+                console.error('File upload notification error:', notifError);
             }
         } catch (error) {
             console.error('Upload Controller Error:', error);

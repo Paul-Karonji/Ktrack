@@ -380,6 +380,106 @@ const templates = {
         return { subject: sanitizeSubject(`⚠️ K-Track Account Suspended`), html: baseTemplate(content, title) };
     },
 
+    // Sent to NEW USER on registration — asks them to verify their email
+    emailVerification: (user, verificationUrl) => {
+        const title = 'Verify Your Email Address';
+        const safeUrl = escapeAttribute(verificationUrl);
+        const content = `
+            <p style="color: #374151; font-size: 16px;">Hi <strong>${escapeHtml(user.full_name)}</strong>,</p>
+            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">
+                Thanks for signing up for K-Track! Please verify your email address to activate your account.
+            </p>
+            <div style="text-align: center; margin: 32px 0;">
+                <a href="${safeUrl}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px;">Verify My Email</a>
+            </div>
+            <div style="background-color: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 24px; border-left: 4px solid #e5e7eb;">
+                <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.6;">
+                    This link expires in <strong>24 hours</strong>. If you didn't create an account, you can safely ignore this email.
+                </p>
+            </div>
+            <p style="color: #6b7280; font-size: 13px;">
+                If the button doesn't work, copy and paste this URL into your browser:<br>
+                <a href="${safeUrl}" style="color: #4f46e5; word-break: break-all;">${escapeHtml(verificationUrl)}</a>
+            </p>
+        `;
+        return { subject: sanitizeSubject(`Verify your K-Track email address`), html: baseTemplate(content, title) };
+    },
+
+    // Sent to USER when they request a password reset
+    passwordReset: (user, resetUrl) => {
+        const title = 'Reset Your Password';
+        const safeUrl = escapeAttribute(resetUrl);
+        const content = `
+            <p style="color: #374151; font-size: 16px;">Hi <strong>${escapeHtml(user.full_name)}</strong>,</p>
+            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">
+                We received a request to reset your K-Track password. Click the button below to set a new one.
+            </p>
+            <div style="text-align: center; margin: 32px 0;">
+                <a href="${safeUrl}" style="display: inline-block; background-color: #dc2626; color: #ffffff; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px;">Reset My Password</a>
+            </div>
+            <div style="background-color: #fef2f2; border-radius: 8px; padding: 16px; margin-bottom: 24px; border-left: 4px solid #ef4444;">
+                <p style="margin: 0; color: #7f1d1d; font-size: 13px; line-height: 1.6;">
+                    This link expires in <strong>24 hours</strong>. If you didn't request a password reset, please ignore this email — your password will remain unchanged.
+                </p>
+            </div>
+            <p style="color: #6b7280; font-size: 13px;">
+                If the button doesn't work, copy and paste this URL into your browser:<br>
+                <a href="${safeUrl}" style="color: #dc2626; word-break: break-all;">${escapeHtml(resetUrl)}</a>
+            </p>
+        `;
+        return { subject: sanitizeSubject(`Reset your K-Track password`), html: baseTemplate(content, title) };
+    },
+
+    // Sent to TUTOR when superadmin creates their account
+    tutorWelcome: (tutorName, email, tempPassword) => {
+        const title = 'Welcome to K-Track — Your Tutor Account is Ready 🎓';
+        const safePassword = escapeHtml(tempPassword);
+        const safeEmail    = escapeHtml(email);
+        const safeName     = escapeHtml(tutorName);
+        const content = `
+            <p style="color: #374151; font-size: 16px;">Hi <strong>${safeName}</strong>,</p>
+            <p style="color: #374151; font-size: 16px; margin-bottom: 24px;">
+                You've been added as a tutor on <strong>K-Track</strong>. Your account is active and ready to use right now.
+            </p>
+
+            <!-- Credentials card -->
+            <div style="background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%); border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #c7d2fe;">
+                <p style="margin: 0 0 6px 0; color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Your Login Credentials</p>
+                <table role="presentation" style="width: 100%; border-collapse: collapse; margin-top: 12px;">
+                    <tr>
+                        <td style="padding: 8px 0; color: #374151; font-size: 14px; font-weight: 600; width: 120px;">Email</td>
+                        <td style="padding: 8px 0; color: #4f46e5; font-size: 14px; font-family: monospace;">${safeEmail}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; color: #374151; font-size: 14px; font-weight: 600;">Temp Password</td>
+                        <td style="padding: 8px 0;">
+                            <span style="background-color: #1e1b4b; color: #a5b4fc; font-family: monospace; font-size: 15px; padding: 4px 10px; border-radius: 6px; letter-spacing: 0.05em;">${safePassword}</span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- CTA -->
+            <div style="text-align: center; margin-bottom: 28px;">
+                <a href="${safeClientUrl}/login" style="display: inline-block; background: linear-gradient(to right, #4f46e5, #7c3aed); color: #ffffff; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 15px; letter-spacing: 0.01em;">
+                    Log In to K-Track →
+                </a>
+            </div>
+
+            <!-- Security notice -->
+            <div style="background-color: #fffbeb; border-radius: 8px; padding: 16px; margin-bottom: 24px; border-left: 4px solid #f59e0b;">
+                <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.6;">
+                    🔒 <strong>Important:</strong> This is a temporary password. Please log in and change it via <strong>Settings → Change Password</strong> as soon as possible.
+                </p>
+            </div>
+
+            <p style="color: #6b7280; font-size: 13px; margin-bottom: 4px;">
+                If you have any questions, reply to this email or contact your administrator.
+            </p>
+        `;
+        return { subject: sanitizeSubject(`Welcome to K-Track — Your tutor account is ready`), html: baseTemplate(content, title) };
+    },
+
     // Sent to CLIENT when admin reactivates their account
     accountReactivated: (userName) => {
         const title = 'Your Account Has Been Reactivated 🎉';

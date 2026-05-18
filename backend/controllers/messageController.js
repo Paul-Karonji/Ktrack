@@ -1,8 +1,6 @@
 const Message = require('../models/Message');
 const Task = require('../models/Task');
 const User = require('../models/User');
-const EmailService = require('../services/emailService');
-const templates = require('../templates/emailTemplates');
 const Notification = require('../models/Notification');
 const r2Service = require('../services/r2Service');
 const { getIo } = require('../services/socketService');
@@ -117,15 +115,9 @@ class MessageController {
 
             res.status(201).json(decoratedMessage);
 
-            // Email Notifications
+            // In-App Notifications
             try {
-                // Determine notification direction
                 if (req.user.role === 'client') {
-                    // Client sent message -> Notify Admin
-                    const { subject, html } = templates.newMessage(req.user.full_name, message, taskId);
-                    EmailService.notifyAdmin({ subject, html }).catch(e => console.error('Failed to notify tutor of new message:', e));
-
-                    // In-App: notify only assigned tutor or all tutors if general pool
                     const task = await Task.findById(taskId);
                     const tutors = task?.assigned_tutor_id
                         ? [await User.findById(task.assigned_tutor_id)].filter(Boolean)
@@ -139,26 +131,18 @@ class MessageController {
                         }).catch(e => console.error('Failed to create tutor notification:', e));
                     }
                 } else if (req.user.role === 'tutor' || req.user.role === 'superadmin') {
-                    // Admin sent message -> Notify Client
                     const task = await Task.findById(taskId);
                     if (task && task.client_id) {
-                        const client = await User.findById(task.client_id);
-                        if (client && client.email) {
-                            const { subject, html } = templates.newMessageClient(client.full_name, message, taskId);
-                            EmailService.sendEmail({ to: client.email, subject, html }).catch(e => console.error('Failed to notify client of new message:', e));
-
-                            // In-App
-                            Notification.create({
-                                recipientId: client.id,
-                                recipientType: 'mentor',
-                                type: 'new_message',
-                                message: `New reply on Task #${taskId} from your Tutor`
-                            }).catch(e => console.error('Failed to create client notification:', e));
-                        }
+                        Notification.create({
+                            recipientId: task.client_id,
+                            recipientType: 'mentor',
+                            type: 'new_message',
+                            message: `New reply on Task #${taskId} from your Tutor`
+                        }).catch(e => console.error('Failed to create client notification:', e));
                     }
                 }
-            } catch (emailError) {
-                console.error('Message email error:', emailError);
+            } catch (notifError) {
+                console.error('Message notification error:', notifError);
             }
         } catch (error) {
             console.error('Error sending message:', error);
@@ -230,23 +214,34 @@ class MessageController {
 
             res.status(201).json({ success: true, message: decoratedMessage });
 
-            // Send notifications (similar to text messages)
+            // In-App Notifications for file uploads
             try {
                 if (req.user.role === 'client') {
-                    const { subject, html } = templates.newMessage(req.user.full_name, `Sent a file: ${file.originalname}`, taskId);
-                    EmailService.notifyAdmin({ subject, html }).catch(e => console.error('Failed to notify admin:', e));
+                    const uploadTask = await Task.findById(taskId);
+                    const tutors = uploadTask?.assigned_tutor_id
+                        ? [await User.findById(uploadTask.assigned_tutor_id)].filter(Boolean)
+                        : await User.findTutors();
+                    for (const tutor of tutors) {
+                        Notification.create({
+                            recipientId: tutor.id,
+                            recipientType: 'admin',
+                            type: 'new_file',
+                            message: `${req.user.full_name} uploaded a file on Task #${taskId}`
+                        }).catch(e => console.error('Failed to create tutor notification:', e));
+                    }
                 } else if (req.user.role === 'tutor' || req.user.role === 'superadmin') {
-                    const task = await Task.findById(taskId);
-                    if (task && task.client_id) {
-                        const client = await User.findById(task.client_id);
-                        if (client && client.email) {
-                            const { subject, html } = templates.newMessageClient(client.full_name, `Sent a file: ${file.originalname}`, taskId);
-                            EmailService.sendEmail({ to: client.email, subject, html }).catch(e => console.error('Failed to notify client:', e));
-                        }
+                    const uploadTask = await Task.findById(taskId);
+                    if (uploadTask && uploadTask.client_id) {
+                        Notification.create({
+                            recipientId: uploadTask.client_id,
+                            recipientType: 'mentor',
+                            type: 'new_file',
+                            message: `A new file was uploaded to Task #${taskId}`
+                        }).catch(e => console.error('Failed to create client notification:', e));
                     }
                 }
-            } catch (emailError) {
-                console.error('File notification error:', emailError);
+            } catch (notifError) {
+                console.error('File notification error:', notifError);
             }
         } catch (error) {
             console.error('Error uploading file:', error);
@@ -359,16 +354,24 @@ class MessageController {
 
             res.status(201).json(decoratedMessage);
 
-            // Simple notification logic
+            // In-App notifications for general messages
             if (req.user.role === 'client') {
-                const { subject, html } = templates.newMessage(req.user.full_name, message, 'General Info');
-                EmailService.notifyAdmin({ subject, html }).catch(e => console.error(e));
-            } else if (req.user.role === 'tutor' || req.user.role === 'superadmin') {
-                const client = await User.findById(clientId);
-                if (client && client.email) {
-                    const { subject, html } = templates.newMessageClient(client.full_name, message, 'General Info');
-                    EmailService.sendEmail({ to: client.email, subject, html }).catch(e => console.error(e));
+                const tutors = await User.findTutors();
+                for (const tutor of tutors) {
+                    Notification.create({
+                        recipientId: tutor.id,
+                        recipientType: 'admin',
+                        type: 'new_message',
+                        message: `New general message from ${req.user.full_name}`
+                    }).catch(e => console.error(e));
                 }
+            } else if (req.user.role === 'tutor' || req.user.role === 'superadmin') {
+                Notification.create({
+                    recipientId: clientId,
+                    recipientType: 'mentor',
+                    type: 'new_message',
+                    message: `New message from your Tutor`
+                }).catch(e => console.error(e));
             }
         } catch (error) {
             console.error('Error sending general message:', error);

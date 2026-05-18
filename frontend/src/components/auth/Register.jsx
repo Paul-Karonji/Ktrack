@@ -114,9 +114,9 @@ const Register = () => {
                             </div>
                         </div>
 
-                        <h2 className="text-3xl font-extrabold text-gray-900 mb-2">Registration Successful!</h2>
+                        <h2 className="text-3xl font-extrabold text-gray-900 mb-2">Check Your Email</h2>
                         <p className="text-gray-600 text-lg mb-2">
-                            Your account request has been submitted.
+                            Almost there — verify your email to activate your account.
                         </p>
                         <p className="font-semibold text-indigo-600 mb-6 text-sm break-all">
                             {registeredEmail}
@@ -134,33 +134,33 @@ const Register = () => {
                                     <div className="w-0.5 h-8 bg-gray-200 mt-1" />
                                 </div>
                                 <div className="pt-1 flex-1">
-                                    <p className="text-sm font-semibold text-gray-800">Submitted</p>
-                                    <p className="text-xs text-gray-400">Your account request is in</p>
+                                    <p className="text-sm font-semibold text-gray-800">Account created</p>
+                                    <p className="text-xs text-gray-400">Your details have been saved</p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-3 text-left">
                                 {/* Step 2 */}
                                 <div className="flex flex-col items-center">
                                     <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0">
-                                        <Clock className="w-4 h-4 text-yellow-500" />
+                                        <Mail className="w-4 h-4 text-yellow-500" />
                                     </div>
                                     <div className="w-0.5 h-8 bg-gray-200 mt-1" />
                                 </div>
                                 <div className="pt-1 flex-1">
-                                    <p className="text-sm font-semibold text-gray-800">Admin review</p>
-                                    <p className="text-xs text-gray-400">We'll verify your details</p>
+                                    <p className="text-sm font-semibold text-gray-800">Verify your email</p>
+                                    <p className="text-xs text-gray-400">Click the link we sent to your inbox</p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-3 text-left">
                                 {/* Step 3 */}
                                 <div className="flex flex-col items-center">
                                     <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                                        <Mail className="w-4 h-4 text-indigo-500" />
+                                        <CheckCircle className="w-4 h-4 text-indigo-500" />
                                     </div>
                                 </div>
                                 <div className="pt-1 flex-1">
-                                    <p className="text-sm font-semibold text-gray-800">Email notification</p>
-                                    <p className="text-xs text-gray-400">You'll get an email once we approve your account</p>
+                                    <p className="text-sm font-semibold text-gray-800">Account activated</p>
+                                    <p className="text-xs text-gray-400">Log in and start submitting tasks</p>
                                 </div>
                             </div>
                         </div>
@@ -169,7 +169,7 @@ const Register = () => {
                         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 text-left flex gap-3">
                             <Mail className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                             <p className="text-xs text-blue-700 leading-relaxed">
-                                A confirmation email has been sent to <strong>{registeredEmail}</strong>. Check your inbox (and spam folder) for details.
+                                We sent a verification link to <strong>{registeredEmail}</strong>. The link expires in 24 hours. Check your spam folder if you don't see it.
                             </p>
                         </div>
 

@@ -30,10 +30,31 @@ const registerLimiter = rateLimit({
     legacyHeaders: false,
 });
 
+// Strict rate limiter for password reset / resend verification
+const passwordResetLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 5,
+    skipSuccessfulRequests: false,
+    message: {
+        success: false,
+        error: 'Too many requests. Please try again later.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 // Public routes with strict rate limiting
 router.post('/register', registerLimiter, authController.register);
 router.post('/login', loginLimiter, authController.login);
 router.all('/login', (req, res) => res.status(405).json({ message: 'Method Not Allowed' }));
+
+// Email verification
+router.get('/verify-email', authController.verifyEmail);
+router.post('/resend-verification', passwordResetLimiter, authController.resendVerification);
+
+// Password reset
+router.post('/forgot-password', passwordResetLimiter, authController.forgotPassword);
+router.post('/reset-password', authController.resetPassword);
 
 // Public routes without strict rate limiting (uses general API limiter from server.js)
 router.post('/logout', authController.logout);

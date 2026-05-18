@@ -61,11 +61,12 @@ class User {
       }
     }
 
+    const isAdminRole = role === 'tutor' || role === 'superadmin';
     const [result] = await pool.execute(
       `INSERT INTO users 
-       (email, password_hash, role, full_name, phone_number, course, status, referral_code, referred_by) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [email, passwordHash, role, fullName, phoneNumber, course, (role === 'tutor' || role === 'superadmin') ? 'approved' : 'pending', referralCode, referredBy]
+       (email, password_hash, role, full_name, phone_number, course, status, email_verified, referral_code, referred_by) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [email, passwordHash, role, fullName, phoneNumber, course, isAdminRole ? 'approved' : 'pending', isAdminRole ? 1 : 0, referralCode, referredBy]
     );
 
     return this.findById(result.insertId);
@@ -264,6 +265,60 @@ class User {
       [newEmail, userId]
     );
     return this.findById(userId);
+  }
+
+  // Find user by email verification token
+  static async findByVerificationToken(token) {
+    const [rows] = await pool.execute(
+      'SELECT * FROM users WHERE email_verification_token = ? AND email_verification_token_expires > NOW()',
+      [token]
+    );
+    return rows[0];
+  }
+
+  // Set email verification token
+  static async setVerificationToken(userId, token, expiresAt) {
+    await pool.execute(
+      'UPDATE users SET email_verification_token = ?, email_verification_token_expires = ? WHERE id = ?',
+      [token, expiresAt, userId]
+    );
+  }
+
+  // Mark email as verified and auto-approve account
+  static async markEmailVerified(userId) {
+    await pool.execute(
+      `UPDATE users 
+       SET email_verified = 1, status = 'approved', approved_at = CURRENT_TIMESTAMP,
+           email_verification_token = NULL, email_verification_token_expires = NULL
+       WHERE id = ?`,
+      [userId]
+    );
+    return this.findById(userId);
+  }
+
+  // Find user by password reset token
+  static async findByPasswordResetToken(token) {
+    const [rows] = await pool.execute(
+      'SELECT * FROM users WHERE password_reset_token = ? AND password_reset_token_expires > NOW()',
+      [token]
+    );
+    return rows[0];
+  }
+
+  // Set password reset token
+  static async setPasswordResetToken(userId, token, expiresAt) {
+    await pool.execute(
+      'UPDATE users SET password_reset_token = ?, password_reset_token_expires = ? WHERE id = ?',
+      [token, expiresAt, userId]
+    );
+  }
+
+  // Clear password reset token after use
+  static async clearPasswordResetToken(userId) {
+    await pool.execute(
+      'UPDATE users SET password_reset_token = NULL, password_reset_token_expires = NULL WHERE id = ?',
+      [userId]
+    );
   }
 
   // Get user stats

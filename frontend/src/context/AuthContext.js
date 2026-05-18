@@ -57,8 +57,11 @@ export const AuthProvider = ({ children }) => {
             return user;
         } catch (err) {
             const message = err.response?.data?.error || 'Login failed';
+            const requiresVerification = err.response?.data?.requiresVerification || false;
             setError(message);
-            throw new Error(message);
+            const error = new Error(message);
+            error.requiresVerification = requiresVerification;
+            throw error;
         } finally {
             setLoading(false);
         }

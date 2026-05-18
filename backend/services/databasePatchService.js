@@ -827,6 +827,50 @@ const DatabasePatchService = {
                 console.warn('[DatabasePatch] Referral codes generation warning:', err.message);
             }
 
+            // --- Email Verification & Password Reset Token Columns ---
+            await safeExecute(
+                `ALTER TABLE users ADD COLUMN email_verified TINYINT(1) NOT NULL DEFAULT 0`,
+                'users.email_verified column patch warning',
+                ['ER_DUP_FIELDNAME']
+            );
+
+            await safeExecute(
+                `ALTER TABLE users ADD COLUMN email_verification_token VARCHAR(255) NULL`,
+                'users.email_verification_token column patch warning',
+                ['ER_DUP_FIELDNAME']
+            );
+
+            await safeExecute(
+                `ALTER TABLE users ADD COLUMN email_verification_token_expires DATETIME NULL`,
+                'users.email_verification_token_expires column patch warning',
+                ['ER_DUP_FIELDNAME']
+            );
+
+            await safeExecute(
+                `ALTER TABLE users ADD COLUMN password_reset_token VARCHAR(255) NULL`,
+                'users.password_reset_token column patch warning',
+                ['ER_DUP_FIELDNAME']
+            );
+
+            await safeExecute(
+                `ALTER TABLE users ADD COLUMN password_reset_token_expires DATETIME NULL`,
+                'users.password_reset_token_expires column patch warning',
+                ['ER_DUP_FIELDNAME']
+            );
+
+            // Backfill: existing approved/tutor/superadmin accounts are already verified
+            try {
+                const emailVerifiedExists = await columnExists('users', 'email_verified');
+                if (emailVerifiedExists) {
+                    await pool.execute(
+                        `UPDATE users SET email_verified = 1 WHERE (status = 'approved' OR role IN ('tutor', 'superadmin')) AND email_verified = 0`
+                    );
+                    console.log('[DatabasePatch] Backfilled email_verified for existing approved users.');
+                }
+            } catch (err) {
+                console.warn('[DatabasePatch] email_verified backfill warning:', err.message);
+            }
+
             await backfillLegacyOfflinePayments();
             await backfillTaskPaymentProgress();
             await logSchemaStatus();

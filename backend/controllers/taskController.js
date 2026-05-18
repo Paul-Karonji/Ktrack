@@ -1,7 +1,5 @@
 const Task = require('../models/Task');
 const User = require('../models/User');
-const EmailService = require('../services/emailService');
-const templates = require('../templates/emailTemplates');
 const Notification = require('../models/Notification');
 const { invalidateCache } = require('../middleware/cache');
 const {
@@ -167,18 +165,10 @@ class TaskController {
       invalidateCache('/analytics');
 
       try {
-        if (req.user.role === 'client') {
-          const { subject: adminSubject, html: adminHtml } = templates.newTask(task, finalClientName);
-          EmailService.notifyAdmin({ subject: adminSubject, html: adminHtml }).catch((e) => console.error('Failed to notify admin:', e));
-        }
-
         if (finalClientId) {
           const clientUser = await User.findById(finalClientId);
-          if (clientUser && clientUser.email) {
+          if (clientUser) {
             if (req.user.role === 'tutor' || req.user.role === 'superadmin') {
-              const { subject: clientSubject, html: clientHtml } = templates.taskAssigned(clientUser.full_name, task);
-              EmailService.sendEmail({ to: clientUser.email, subject: clientSubject, html: clientHtml }).catch((e) => console.error('Failed to notify client of assigned task:', e));
-
               Notification.create({
                 recipientId: finalClientId,
                 recipientType: 'mentor',
@@ -186,9 +176,6 @@ class TaskController {
                 message: `A new task has been added to your account: ${task.task_name || task.task_description?.substring(0, 50) + '...'}`
               }).catch((e) => console.error('Failed to create client notification:', e));
             } else {
-              const { subject: clientSubject, html: clientHtml } = templates.taskReceived(finalClientName, task);
-              EmailService.sendEmail({ to: clientUser.email, subject: clientSubject, html: clientHtml }).catch((e) => console.error('Failed to notify client:', e));
-
               Notification.create({
                 recipientId: finalClientId,
                 recipientType: 'mentor',
@@ -343,10 +330,7 @@ class TaskController {
         try {
           if (existingTask.client_id) {
             const client = await User.findById(existingTask.client_id);
-            if (client && client.email) {
-              const { subject, html } = templates.taskStatusUpdate(client.full_name, updatedTask, req.body.status);
-              EmailService.sendEmail({ to: client.email, subject, html }).catch((e) => console.error('Failed to notify client of status update:', e));
-
+            if (client) {
               Notification.create({
                 recipientId: client.id,
                 recipientType: 'mentor',
@@ -506,10 +490,7 @@ class TaskController {
 
       try {
         const client = await User.findById(existingTask.client_id);
-        if (client && client.email) {
-          const { subject, html } = templates.quoteSent(client.full_name, updatedTask, numericAmount);
-          EmailService.sendEmail({ to: client.email, subject, html }).catch((e) => console.error('Failed to notify client of quote:', e));
-
+        if (client) {
           Notification.create({
             recipientId: client.id,
             recipientType: 'mentor',

@@ -211,6 +211,9 @@ module.exports = {
                 return res.status(400).json({ error: 'Email already exists' });
             }
 
+            // Capture the raw password BEFORE User.create hashes it
+            const tempPassword = password;
+
             const newTutor = await User.create({
                 email,
                 password,
@@ -219,6 +222,17 @@ module.exports = {
             });
 
             res.status(201).json({ message: 'Tutor created successfully', tutor: newTutor });
+
+            // Send welcome email with credentials (fire-and-forget after response)
+            try {
+                const templates = require('../templates/emailTemplates');
+                const { subject, html } = templates.tutorWelcome(full_name, email, tempPassword);
+                EmailService.sendEmail({ to: email, subject, html }).catch(err =>
+                    console.error('[createTutor] Failed to send welcome email:', err)
+                );
+            } catch (emailErr) {
+                console.error('[createTutor] Could not prepare welcome email:', emailErr);
+            }
         } catch (error) {
             console.error('Create tutor error:', error);
             res.status(500).json({ error: 'Failed to create tutor' });

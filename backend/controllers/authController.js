@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const User = require('../models/User');
 const { generateTokens } = require('../utils/jwt');
 
@@ -69,31 +70,28 @@ const register = async (req, res) => {
             console.log(`[${requestId}] [Auth] ✅ User ${user.id} flagged as potential guest merge.`);
         }
 
-        // Notify Admin
         const EmailService = require('../services/emailService');
         const templates = require('../templates/emailTemplates');
 
-        try {
-            const { subject, html } = templates.newRegistration(user);
-            EmailService.notifyAdmin({ subject, html }).catch(err =>
-                console.error(`[${requestId}] [Auth] Failed to send admin notification:`, err)
-            );
-        } catch (emailError) {
-            console.error(`[${requestId}] [Auth] Failed to prepare admin notification:`, emailError);
-        }
+        // Generate email verification token
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+        await User.setVerificationToken(user.id, verificationToken, tokenExpires);
 
-        // Send confirmation email to the new user
+        // Send verification email to the new user
         try {
-            const { subject, html } = templates.registrationConfirmation(user);
+            const verificationUrl = `${process.env.CLIENT_URL || 'https://ktrack.vercel.app'}/verify-email?token=${verificationToken}`;
+            const { subject, html } = templates.emailVerification(user, verificationUrl);
             EmailService.notifyClient({ to: user.email, subject, html }).catch(err =>
-                console.error(`[${requestId}] [Auth] Failed to send user confirmation email:`, err)
+                console.error(`[${requestId}] [Auth] Failed to send verification email:`, err)
             );
         } catch (emailError) {
-            console.error(`[${requestId}] [Auth] Failed to prepare user confirmation email:`, emailError);
+            console.error(`[${requestId}] [Auth] Failed to prepare verification email:`, emailError);
         }
 
         res.status(201).json({
-            message: 'Registration successful! Your account is pending admin approval.',
+            message: 'Registration successful! Please check your email to verify your account.',
+            requiresVerification: true,
             user: {
                 id: user.id,
                 email: user.email,
@@ -104,12 +102,167 @@ const register = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error(`[${requestId}] [Auth] Registration error:`, error);
-        try {
-            const fs = require('fs');
-            fs.appendFileSync('debug_error.log', `[${new Date().toISOString()}] REGISTRATION ERROR: ${error.message}\nStack: ${error.stack}\n\n`);
-        } catch (e) { }
+        const logger = require('../utils/logger');
+        logger.error(`[${requestId}] [Auth] Registration error: ${error.message}`, { stack: error.stack });
         res.status(500).json({ error: 'Registration failed. Please try again later.' });
+    }
+};
+
+// Verify email address
+const verifyEmail = async (req, res) => {
+    const requestId = req.requestId || 'unknown';
+    try {
+        const { token } = req.query;
+
+        if (!token) {
+            return res.status(400).json({ error: 'Verification token is required' });
+        }
+
+        const user = await User.findByVerificationToken(token);
+        if (!user) {
+            return res.status(400).json({ error: 'Invalid or expired verification link. Please request a new one.' });
+        }
+
+        if (user.email_verified) {
+            return res.status(200).json({ message: 'Email already verified. You can log in.' });
+        }
+
+        await User.markEmailVerified(user.id);
+        console.log(`[${requestId}] [Auth] ✅ Email verified for user: ${user.id} (${user.email})`);
+
+        // Notify all admins/tutors via in-app notification
+        const Notification = require('../models/Notification');
+        const admins = await User.findTutors();
+        for (const admin of admins) {
+            Notification.create({
+                recipientId: admin.id,
+                recipientType: 'admin',
+                type: 'new_registration',
+                message: `New client ${user.full_name} has joined and verified their email`
+            }).catch(e => console.error('Failed to create admin notification:', e));
+        }
+
+        // Send welcome email to the user
+        const EmailService = require('../services/emailService');
+        EmailService.sendApprovalEmail(user.email, user.full_name || 'Client').catch(err =>
+            console.error(`[${requestId}] [Auth] Failed to send welcome email:`, err)
+        );
+
+        res.json({ success: true, message: 'Email verified! Your account is now active. You can log in.' });
+    } catch (error) {
+        console.error(`[${requestId}] [Auth] Verify email error:`, error);
+        res.status(500).json({ error: 'Email verification failed. Please try again.' });
+    }
+};
+
+// Resend verification email
+const resendVerification = async (req, res) => {
+    const requestId = req.requestId || 'unknown';
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+
+        const user = await User.findByEmail(email);
+        if (!user || user.status !== 'pending' || user.email_verified) {
+            // Return 200 regardless to avoid email enumeration
+            return res.json({ message: 'If an unverified account exists for that email, a new link has been sent.' });
+        }
+
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await User.setVerificationToken(user.id, verificationToken, tokenExpires);
+
+        const EmailService = require('../services/emailService');
+        const templates = require('../templates/emailTemplates');
+        const verificationUrl = `${process.env.CLIENT_URL || 'https://ktrack.vercel.app'}/verify-email?token=${verificationToken}`;
+        const { subject, html } = templates.emailVerification(user, verificationUrl);
+        EmailService.notifyClient({ to: user.email, subject, html }).catch(err =>
+            console.error(`[${requestId}] [Auth] Failed to resend verification email:`, err)
+        );
+
+        console.log(`[${requestId}] [Auth] ✅ Verification email resent to: ${email}`);
+        res.json({ message: 'If an unverified account exists for that email, a new link has been sent.' });
+    } catch (error) {
+        console.error(`[${requestId}] [Auth] Resend verification error:`, error);
+        res.status(500).json({ error: 'Failed to resend verification email. Please try again.' });
+    }
+};
+
+// Forgot password — send reset link
+const forgotPassword = async (req, res) => {
+    const requestId = req.requestId || 'unknown';
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+
+        const user = await User.findByEmail(email);
+
+        if (user && user.status === 'approved') {
+            const resetToken = crypto.randomBytes(32).toString('hex');
+            const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            await User.setPasswordResetToken(user.id, resetToken, tokenExpires);
+
+            const EmailService = require('../services/emailService');
+            const templates = require('../templates/emailTemplates');
+            const resetUrl = `${process.env.CLIENT_URL || 'https://ktrack.vercel.app'}/reset-password?token=${resetToken}`;
+            const { subject, html } = templates.passwordReset(user, resetUrl);
+            EmailService.notifyClient({ to: user.email, subject, html }).catch(err =>
+                console.error(`[${requestId}] [Auth] Failed to send password reset email:`, err)
+            );
+
+            console.log(`[${requestId}] [Auth] ✅ Password reset email sent to: ${email}`);
+        }
+
+        // Always return 200 — don't reveal if the email exists
+        res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+    } catch (error) {
+        console.error(`[${requestId}] [Auth] Forgot password error:`, error);
+        res.status(500).json({ error: 'Failed to process password reset request. Please try again.' });
+    }
+};
+
+// Reset password with token
+const resetPassword = async (req, res) => {
+    const requestId = req.requestId || 'unknown';
+    try {
+        const { token, newPassword } = req.body;
+
+        if (!token || !newPassword) {
+            return res.status(400).json({ error: 'Token and new password are required' });
+        }
+
+        // Password strength validation
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+        if (newPassword.length < 8) {
+            return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+        }
+        if (!passwordRegex.test(newPassword)) {
+            return res.status(400).json({
+                error: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)'
+            });
+        }
+
+        const user = await User.findByPasswordResetToken(token);
+        if (!user) {
+            return res.status(400).json({ error: 'Invalid or expired reset link. Please request a new one.' });
+        }
+
+        const bcrypt = require('bcrypt');
+        const newPasswordHash = await bcrypt.hash(newPassword, 10);
+        await User.updatePassword(user.id, newPasswordHash);
+        await User.clearPasswordResetToken(user.id);
+
+        console.log(`[${requestId}] [Auth] ✅ Password reset successfully for user: ${user.id}`);
+        res.json({ message: 'Password reset successfully. You can now log in with your new password.' });
+    } catch (error) {
+        console.error(`[${requestId}] [Auth] Reset password error:`, error);
+        res.status(500).json({ error: 'Failed to reset password. Please try again.' });
     }
 };
 
@@ -147,10 +300,14 @@ const login = async (req, res) => {
 
         // Check user status
         if (user.status === 'pending') {
-            console.log(`[${requestId}] [Auth] Login blocked: Account pending approval`);
+            const isPendingVerification = !user.email_verified || user.email_verified === 0;
+            console.log(`[${requestId}] [Auth] Login blocked: Account pending (email_verified=${user.email_verified})`);
             return res.status(403).json({
-                error: 'Your account is pending admin approval',
-                status: 'pending'
+                error: isPendingVerification
+                    ? 'Please verify your email address. Check your inbox for the verification link.'
+                    : 'Your account is pending admin approval.',
+                status: 'pending',
+                requiresVerification: isPendingVerification
             });
         }
 
@@ -178,7 +335,7 @@ const login = async (req, res) => {
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
             maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
 
@@ -462,5 +619,9 @@ module.exports = {
     rejectUser,
     updateProfile,
     changePassword,
-    updateEmail
+    updateEmail,
+    verifyEmail,
+    resendVerification,
+    forgotPassword,
+    resetPassword
 };

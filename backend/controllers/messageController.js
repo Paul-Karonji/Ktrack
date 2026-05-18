@@ -14,6 +14,16 @@ const INLINE_SAFE_IMAGE_TYPES = new Set([
     'image/webp'
 ]);
 
+const canAccessTaskConversation = (user, task) => {
+    if (!user || !task) return false;
+    if (user.role === 'superadmin') return true;
+    if (user.role === 'client') return Number(task.client_id) === Number(user.id);
+    if (user.role === 'tutor') {
+        return task.assigned_tutor_id === null || Number(task.assigned_tutor_id) === Number(user.id);
+    }
+    return false;
+};
+
 class MessageController {
     static decorateMessage(message) {
         if (!message?.file_url) {
@@ -32,6 +42,20 @@ class MessageController {
             .trim() || 'download';
     }
 
+    static async canAccessGeneralConversation(user, clientId) {
+        if (!user || !Number.isInteger(clientId) || clientId <= 0) return false;
+        if (user.role === 'superadmin') return true;
+        if (user.role === 'client') return Number(user.id) === clientId;
+        if (user.role !== 'tutor') return false;
+
+        const { pool } = require('../config/database');
+        const [rows] = await pool.execute(
+            'SELECT id FROM tasks WHERE client_id = ? AND assigned_tutor_id = ? LIMIT 1',
+            [clientId, user.id]
+        );
+        return rows.length > 0;
+    }
+
     static async getMessages(req, res) {
         try {
             const taskId = req.params.taskId;
@@ -42,7 +66,7 @@ class MessageController {
             const task = await Task.findById(taskId);
             if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-            if (req.user.role === 'client' && task.client_id !== req.user.id) {
+            if (!canAccessTaskConversation(req.user, task)) {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
@@ -72,7 +96,7 @@ class MessageController {
             const task = await Task.findById(taskId);
             if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-            if (req.user.role === 'client' && task.client_id !== req.user.id) {
+            if (!canAccessTaskConversation(req.user, task)) {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
@@ -151,7 +175,7 @@ class MessageController {
             const task = await Task.findById(taskId);
             if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-            if (req.user.role === 'client' && task.client_id !== req.user.id) {
+            if (!canAccessTaskConversation(req.user, task)) {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
@@ -177,7 +201,7 @@ class MessageController {
             const task = await Task.findById(taskId);
             if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-            if (req.user.role === 'client' && task.client_id !== req.user.id) {
+            if (!canAccessTaskConversation(req.user, task)) {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
@@ -244,7 +268,7 @@ class MessageController {
                 const task = await Task.findById(message.task_id);
                 if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-                if (req.user.role === 'client' && task.client_id !== req.user.id) {
+                if (!canAccessTaskConversation(req.user, task)) {
                     return res.status(403).json({ success: false, message: 'Access denied' });
                 }
             } else if (message.client_id) {
@@ -290,7 +314,7 @@ class MessageController {
             const limit = parseInt(req.query.limit) || 50;
             const offset = parseInt(req.query.offset) || 0;
 
-            if (req.user.role === 'client' && req.user.id !== clientId) {
+            if (!(await MessageController.canAccessGeneralConversation(req.user, clientId))) {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
@@ -315,7 +339,7 @@ class MessageController {
                 return res.status(400).json({ success: false, message: 'Message cannot be empty' });
             }
 
-            if (req.user.role === 'client' && req.user.id !== clientId) {
+            if (!(await MessageController.canAccessGeneralConversation(req.user, clientId))) {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
@@ -362,7 +386,7 @@ class MessageController {
                 return res.status(400).json({ success: false, message: 'No file provided' });
             }
 
-            if (req.user.role === 'client' && req.user.id !== clientId) {
+            if (!(await MessageController.canAccessGeneralConversation(req.user, clientId))) {
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 

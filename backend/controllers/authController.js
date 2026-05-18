@@ -272,8 +272,8 @@ const rejectUser = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Security Check: Only admins can delete users
-        if (req.user.role !== 'admin') {
+        // Security Check: Only superadmins can delete users
+        if (req.user.role !== 'superadmin') {
             console.warn(`[${requestId}] [Auth] Unauth delete attempt by user: ${req.user.id}`);
             return res.status(403).json({ error: 'Access denied. Admin rights required.' });
         }

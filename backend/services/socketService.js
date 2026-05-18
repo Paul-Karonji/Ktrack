@@ -2,6 +2,7 @@ const { Server } = require('socket.io');
 const User = require('../models/User');
 const Task = require('../models/Task');
 const { verifyToken } = require('../utils/jwt');
+const { pool } = require('../config/database');
 
 let io;
 
@@ -58,7 +59,14 @@ const canAccessRoom = async (user, parsedRoom) => {
     if (!user || !parsedRoom) return false;
 
     if (parsedRoom.type === 'general') {
-        return user.role === 'tutor' || user.role === 'superadmin' || user.id === parsedRoom.id;
+        if (user.role === 'superadmin' || user.id === parsedRoom.id) return true;
+        if (user.role !== 'tutor') return false;
+
+        const [rows] = await pool.execute(
+            'SELECT id FROM tasks WHERE client_id = ? AND assigned_tutor_id = ? LIMIT 1',
+            [parsedRoom.id, user.id]
+        );
+        return rows.length > 0;
     }
 
     if (parsedRoom.type === 'task') {

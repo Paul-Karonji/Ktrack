@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
-const { authenticate, requireAdmin } = require('../middleware/auth');
+const { authenticate, requireSuperadmin } = require('../middleware/auth');
 const rateLimit = require('express-rate-limit');
 
 // Strict rate limiter for login only — skipSuccessfulRequests: true so legitimate users aren't locked out
@@ -41,7 +41,7 @@ router.post('/refresh', authController.refreshToken);
 
 // Protected routes
 router.get('/me', authenticate, authController.getCurrentUser);
-router.delete('/users/:id', authenticate, authController.rejectUser);
+router.delete('/users/:id', authenticate, requireSuperadmin, authController.rejectUser);
 
 // Settings routes (authenticated users only)
 router.put('/profile', authenticate, authController.updateProfile);

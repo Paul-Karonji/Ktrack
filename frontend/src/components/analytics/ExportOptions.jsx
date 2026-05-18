@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Download, FileText, FileSpreadsheet, File } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
 
 const ExportOptions = ({ data, filename = 'analytics-report' }) => {
     const [showDropdown, setShowDropdown] = useState(false);
@@ -175,15 +174,54 @@ const ExportOptions = ({ data, filename = 'analytics-report' }) => {
         }
     };
 
+    const escapeXml = (value) => {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;');
+    };
+
+    const toSheetName = (name) => {
+        return String(name || 'Sheet')
+            .replace(/[:\\/?*[\]]/g, ' ')
+            .trim()
+            .slice(0, 31) || 'Sheet';
+    };
+
+    const rowsToWorksheet = (name, rows) => {
+        if (!rows.length) return '';
+        const tableRows = rows.map((row) => {
+            const cells = row.map((cell) => {
+                const isNumber = typeof cell === 'number' && Number.isFinite(cell);
+                return `<Cell><Data ss:Type="${isNumber ? 'Number' : 'String'}">${escapeXml(cell)}</Data></Cell>`;
+            }).join('');
+            return `<Row>${cells}</Row>`;
+        }).join('');
+
+        return `<Worksheet ss:Name="${escapeXml(toSheetName(name))}"><Table>${tableRows}</Table></Worksheet>`;
+    };
+
+    const objectRowsToWorksheet = (name, rows) => {
+        if (!Array.isArray(rows) || rows.length === 0) return '';
+        const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row || {}))));
+        const worksheetRows = [
+            headers,
+            ...rows.map((row) => headers.map((header) => row?.[header] ?? ''))
+        ];
+        return rowsToWorksheet(name, worksheetRows);
+    };
+
     const exportToExcel = () => {
         if (!data) return;
         setExporting(true);
         try {
-            const wb = XLSX.utils.book_new();
+            const worksheets = [];
 
             // 1. Overview Sheet
             if (data.kpis) {
-                const wsData = [
+                worksheets.push(rowsToWorksheet('Overview', [
                     ['Metric', 'Value'],
                     ['Total Revenue', data.kpis.actualRevenue || 0],
                     ['Active Projects', data.kpis.activeTasks || 0],
@@ -195,34 +233,52 @@ const ExportOptions = ({ data, filename = 'analytics-report' }) => {
                     ['Retention Rate %', data.clients?.retentionRate || 0],
                     [],
                     ['Generated On', new Date().toLocaleString()]
-                ];
-                const ws = XLSX.utils.aoa_to_sheet(wsData);
-                XLSX.utils.book_append_sheet(wb, ws, "Overview");
+                ]));
             }
 
             // 2. Financials Detail
             if (data.revenue && Array.isArray(data.revenue.breakdown)) {
-                const ws = XLSX.utils.json_to_sheet(data.revenue.breakdown);
-                XLSX.utils.book_append_sheet(wb, ws, "Revenue Breakdown");
+                worksheets.push(objectRowsToWorksheet('Revenue Breakdown', data.revenue.breakdown));
             } else if (data.financials) {
-                const wsData = Object.entries(data.financials).map(([k, v]) => ({ Metric: k, Value: v }));
-                const ws = XLSX.utils.json_to_sheet(wsData);
-                XLSX.utils.book_append_sheet(wb, ws, "Financials");
+                worksheets.push(rowsToWorksheet('Financials', [
+                    ['Metric', 'Value'],
+                    ...Object.entries(data.financials)
+                ]));
             }
 
             // 3. Clients
             if (data.clients && Array.isArray(data.clients.list)) {
-                const ws = XLSX.utils.json_to_sheet(data.clients.list);
-                XLSX.utils.book_append_sheet(wb, ws, "Clients");
+                worksheets.push(objectRowsToWorksheet('Clients', data.clients.list));
             }
 
             // 4. File Storage
             if (data.storage && Array.isArray(data.storage.fileTypes)) {
-                const ws = XLSX.utils.json_to_sheet(data.storage.fileTypes);
-                XLSX.utils.book_append_sheet(wb, ws, "Storage Files");
+                worksheets.push(objectRowsToWorksheet('Storage Files', data.storage.fileTypes));
             }
 
-            XLSX.writeFile(wb, `${filename}-${new Date().toISOString().split('T')[0]}.xlsx`);
+            if (worksheets.filter(Boolean).length === 0) {
+                worksheets.push(rowsToWorksheet('Report', [['Metric', 'Value'], ['Generated On', new Date().toLocaleString()]]));
+            }
+
+            const workbookXml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+${worksheets.filter(Boolean).join('')}
+</Workbook>`;
+
+            const blob = new Blob([workbookXml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${filename}-${new Date().toISOString().split('T')[0]}.xls`;
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
             setShowDropdown(false);
         } catch (error) {
             console.error('Excel export error:', error);

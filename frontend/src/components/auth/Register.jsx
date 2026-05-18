@@ -37,7 +37,6 @@ const Register = () => {
         password: '',
         confirmPassword: '',
         phoneNumber: '',
-        phoneNumber: '',
         course: '',
         referralCode: ''
     });

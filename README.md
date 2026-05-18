@@ -14,7 +14,7 @@ K-Track is a multi-tutor task and client management platform for commission-base
 
 - Multi-tier role system: `superadmin` (platform owner), `tutor` (staff), and `client` (customers)
 - Task Pooling System: Tutors can self-assign (claim) unassigned tasks from a general pool
-- Registered clients with approval workflow
+- registered clients with approval workflow
 - Guest clients managed by superadmins/tutors
 - Task lifecycle tracking with quotes, deposits, and completion states
 - Per-task chat and general client chat
@@ -23,6 +23,8 @@ K-Track is a multi-tutor task and client management platform for commission-base
 - Tutor Payout Ledger: Double-entry secure withdrawal system with automatic available balance enforcement and manual superadmin approval tracking
 - Role-scoped analytics and reporting (superadmins see global stats, tutors see their own performance)
 - Scoped File Protection: Tutors can only view and manage file deliverables for tasks assigned directly to them
+- **Client Referral Program**: Dynamic referral links, unique referral code auto-generation, automatic discount tracking, and an administrative panel allowing superadmins to view, monitor, and manually apply referral discounts to tasks.
+- **Automated Database Patch Service**: Fully idempotent schema startup patcher that handles table creation (including `guest_clients` and `notifications`), column alterations, role enum modifications, and referral tracking. Designed to support strict cloud database environments like TiDB Serverless automatically on boot.
 
 ## Security Notes
 

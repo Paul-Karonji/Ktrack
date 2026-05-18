@@ -9,6 +9,12 @@ const {
   syncTaskDueTracking
 } = require('../services/taskPaymentStateService');
 
+const isAssignedTutor = (user, task) =>
+  user?.role === 'tutor' && Number(task?.assigned_tutor_id) === Number(user.id);
+
+const canTutorManageTask = (user, task) =>
+  user?.role !== 'tutor' || isAssignedTutor(user, task);
+
 class TaskController {
   static async getAllTasks(req, res) {
     try {
@@ -122,6 +128,11 @@ class TaskController {
         }
       }
 
+      let finalAssignedTutorId = assignedTutorId || null;
+      if (req.user.role === 'tutor') {
+        finalAssignedTutorId = req.user.id;
+      }
+
       let task = await Task.create({
         ...otherFields,
         expectedAmount,
@@ -134,7 +145,7 @@ class TaskController {
         clientId: finalClientId,
         guestClientId: finalGuestClientId,
         clientName: finalClientName,
-        assignedTutorId: assignedTutorId || null,
+        assignedTutorId: finalAssignedTutorId,
         status,
         taskOrigin,
         createdByUserId: req.user.id,
@@ -229,6 +240,13 @@ class TaskController {
         return res.status(403).json({
           success: false,
           message: 'Access denied. You do not own this task.'
+        });
+      }
+
+      if (!canTutorManageTask(req.user, existingTask)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You are not assigned to this task.'
         });
       }
 
@@ -370,6 +388,13 @@ class TaskController {
         });
       }
 
+      if (!canTutorManageTask(req.user, existingTask)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You are not assigned to this task.'
+        });
+      }
+
       await Task.delete(req.params.id);
       invalidateCache('/analytics');
 
@@ -405,6 +430,13 @@ class TaskController {
         return res.status(403).json({
           success: false,
           message: 'Access denied. Only administrators can update payment status.'
+        });
+      }
+
+      if (!canTutorManageTask(req.user, existingTask)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You are not assigned to this task.'
         });
       }
 
@@ -446,6 +478,13 @@ class TaskController {
         return res.status(400).json({
           success: false,
           message: 'Quotes can only be sent for client-created registered-client tasks.'
+        });
+      }
+
+      if (!canTutorManageTask(req.user, existingTask)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You are not assigned to this task.'
         });
       }
 
@@ -498,10 +537,10 @@ class TaskController {
         return res.status(404).json({ success: false, message: 'Task not found' });
       }
 
-      if (req.user.role === 'client' && existingTask.client_id !== req.user.id) {
+      if (req.user.role !== 'client' || existingTask.client_id !== req.user.id) {
         return res.status(403).json({
           success: false,
-          message: 'Access denied. You do not own this task.'
+          message: 'Access denied. Only the task owner can respond to this quote.'
         });
       }
 
